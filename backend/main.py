@@ -1,0 +1,286 @@
+"""
+FastAPI main application for Language Coach
+"""
+from fastapi import FastAPI, HTTPException, Query, WebSocket, BackgroundTasks, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional, Literal, Dict, Any
+import json
+import os
+from datetime import datetime
+from contextlib import asynccontextmanager
+
+from models import (
+    Lesson, GenerateLessonRequest, LessonQueryParams,
+    UserProgress, LanguageProgress, ReviewAnswer, ReviewResult, UserRPGStats
+)
+from database import db
+from lesson_generator import lesson_generator
+from scheduler import lesson_scheduler
+from gamification_engine import gamification_engine
+from config import settings
+from chat_handler import chat_manager
+from srs import srs_engine
+from tts_service import tts_service
+from export_service import pdf_exporter
+from fastapi.responses import FileResponse
+
+
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan"""
+    # Startup
+    print("Starting Language Coach API...")
+    lesson_scheduler.start()
+    yield
+    # Shutdown
+    print("Shutting down Language Coach API...")
+    lesson_scheduler.stop()
+
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Language Coach API",
+    description="API for English and Japanese learning with AI-generated lessons",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============ Health Check ============
+@app.get("/")
+async def root():
+    return {
+        "status": "healthy",
+        "service": "Language Coach API",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/health")
+async def health_check():
+    from ollama_client import ollama_client
+    ollama_status = ollama_client.check_model_availability()
+    return {
+        "api": "healthy",
+        "database": "connected",
+        "ollama": "connected" if ollama_status else "disconnected",
+        "model": settings.model_name,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+# ============ Lesson Generation ============
+@app.post("/api/generate/lesson", response_model=dict)
+async def generate_lesson(request: GenerateLessonRequest):
+    try:
+        lesson = await lesson_generator.generate_lesson(
+            language=request.language,
+            topic=request.topic,
+            level=request.difficulty,
+            interest_context=request.interest_context
+        )
+        
+        if not lesson:
+            raise HTTPException(status_code=500, detail="Failed to generate lesson.")
+        
+        # Gamification
+        xp_result = gamification_engine.add_xp("default_user", 50)
+        words = [item.word for item in lesson.vocabulary]
+        new_cards = gamification_engine.collect_word_cards("default_user", words, request.language)
+        
+        lesson_dict = lesson.model_dump(mode='json')
+        lesson_dict['gamification'] = {
+            "xp_added": 50,
+            "leveled_up": xp_result.get("leveled_up"),
+            "new_cards": [card.model_dump(mode='json') for card in new_cards]
+        }
+        
+        return {"success": True, "lesson": lesson_dict}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tasks")
+async def get_tasks(limit: int = 10):
+    """Get generation task history"""
+    return {"success": True, "tasks": db.get_generation_tasks("default_user", limit)}
+
+
+# ============ Lesson Retrieval ============
+@app.get("/api/lessons", response_model=dict)
+async def list_lessons(
+    language: Optional[Literal["EN", "JP"]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    level: Optional[str] = None,
+    topic: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    lessons = db.query_lessons(language, start_date, end_date, level, topic, limit, offset)
+    return {"success": True, "count": len(lessons), "lessons": lessons}
+
+
+@app.get("/api/lessons/{lesson_id}", response_model=dict)
+async def get_lesson(lesson_id: str):
+    lesson_meta = db.get_lesson(lesson_id)
+    if not lesson_meta: raise HTTPException(status_code=404, detail="Lesson not found")
+    with open(lesson_meta['file_path'], 'r', encoding='utf-8') as f:
+        lesson_data = json.load(f)
+    return {"success": True, "lesson": lesson_data}
+
+
+@app.get("/api/lessons/today/{language}", response_model=dict)
+async def get_today_lesson(language: Literal["EN", "JP"]):
+    lesson_meta = db.get_today_lesson(language)
+    if not lesson_meta: return {"success": True, "lesson": None}
+    with open(lesson_meta['file_path'], 'r', encoding='utf-8') as f:
+        lesson_data = json.load(f)
+    return {"success": True, "lesson": lesson_data}
+
+
+# ============ Progress & Onboarding ============
+@app.get("/api/progress", response_model=dict)
+async def get_progress(user_id: str = "default_user"):
+    progress = db.get_progress(user_id)
+    if not progress:
+        progress = {
+            "user_id": user_id,
+            "english_progress": {"language": "EN", "current_level": "A1", "target_level": "B2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None},
+            "japanese_progress": {"language": "JP", "current_level": "N5", "target_level": "N2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None},
+            "updated_at": datetime.now().isoformat()
+        }
+        db.save_progress(progress)
+    return {"success": True, "progress": progress}
+
+
+@app.post("/api/onboard")
+async def onboard_user(language: str, level: str, difficulty: str):
+    """Initial onboarding for new users"""
+    stats = db.get_rpg_stats("default_user") or UserRPGStats()
+    stats.is_onboarded = True
+    stats.difficulty_mode = difficulty
+    
+    progress = db.get_progress("default_user") or {
+        "user_id": "default_user",
+        "english_progress": {"language": "EN", "current_level": "A1", "target_level": "B2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None},
+        "japanese_progress": {"language": "JP", "current_level": "N5", "target_level": "N2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None}
+    }
+    
+    if language == "EN": progress["english_progress"]["current_level"] = level
+    else: progress["japanese_progress"]["current_level"] = level
+        
+    db.save_progress(progress)
+    db.save_rpg_stats("default_user", stats)
+    return {"success": True}
+
+
+# ============ Exercise Review ============
+@app.post("/api/review", response_model=dict)
+async def submit_review(answers: List[ReviewAnswer], user_id: str = "default_user", error_type: Optional[str] = None):
+    if not answers: raise HTTPException(status_code=400, detail="No answers provided")
+    
+    lesson_id = answers[0].lesson_id
+    lesson_meta = db.get_lesson(lesson_id)
+    if not lesson_meta: raise HTTPException(status_code=404, detail="Lesson not found")
+    
+    with open(lesson_meta['file_path'], 'r', encoding='utf-8') as f:
+        lesson_data = json.load(f)
+    
+    total_questions = len(answers)
+    correct_count = 0
+    incorrect_items = []
+    
+    for answer in answers:
+        exercises = lesson_data['grammar']['exercises'] if answer.exercise_type == "grammar" else lesson_data['reading']['questions']
+        if answer.question_index < len(exercises):
+            exercise = exercises[answer.question_index]
+            is_correct = answer.user_answer == exercise['correct_answer']
+            if is_correct: correct_count += 1
+            else:
+                incorrect_items.append({"question": exercise['question'], "user_answer": answer.user_answer, "correct_answer": exercise['correct_answer'], "explanation": exercise['explanation']})
+    
+    accuracy_rate = (correct_count / total_questions * 100) if total_questions > 0 else 0
+    
+    # Update Stats & Error Distribution
+    stats = db.get_rpg_stats(user_id) or UserRPGStats()
+    if accuracy_rate < 100 and error_type:
+        stats.error_distribution[error_type] = stats.error_distribution.get(error_type, 0) + (total_questions - correct_count)
+    
+    xp_amount = (correct_count * 10) + ((total_questions - correct_count) * 2)
+    xp_result = gamification_engine.add_xp(user_id, xp_amount)
+    db.save_rpg_stats(user_id, stats)
+    
+    # Update Progress
+    progress = db.get_progress(user_id)
+    if progress:
+        lang = lesson_data['metadata']['language']
+        key = 'english_progress' if lang == 'EN' else 'japanese_progress'
+        progress[key]['total_exercises'] += total_questions
+        progress[key]['correct_exercises'] += correct_count
+        progress[key]['accuracy_rate'] = (progress[key]['correct_exercises'] / progress[key]['total_exercises'] * 100)
+        db.save_progress(progress)
+    
+    return {
+        "total_questions": total_questions,
+        "correct_count": correct_count,
+        "accuracy_rate": accuracy_rate,
+        "incorrect_items": incorrect_items,
+        "gamification": {"xp_added": xp_amount, "leveled_up": xp_result.get("leveled_up")}
+    }
+
+
+# ============ SRS & TTS & Chat & Export ============
+@app.get("/api/srs/due")
+async def get_due_items(language: str = None, user_id: str = "default_user"):
+    return {"success": True, "items": db.get_due_srs_items(user_id, language=language)}
+
+@app.post("/api/tts")
+async def generate_tts(text: str, language: str):
+    audio_path = await tts_service.generate_audio(text, language)
+    return {"success": True, "audio_url": f"/api/audio/{os.path.basename(audio_path)}" if audio_path else None}
+
+@app.websocket("/ws/chat/{language}")
+async def websocket_endpoint(websocket: WebSocket, language: str, scenario: str = "Daily Conversation"):
+    await chat_manager.connect(websocket)
+    await chat_manager.handle_chat(websocket, language, scenario)
+
+@app.post("/api/rag/upload")
+async def upload_rag_material(language: str, file: UploadFile = File(...)):
+    from rag_manager import rag_manager
+    content = await file.read()
+    rag_manager.add_material(content.decode('utf-8'), metadata={"language": language, "source": file.filename})
+    return {"success": True}
+
+@app.get("/api/export/pdf/{lesson_id}")
+async def export_lesson_pdf(lesson_id: str):
+    lesson_meta = db.get_lesson(lesson_id)
+    if not lesson_meta: raise HTTPException(status_code=404, detail="Lesson not found")
+    with open(lesson_meta['file_path'], 'r', encoding='utf-8') as f:
+        lesson_data = json.load(f)
+    pdf_path = pdf_exporter.export_lesson(lesson_data)
+    return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")
+
+@app.post("/api/import/excel")
+async def import_excel(language: str, file: UploadFile = File(...)):
+    import pandas as pd
+    import io
+    content = await file.read()
+    df = pd.read_excel(io.BytesIO(content))
+    words_imported = 0
+    for _, row in df.iterrows():
+        if 'word' in row and 'definition' in row:
+            db.update_srs_item("default_user", str(row['word']), language, srs_engine.init_item(), {"word": str(row['word']), "definition_zh": str(row['definition'])})
+            words_imported += 1
+    return {"success": True, "count": words_imported}
