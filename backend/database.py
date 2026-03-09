@@ -255,6 +255,28 @@ class Database:
                 json.dumps(progress_data.get('rpg_stats', {}), ensure_ascii=False, default=str),
                 datetime.now().isoformat()
             ))
+
+    def get_rpg_stats(self, user_id: str = "default_user") -> Optional[Dict[str, Any]]:
+        """Get RPG stats for a user (P0 Fix)"""
+        progress = self.get_progress(user_id)
+        if progress:
+            return progress.get('rpg_stats')
+        return None
+
+    def save_rpg_stats(self, user_id: str, rpg_stats: Dict[str, Any]) -> None:
+        """Save RPG stats for a user (P0 Fix)"""
+        progress = self.get_progress(user_id)
+        if not progress:
+            # Create default progress if not exists
+            progress = {
+                "user_id": user_id,
+                "english_progress": {"current_level": "B1", "accuracy_rate": 0},
+                "japanese_progress": {"current_level": "N4", "accuracy_rate": 0},
+                "rpg_stats": rpg_stats
+            }
+        else:
+            progress['rpg_stats'] = rpg_stats
+        self.save_progress(progress)
     
     def save_exercise_result(
         self,
@@ -320,10 +342,6 @@ class Database:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
 
-
-# Global database instance
-db = Database()
-
     def update_srs_item(self, user_id: str, word: str, language: str, srs_data: Dict[str, Any], vocab_info: Dict[str, Any]) -> None:
         """Update or insert SRS item"""
         with self.get_connection() as conn:
@@ -362,3 +380,7 @@ db = Database()
             cursor.execute(query, params)
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
+
+
+# Global database instance
+db = Database()

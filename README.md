@@ -14,6 +14,8 @@
 | **個人化** | **個人化 RAG** | 支援上傳 TXT 文章，AI 根據興趣生成課程。 |
 | **互動性** | **多樣化練習** | 支援克漏字、句子重組、聽寫介面。 |
 | **工具性** | **Excel 匯入/PDF 匯出** | 支援批次匯入單字與課程匯出。 |
+| **智慧導師** | **寫作批改** | AI 深度批改作文，提供語法、詞彙、風格評分與 CEFR/JLPT 等級評估。 |
+| **智慧導師** | **學習藍圖** | 根據目標與進度，AI 自動生成動態、長期的學習計畫。 |
 
 ## 🛠️ 技術棧
 
@@ -91,8 +93,9 @@ API_PORT=8000
 | :--- | :--- | :--- |
 | `POST` | `/api/import/excel` | **新增**：從 Excel 匯入單字到卡牌收集冊。 |
 | `POST` | `/api/rag/upload` | 上傳 TXT 文件作為 RAG 學習素材。 |
-| `POST` | `/api/generate/lesson` | 依進度生成新課程 (含 Fallback/MoE 邏輯)。 |
-| `GET` | `/api/tasks` | **新增**：獲取課程生成任務歷史與狀態追蹤。 |
+| `POST` | `/api/generate/lesson` | 依進度生成新課程 (含 Fallback/MoE 邏輯)。 || `POST` | `/api/tasks` | **新增**：獲取課程生成任務歷史與狀態追蹤。 |
+| `POST` | `/api/writing/analyze` | **新增**：提交作文進行 AI 批改與等級評估。 |
+| `POST` | `/api/study-plan/generate` | **新增**：根據目標生成個人化學習藍圖。 |
 | `POST` | `/api/onboard` | **新增**：新手引導流程，設定初始等級與模式。 |
 | `GET` | `/api/lessons` | 查詢課程歸檔。 |
 | `POST` | `/api/review` | 提交練習題答案，觸發 XP、SRS 與錯誤類型分析。 |

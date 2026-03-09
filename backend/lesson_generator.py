@@ -31,7 +31,7 @@ class LessonGenerator:
         "日常会話", "ビジネス日本語", "旅行と観光",
         "テクノロジー", "健康とウェルネス", "料理と食文化",
         "環境問題", "教育", "芸術と文化",
-        "スポーツ", "経済とビジネス", "インターネットとSNS"
+        "スポーツ", "經濟とビジネス", "インターネットとSNS"
     ]
     
     def __init__(self):
@@ -58,6 +58,26 @@ Include proper hiragana readings for kanji."""
             return settings.large_model_name
             
         return settings.small_model_name
+
+    def _build_english_prompt(self, level: str, topic: str) -> str:
+        return f"""Generate a structured English lesson for level {level} on the topic of '{topic}'.
+        The JSON must include:
+        1. vocabulary: 10-15 items with word, phonetic, definition_zh, example_sentence, example_translation.
+        2. grammar: title, explanation, 3-5 examples, 5 exercises (question, options, correct_answer, explanation).
+        3. reading: title, content (300-450 words), word_count, 5 comprehension questions.
+        4. dialogue: scenario, context, 8-12 lines of dialogue (role, text, translation), 3-5 alternatives.
+        
+        Ensure the JSON is valid and follows the schema strictly."""
+
+    def _build_japanese_prompt(self, level: str, topic: str) -> str:
+        return f"""Generate a structured Japanese lesson for level {level} on the topic of '{topic}'.
+        The JSON must include:
+        1. vocabulary: 10-15 items with word, reading (hiragana), definition_zh, example_sentence, example_translation.
+        2. grammar: title, explanation, 3-5 examples, 5 exercises (question, options, correct_answer, explanation).
+        3. reading: title, content (250-400 words), word_count, 5 comprehension questions.
+        4. dialogue: scenario, context, 8-12 lines of dialogue (role, text, translation), 3-5 alternatives.
+        
+        Ensure the JSON is valid and follows the schema strictly."""
 
     async def generate_lesson(
         self,
@@ -131,7 +151,7 @@ Include proper hiragana readings for kanji."""
                 return self._get_safe_lesson_template(language, level, topic)
 
     async def _perform_generation(self, language, topic, level, interest_context, model) -> Lesson:
-        """Internal generation logic"""
+        """Internal generation logic (P1 Fix: Removed circular import)"""
         from rag_manager import rag_manager
         
         # RAG Context
@@ -143,11 +163,10 @@ Include proper hiragana readings for kanji."""
         
         # Build prompt
         system_prompt = self._get_system_prompt(language)
-        from main import lesson_generator # To use existing prompt builders
         if language == "EN":
-            user_prompt = lesson_generator._build_english_prompt(level, topic)
+            user_prompt = self._build_english_prompt(level, topic)
         else:
-            user_prompt = lesson_generator._build_japanese_prompt(level, topic)
+            user_prompt = self._build_japanese_prompt(level, topic)
             
         if context_str:
             user_prompt += f"\n\nContext:\n{context_str}"

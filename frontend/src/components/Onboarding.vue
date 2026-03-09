@@ -53,7 +53,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import axios from 'axios';
+import { progressApi } from '../services/api';
 
 const emit = defineEmits(['complete']);
 const step = ref(1);
@@ -81,7 +81,7 @@ const nextStep = async () => {
     step.value++;
   } else {
     try {
-      await axios.post('http://localhost:8000/api/onboard', form.value);
+      await progressApi.onboard(form.value.language, form.value.level, form.value.difficulty);
       emit('complete');
     } catch (e) {
       console.error(e);

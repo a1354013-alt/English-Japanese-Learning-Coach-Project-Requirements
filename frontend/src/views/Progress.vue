@@ -13,6 +13,11 @@
         <RPGBoard v-if="progress.rpg_stats" :stats="progress.rpg_stats" />
       </div>
 
+      <!-- AI Study Blueprint -->
+      <div class="blueprint-section mb-8">
+        <StudyBlueprint :language="progress.english_progress.accuracy_rate >= progress.japanese_progress.accuracy_rate ? 'EN' : 'JP'" />
+      </div>
+
       <!-- English Progress -->
       <div class="card progress-card">
         <h3>🇬🇧 English (TOEIC)</h3>
@@ -142,6 +147,7 @@ import KnowledgeGraph from '../components/KnowledgeGraph.vue'
 import HeatmapChart from '../components/HeatmapChart.vue'
 import RPGBoard from '../components/RPGBoard.vue'
 import WordCard from '../components/WordCard.vue'
+import StudyBlueprint from '../components/StudyBlueprint.vue'
 import * as echarts from 'echarts'
 
 const progress = ref<UserProgress | null>(null)

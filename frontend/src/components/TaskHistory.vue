@@ -34,14 +34,16 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import { lessonApi } from '../services/api';
 
 const tasks = ref([]);
 
 const fetchTasks = async () => {
   try {
-    const res = await axios.get('http://localhost:8000/api/tasks');
-    tasks.value = res.data.tasks;
+    const res = await lessonApi.getTasks();
+    if (res.success) {
+      tasks.value = res.tasks;
+    }
   } catch (e) {
     console.error(e);
   }

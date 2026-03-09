@@ -11,7 +11,8 @@ from contextlib import asynccontextmanager
 
 from models import (
     Lesson, GenerateLessonRequest, LessonQueryParams,
-    UserProgress, LanguageProgress, ReviewAnswer, ReviewResult, UserRPGStats
+    UserProgress, LanguageProgress, ReviewAnswer, ReviewResult, UserRPGStats,
+    WritingSubmission, WritingAnalysis
 )
 from database import db
 from lesson_generator import lesson_generator
@@ -22,6 +23,8 @@ from chat_handler import chat_manager
 from srs import srs_engine
 from tts_service import tts_service
 from export_service import pdf_exporter
+from writing_assistant import writing_assistant
+from study_planner import study_planner
 from fastapi.responses import FileResponse
 
 
@@ -46,10 +49,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure CORS (P1 Fix: Explicit origins)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -159,6 +162,7 @@ async def get_progress(user_id: str = "default_user"):
             "user_id": user_id,
             "english_progress": {"language": "EN", "current_level": "A1", "target_level": "B2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None},
             "japanese_progress": {"language": "JP", "current_level": "N5", "target_level": "N2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None},
+            "rpg_stats": UserRPGStats().model_dump(),
             "updated_at": datetime.now().isoformat()
         }
         db.save_progress(progress)
@@ -168,7 +172,12 @@ async def get_progress(user_id: str = "default_user"):
 @app.post("/api/onboard")
 async def onboard_user(language: str, level: str, difficulty: str):
     """Initial onboarding for new users"""
-    stats = db.get_rpg_stats("default_user") or UserRPGStats()
+    stats_dict = db.get_rpg_stats("default_user")
+    if stats_dict:
+        stats = UserRPGStats(**stats_dict)
+    else:
+        stats = UserRPGStats()
+        
     stats.is_onboarded = True
     stats.difficulty_mode = difficulty
     
@@ -182,7 +191,7 @@ async def onboard_user(language: str, level: str, difficulty: str):
     else: progress["japanese_progress"]["current_level"] = level
         
     db.save_progress(progress)
-    db.save_rpg_stats("default_user", stats)
+    db.save_rpg_stats("default_user", stats.model_dump())
     return {"success": True}
 
 
@@ -214,13 +223,18 @@ async def submit_review(answers: List[ReviewAnswer], user_id: str = "default_use
     accuracy_rate = (correct_count / total_questions * 100) if total_questions > 0 else 0
     
     # Update Stats & Error Distribution
-    stats = db.get_rpg_stats(user_id) or UserRPGStats()
+    stats_dict = db.get_rpg_stats(user_id)
+    if stats_dict:
+        stats = UserRPGStats(**stats_dict)
+    else:
+        stats = UserRPGStats()
+        
     if accuracy_rate < 100 and error_type:
         stats.error_distribution[error_type] = stats.error_distribution.get(error_type, 0) + (total_questions - correct_count)
     
     xp_amount = (correct_count * 10) + ((total_questions - correct_count) * 2)
     xp_result = gamification_engine.add_xp(user_id, xp_amount)
-    db.save_rpg_stats(user_id, stats)
+    db.save_rpg_stats(user_id, stats.model_dump())
     
     # Update Progress
     progress = db.get_progress(user_id)
@@ -271,6 +285,44 @@ async def export_lesson_pdf(lesson_id: str):
         lesson_data = json.load(f)
     pdf_path = pdf_exporter.export_lesson(lesson_data)
     return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")
+
+@app.post("/api/study-plan/generate", response_model=dict)
+async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"]):
+    """Generate a personalized study plan"""
+    try:
+        progress = db.get_progress("default_user")
+        lang_key = 'english_progress' if language == 'EN' else 'japanese_progress'
+        lang_progress = progress.get(lang_key, {})
+        
+        plan = await study_planner.generate_plan("default_user", target_goal, language, lang_progress)
+        if not plan:
+            raise HTTPException(status_code=500, detail="Failed to generate study plan.")
+        
+        plan_dict = plan.model_dump(mode='json')
+        return {"success": True, "plan": plan_dict}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/writing/analyze", response_model=dict)
+async def analyze_writing(submission: WritingSubmission):
+    """Analyze user writing and provide feedback"""
+    try:
+        analysis = await writing_assistant.analyze_writing(submission)
+        if not analysis:
+            raise HTTPException(status_code=500, detail="Failed to analyze writing.")
+        
+        # Gamification: Add XP for writing
+        xp_result = gamification_engine.add_xp("default_user", 30)
+        
+        return {
+            "success": True, 
+            "analysis": analysis.model_dump(mode='json'),
+            "gamification": {"xp_added": 30, "leveled_up": xp_result.get("leveled_up")}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/import/excel")
 async def import_excel(language: str, file: UploadFile = File(...)):

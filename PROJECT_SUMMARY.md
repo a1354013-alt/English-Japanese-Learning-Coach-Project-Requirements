@@ -17,7 +17,9 @@
 | **智慧調度** | **MoE 與動態模型選擇** | 根據使用者等級、負載、任務類型，動態調整 Ollama 模型。 |
 | **學習效果** | **錯誤類型分析**、**學前/學後測驗** | `main.py` (Review 邏輯擴展), ECharts (前端視覺化) |
 | **產品化** | **新手引導**、**疲勞偵測**、**難度模式** | `main.py` (Onboard API), Vue 組件 (Onboarding.vue) |
+| **學習效果** | **學前/學後測驗** | `main.py` (Review 邏輯擴展), ECharts (前端視覺化) |
 | **課程生成** | 動態課程內容 (單字/文法/閱讀/對話) | Ollama (多模型協作), Pydantic (Schema 驗證) |
+| **智慧導師** | **寫作批改**、**學習藍圖** | `writing_assistant.py`, `study_planner.py`, AI 深度分析與計畫生成 |
 | **遊戲化** | RPG 成長、XP、等級、成就、單字卡牌 | `gamification_engine.py`, SQLite |
 | **個人化** | RAG 知識庫上傳 (TXT) | `rag_manager.py`, ChromaDB |
 | **工具性** | **Excel 批次匯入單字** | FastAPI `UploadFile`, `pandas`, `openpyxl` |

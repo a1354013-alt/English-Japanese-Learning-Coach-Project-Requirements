@@ -1,3 +1,166 @@
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from 'vue'
+import { lessonApi, reviewApi } from '../services/api'
+import type { Lesson } from '../types'
+import confetti from 'canvas-confetti'
+
+const currentLanguage = ref<'EN' | 'JP'>('EN')
+const lesson = ref<Lesson | null>(null)
+const loading = ref(false)
+const currentStep = ref(0)
+const completedSteps = ref<number[]>([])
+const difficultyMode = ref('normal')
+const fatigueWarning = ref(false)
+const showGenerateDialog = ref(false)
+
+const generateForm = ref({
+  language: 'EN',
+  topic: '',
+  difficulty: 'B1'
+})
+
+const steps = [
+  { label: '核心單字', icon: 'pi pi-list' },
+  { label: '文法解析', icon: 'pi pi-book' },
+  { label: '短篇閱讀', icon: 'pi pi-align-left' },
+  { label: '情境對話', icon: 'pi pi-comments' }
+]
+
+const userAnswers = ref({
+  grammar: {} as Record<number, any>,
+  reading: {} as Record<number, any>
+})
+
+const results = ref({
+  grammar: {} as Record<number, any>,
+  reading: {} as Record<number, any>
+})
+
+const fetchTodayLesson = async () => {
+  loading.value = true
+  try {
+    const res = await lessonApi.getTodayLesson(currentLanguage.value)
+    if (res.success && res.lesson) {
+      lesson.value = res.lesson
+    } else {
+      lesson.value = null
+    }
+  } catch (error) {
+    console.error('Failed to fetch today lesson:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const generateNewLesson = async () => {
+  loading.value = true
+  showGenerateDialog.value = false
+  try {
+    const res = await lessonApi.generateLesson({
+      language: generateForm.value.language as 'EN' | 'JP',
+      topic: generateForm.value.topic || undefined,
+      difficulty: generateForm.value.difficulty
+    })
+    if (res.success) {
+      lesson.value = res.lesson
+      currentLanguage.value = generateForm.value.language as 'EN' | 'JP'
+      currentStep.value = 0
+      completedSteps.value = []
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      })
+    }
+  } catch (error) {
+    console.error('Failed to generate lesson:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: any) => {
+  if (!lesson.value) return
+  
+  const exercises = type === 'grammar' ? lesson.value.grammar.exercises : lesson.value.reading.questions
+  const exercise = exercises[index]
+  const isCorrect = String(answer) === String(exercise.correct_answer)
+  
+  results.value[type][index] = {
+    is_correct: isCorrect,
+    explanation: exercise.explanation
+  }
+
+  // Submit to backend for tracking and XP
+  try {
+    await reviewApi.submitReview([{
+      lesson_id: lesson.value.metadata.lesson_id,
+      exercise_type: type,
+      question_index: index,
+      user_answer: String(answer),
+      is_correct: isCorrect
+    }], 'default_user', type)
+  } catch (e) {
+    console.error('Failed to submit review:', e)
+  }
+
+  if (isCorrect) {
+    confetti({
+      particleCount: 40,
+      spread: 50,
+      origin: { y: 0.8 },
+      colors: ['#10b981', '#34d399']
+    })
+  }
+}
+
+const getAnswerClass = (type: 'grammar' | 'reading', index: number, optIdx: number) => {
+  const result = results.value[type][index]
+  if (!result) return 'hover:bg-white/5'
+  
+  const isSelected = userAnswers.value[type][index] === optIdx
+  const isCorrect = optIdx === lesson.value?.[type === 'grammar' ? 'grammar' : 'reading'].questions[index].correct_answer
+  
+  if (isCorrect) return 'bg-green-500/20 border-green-500 text-green-400'
+  if (isSelected && !isCorrect) return 'bg-red-500/20 border-red-500 text-red-400'
+  return 'opacity-50'
+}
+
+const nextStep = () => {
+  if (!completedSteps.value.includes(currentStep.value)) {
+    completedSteps.value.push(currentStep.value)
+  }
+  if (currentStep.value < steps.length - 1) {
+    currentStep.value++
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const finishLesson = () => {
+  confetti({
+    particleCount: 200,
+    spread: 100,
+    origin: { y: 0.6 }
+  })
+  // Redirect or show summary
+}
+
+const exportPdf = () => {
+  if (lesson.value) {
+    lessonApi.exportPdf(lesson.value.metadata.lesson_id)
+  }
+}
+
+const playTts = (text: string) => {
+  // TTS implementation
+  console.log('Playing TTS for:', text)
+}
+
+onMounted(fetchTodayLesson)
+watch(currentLanguage, fetchTodayLesson)
+
+</script>
+
 <template>
   <div class="max-w-5xl mx-auto px-4 py-8">
     <div class="bg-mesh"></div>
@@ -211,172 +374,18 @@
             <input v-model="generateForm.topic" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white" placeholder="如：商務會議、旅遊..." />
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-400 mb-2">難度 (選填)</label>
-            <input v-model="generateForm.difficulty" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white" placeholder="如：B1, N3..." />
+            <label class="block text-sm font-bold text-slate-400 mb-2">難度</label>
+            <select v-model="generateForm.difficulty" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white">
+              <option v-if="generateForm.language === 'EN'" v-for="l in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']" :key="l" :value="l">{{ l }}</option>
+              <option v-if="generateForm.language === 'JP'" v-for="l in ['N5', 'N4', 'N3', 'N2', 'N1']" :key="l" :value="l">{{ l }}</option>
+            </select>
           </div>
         </div>
         <div class="flex gap-3 mt-8">
-          <button @click="generateLesson" :disabled="generating" class="flex-1 btn-3d bg-blue-600 py-3 rounded-xl font-bold text-white">
-            {{ generating ? '生成中...' : '開始生成' }}
-          </button>
-          <button @click="showGenerateDialog = false" class="flex-1 glass-panel py-3 rounded-xl font-bold text-white">取消</button>
+          <button @click="showGenerateDialog = false" class="flex-1 px-4 py-3 rounded-xl text-slate-400 font-bold hover:bg-white/5">取消</button>
+          <button @click="generateNewLesson" class="flex-1 btn-3d bg-blue-600 px-4 py-3 rounded-xl text-white font-bold">開始生成</button>
         </div>
       </div>
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { lessonApi, reviewApi } from '../services/api';
-import confetti from 'canvas-confetti';
-
-const lesson = ref<any>(null);
-const loading = ref(true);
-const currentLanguage = ref<'EN' | 'JP'>('EN');
-const currentStep = ref(0);
-const completedSteps = ref<number[]>([]);
-const showGenerateDialog = ref(false);
-const generating = ref(false);
-const difficultyMode = ref('normal');
-const fatigueWarning = ref(false);
-
-const checkFatigue = async () => {
-  try {
-    const res = await axios.get('http://localhost:8000/api/progress');
-    const stats = res.data.progress.rpg_stats;
-    if (stats && stats.accuracy_rate < 60 && stats.total_exercises > 10) {
-      fatigueWarning.value = true;
-    }
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-const generateForm = ref({
-  language: 'EN' as 'EN' | 'JP',
-  topic: '',
-  difficulty: ''
-});
-
-const userAnswers = ref<{
-  grammar: Record<number, any>;
-  reading: Record<number, any>;
-}>({
-  grammar: {},
-  reading: {}
-});
-
-const results = ref<{
-  grammar: Record<number, any>;
-  reading: Record<number, any>;
-}>({
-  grammar: {},
-  reading: {}
-});
-
-const steps = [
-  { label: '核心單字', icon: 'pi pi-list' },
-  { label: '文法解析', icon: 'pi pi-book' },
-  { label: '短篇閱讀', icon: 'pi pi-align-left' },
-  { label: '情境對話', icon: 'pi pi-comments' }
-];
-
-const loadTodayLesson = async () => {
-  loading.value = true;
-  try {
-    const res = await lessonApi.getTodayLesson(currentLanguage.value);
-    lesson.value = res.lesson;
-    userAnswers.value = { grammar: {}, reading: {} };
-    results.value = { grammar: {}, reading: {} };
-    currentStep.value = 0;
-    completedSteps.value = [];
-  } catch (e) {
-    console.error(e);
-  } finally {
-    loading.value = false;
-  }
-};
-
-onMounted(async () => {
-  await loadTodayLesson();
-  checkFatigue();
-});
-
-const nextStep = () => {
-  if (!completedSteps.value.includes(currentStep.value)) {
-    completedSteps.value.push(currentStep.value);
-  }
-  currentStep.value++;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-const checkAnswer = async (type: 'grammar' | 'reading', idx: number, answer: any) => {
-  if (!lesson.value) return;
-  
-  try {
-    const exercise = type === 'grammar' ? lesson.value.grammar.exercises[idx] : lesson.value.reading.questions[idx];
-    const res = await reviewApi.submitReview([{
-      lesson_id: lesson.value.metadata.lesson_id,
-      exercise_type: type,
-      question_index: idx,
-      user_answer: answer,
-      correct_answer: exercise.correct_answer
-    }]);
-    
-    results.value[type][idx] = res.results[0];
-    if (res.results[0].is_correct) {
-      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
-    }
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-const getAnswerClass = (type: 'grammar' | 'reading', idx: number, optIdx: number) => {
-  const res = results.value[type][idx];
-  if (!res) return '';
-  if (res.correct_answer === optIdx) return 'bg-green-500/20 border-green-500 text-green-400';
-  if (res.user_answer === optIdx && !res.is_correct) return 'bg-red-500/20 border-red-500 text-red-400';
-  return 'opacity-50';
-};
-
-const generateLesson = async () => {
-  generating.value = true;
-  try {
-    const res = await lessonApi.generateLesson(generateForm.value);
-    lesson.value = res.lesson;
-    currentLanguage.value = generateForm.value.language;
-    showGenerateDialog.value = false;
-    currentStep.value = 0;
-    completedSteps.value = [];
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-  } catch (e) {
-    alert('生成失敗：' + e);
-  } finally {
-    generating.value = false;
-  }
-};
-
-const finishLesson = () => {
-  confetti({
-    particleCount: 150,
-    spread: 70,
-    origin: { y: 0.6 },
-    colors: ['#3b82f6', '#8b5cf6', '#f59e0b']
-  });
-  setTimeout(() => {
-    window.location.href = '/progress';
-  }, 2000);
-};
-
-const playTts = (text: string) => {
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = currentLanguage.value === 'EN' ? 'en-US' : 'ja-JP';
-  window.speechSynthesis.speak(utterance);
-};
-
-const exportPdf = () => {
-  window.open(`http://localhost:8000/api/lessons/${lesson.value.metadata.lesson_id}/export`, '_blank');
-};
-</script>

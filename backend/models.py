@@ -216,6 +216,49 @@ class ReviewResult(BaseModel):
     incorrect_items: List[dict]  # Contains question, user_answer, correct_answer, explanation
 
 
+# ============ Writing Assistant Models ============
+class WritingAnalysis(BaseModel):
+    """AI analysis of user writing"""
+    original_text: str
+    corrected_text: str
+    grammar_score: int  # 0-100
+    vocabulary_score: int  # 0-100
+    style_score: int  # 0-100
+    overall_score: int  # 0-100
+    estimated_level: str  # CEFR or JLPT
+    corrections: List[Dict[str, str]]  # List of {original, corrected, explanation, type}
+    suggestions: List[str]
+    feedback: str
+
+class WritingSubmission(BaseModel):
+    """User writing submission"""
+    language: Literal["EN", "JP"]
+    text: str
+    topic: Optional[str] = None
+    target_level: Optional[str] = None
+
+# ============ Study Plan Models ============
+class StudyMilestone(BaseModel):
+    """A milestone in the study plan"""
+    title: str
+    description: str
+    target_date: datetime
+    required_skills: List[str]
+    is_completed: bool = False
+
+class StudyPlan(BaseModel):
+    """AI generated study plan"""
+    plan_id: str = Field(default_factory=lambda: str(uuid4()))
+    user_id: str = "default_user"
+    target_goal: str  # e.g., "TOEIC 800", "JLPT N2"
+    language: Literal["EN", "JP"]
+    start_date: datetime = Field(default_factory=datetime.now)
+    end_date: datetime
+    milestones: List[StudyMilestone]
+    daily_commitment_minutes: int
+    focus_areas: List[str]
+    generated_at: datetime = Field(default_factory=datetime.now)
+
 # ============ API Request Models ============
 class GenerateLessonRequest(BaseModel):
     """Request to generate a new lesson"""

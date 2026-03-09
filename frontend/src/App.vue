@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import axios from 'axios';
+import { progressApi } from './services/api';
 import Onboarding from './components/Onboarding.vue';
 
 const isDarkMode = ref(true);
@@ -70,8 +70,8 @@ const showOnboarding = ref(false);
 
 const checkOnboarding = async () => {
   try {
-    const res = await axios.get('http://localhost:8000/api/progress');
-    if (res.data.success && res.data.progress.rpg_stats) {
+    const res = await progressApi.getProgress();
+    if (res.success && res.progress.rpg_stats) {
       showOnboarding.value = !res.data.progress.rpg_stats.is_onboarded;
     }
   } catch (e) {
@@ -80,6 +80,7 @@ const checkOnboarding = async () => {
 };
 const navItems = [
   { path: '/', label: '今日課程', icon: 'pi pi-calendar' },
+  { path: '/writing', label: '寫作中心', icon: 'pi pi-pencil' },
   { path: '/progress', label: '我的進度', icon: 'pi pi-chart-bar' },
   { path: '/archive', label: '課程歸檔', icon: 'pi pi-folder-open' }
 ];

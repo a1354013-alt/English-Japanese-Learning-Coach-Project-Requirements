@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import pytz
+import asyncio
 
 from config import settings
 from lesson_generator import lesson_generator
@@ -18,8 +19,22 @@ class LessonScheduler:
         self.scheduler = BackgroundScheduler()
         self.timezone = pytz.timezone(settings.timezone)
     
-    def generate_daily_lessons(self):
-        """Generate daily lessons for both English and Japanese"""
+    def _run_async_task(self, coro):
+        """Helper to run async coroutine in a synchronous scheduler (P1 Fix)"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+        if loop.is_running():
+            # If the loop is already running (e.g. in FastAPI), use run_coroutine_threadsafe
+            asyncio.run_coroutine_threadsafe(coro, loop)
+        else:
+            loop.run_until_complete(coro)
+
+    async def _generate_daily_lessons_async(self):
+        """Internal async implementation of daily lesson generation"""
         print(f"\n[{datetime.now()}] Starting daily lesson generation...")
         
         # Check if lessons already generated today
@@ -30,7 +45,7 @@ class LessonScheduler:
         if not today_en:
             print("Generating English lesson...")
             try:
-                lesson_generator.generate_lesson(language="EN")
+                await lesson_generator.generate_lesson(language="EN")
                 print("✓ English lesson generated successfully")
             except Exception as e:
                 print(f"✗ Failed to generate English lesson: {e}")
@@ -41,7 +56,7 @@ class LessonScheduler:
         if not today_jp:
             print("Generating Japanese lesson...")
             try:
-                lesson_generator.generate_lesson(language="JP")
+                await lesson_generator.generate_lesson(language="JP")
                 print("✓ Japanese lesson generated successfully")
             except Exception as e:
                 print(f"✗ Failed to generate Japanese lesson: {e}")
@@ -49,11 +64,19 @@ class LessonScheduler:
             print("Japanese lesson already exists for today")
         
         print(f"[{datetime.now()}] Daily lesson generation completed\n")
+
+    def generate_daily_lessons(self):
+        """Synchronous wrapper for the scheduler"""
+        self._run_async_task(self._generate_daily_lessons_async())
     
     def start(self):
         """Start the scheduler"""
         # Parse time from settings (format: "HH:MM")
-        hour, minute = map(int, settings.auto_generate_time.split(':'))
+        try:
+            hour, minute = map(int, settings.auto_generate_time.split(':'))
+        except ValueError:
+            print(f"Invalid auto_generate_time format: {settings.auto_generate_time}. Using default 07:30.")
+            hour, minute = 7, 30
         
         # Add daily job
         self.scheduler.add_job(
@@ -73,8 +96,9 @@ class LessonScheduler:
     
     def stop(self):
         """Stop the scheduler"""
-        self.scheduler.shutdown()
-        print("Scheduler stopped")
+        if self.scheduler.running:
+            self.scheduler.shutdown()
+            print("Scheduler stopped")
     
     def trigger_now(self):
         """Manually trigger lesson generation"""

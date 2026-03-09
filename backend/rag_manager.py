@@ -2,7 +2,7 @@
 RAG (Retrieval-Augmented Generation) manager using ChromaDB
 """
 import chromadb
-from chromadb.config import Settings
+import uuid
 from typing import List, Dict, Any, Optional
 from config import settings
 
@@ -13,8 +13,11 @@ class RAGManager:
         self.client = chromadb.PersistentClient(path=settings.chroma_db_path)
         self.collection = self.client.get_or_create_collection(name="learning_materials")
         
-    def add_material(self, text: str, metadata: Dict[str, Any], doc_id: str):
-        """Add learning material to the vector database"""
+    def add_material(self, text: str, metadata: Dict[str, Any], doc_id: Optional[str] = None):
+        """Add learning material to the vector database (P1 Fix: Optional doc_id)"""
+        if not doc_id:
+            doc_id = str(uuid.uuid4())
+            
         self.collection.add(
             documents=[text],
             metadatas=[metadata],

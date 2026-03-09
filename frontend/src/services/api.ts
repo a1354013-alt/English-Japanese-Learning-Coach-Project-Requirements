@@ -9,13 +9,7 @@ const api = axios.create({
 export const lessonApi = {
   // Generate new lesson
   async generateLesson(request: GenerateLessonRequest) {
-    const response = await api.post<{ success: boolean; lesson: Lesson; message: string }>('/generate/lesson', request)
-    return response.data
-  },
-
-  // Trigger daily generation
-  async triggerDailyGeneration() {
-    const response = await api.post<{ success: boolean; message: string }>('/generate/trigger')
+    const response = await api.post<{ success: boolean; lesson: Lesson; message?: string }>('/generate/lesson', request)
     return response.data
   },
 
@@ -43,6 +37,17 @@ export const lessonApi = {
   }) {
     const response = await api.get<{ success: boolean; count: number; lessons: any[] }>('/lessons', { params })
     return response.data
+  },
+
+  // Get generation tasks
+  async getTasks(limit: int = 10) {
+    const response = await api.get<{ success: boolean; tasks: any[] }>('/tasks', { params: { limit } })
+    return response.data
+  },
+
+  // Export PDF
+  async exportPdf(lessonId: string) {
+    window.open(`/api/export/pdf/${lessonId}`, '_blank')
   }
 }
 
@@ -55,28 +60,20 @@ export const progressApi = {
     return response.data
   },
 
-  // Update progress
-  async updateProgress(progress: UserProgress) {
-    const response = await api.post<{ success: boolean; message: string }>('/progress', progress)
+  // Onboard user
+  async onboard(language: string, level: string, difficulty: string) {
+    const response = await api.post<{ success: boolean }>('/onboard', null, {
+      params: { language, level, difficulty }
+    })
     return response.data
   }
 }
 
 export const reviewApi = {
   // Submit review answers
-  async submitReview(answers: ReviewAnswer[], userId: string = 'default_user') {
+  async submitReview(answers: ReviewAnswer[], userId: string = 'default_user', errorType?: string) {
     const response = await api.post<ReviewResult>('/review', answers, {
-      params: { user_id: userId }
-    })
-    return response.data
-  }
-}
-
-export const statsApi = {
-  // Get statistics
-  async getStatistics(userId: string = 'default_user') {
-    const response = await api.get<{ success: boolean; stats: any }>('/stats', {
-      params: { user_id: userId }
+      params: { user_id: userId, error_type: errorType }
     })
     return response.data
   }
@@ -87,7 +84,8 @@ export const importApi = {
   async uploadRagMaterial(language: string, file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<{ success: boolean; message: string }>(`/rag/upload?language=${language}`, formData, {
+    const response = await api.post<{ success: boolean; message?: string }>(`/rag/upload`, formData, {
+      params: { language },
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     return response.data
@@ -97,8 +95,25 @@ export const importApi = {
   async importExcel(language: string, file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<{ success: boolean; message: string; count: number }>(`/import/excel?language=${language}`, formData, {
+    const response = await api.post<{ success: boolean; message?: string; count: number }>(`/import/excel`, formData, {
+      params: { language },
       headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  }
+}
+
+export const aiTutorApi = {
+  // Analyze writing
+  async analyzeWriting(submission: { text: string; language: string; topic?: string }) {
+    const response = await api.post<{ success: boolean; analysis: any; gamification: any }>('/writing/analyze', submission)
+    return response.data
+  },
+
+  // Generate study plan
+  async generateStudyPlan(targetGoal: string, language: 'EN' | 'JP') {
+    const response = await api.post<{ success: boolean; plan: any }>('/study-plan/generate', null, {
+      params: { target_goal: targetGoal, language }
     })
     return response.data
   }

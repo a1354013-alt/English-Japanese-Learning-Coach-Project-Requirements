@@ -21,11 +21,8 @@ class GamificationEngine:
 
     def add_xp(self, user_id: str, amount: int) -> Dict[str, Any]:
         """Add XP to user and handle leveling up"""
-        progress = db.get_progress(user_id)
-        if not progress:
-            return {"leveled_up": False}
-            
-        rpg_stats_data = progress.get('rpg_stats') or {}
+        # P1 Fix: Use get_rpg_stats/save_rpg_stats for consistency
+        rpg_stats_data = db.get_rpg_stats(user_id) or {}
         rpg_stats = UserRPGStats(**rpg_stats_data)
         
         rpg_stats.current_xp += amount
@@ -41,9 +38,8 @@ class GamificationEngine:
             # Unlock skills based on level
             self._check_skill_unlocks(rpg_stats)
             
-        # Update progress in DB
-        progress['rpg_stats'] = rpg_stats.model_dump(mode='json')
-        db.save_progress(progress)
+        # Update RPG stats in DB
+        db.save_rpg_stats(user_id, rpg_stats.model_dump(mode='json'))
         
         return {
             "leveled_up": leveled_up,
@@ -73,7 +69,8 @@ class GamificationEngine:
         if not progress:
             return []
             
-        rpg_stats = UserRPGStats(**(progress.get('rpg_stats') or {}))
+        rpg_stats_data = db.get_rpg_stats(user_id) or {}
+        rpg_stats = UserRPGStats(**rpg_stats_data)
         unlocked_now = []
         
         # 1. Early Bird Achievement (Study before 7:30 AM)
@@ -85,14 +82,13 @@ class GamificationEngine:
         if rpg_stats.streak_days >= 7:
             self._unlock_achievement(rpg_stats, "week_streak", "Week Warrior", "Maintain a 7-day streak", "🔥", "epic", unlocked_now)
             
-        # 3. Accuracy Achievement
+        # 3. Accuracy Achievement (P1 Fix: Accuracy is 0-100 in progress)
         total_accuracy = (progress['english_progress']['accuracy_rate'] + progress['japanese_progress']['accuracy_rate']) / 2
-        if total_accuracy >= 0.9 and (progress['english_progress']['completed_lessons'] + progress['japanese_progress']['completed_lessons']) >= 5:
+        if total_accuracy >= 90 and (progress['english_progress']['completed_lessons'] + progress['japanese_progress']['completed_lessons']) >= 5:
             self._unlock_achievement(rpg_stats, "perfectionist", "Perfectionist", "Maintain >90% accuracy over 5 lessons", "🎯", "legendary", unlocked_now)
 
         if unlocked_now:
-            progress['rpg_stats'] = rpg_stats.model_dump(mode='json')
-            db.save_progress(progress)
+            db.save_rpg_stats(user_id, rpg_stats.model_dump(mode='json'))
             
         return unlocked_now
 
@@ -108,11 +104,8 @@ class GamificationEngine:
 
     def collect_word_cards(self, user_id: str, words: List[str], language: str) -> List[WordCard]:
         """Convert learned words into collectible cards with rarity"""
-        progress = db.get_progress(user_id)
-        if not progress:
-            return []
-            
-        rpg_stats = UserRPGStats(**(progress.get('rpg_stats') or {}))
+        rpg_stats_data = db.get_rpg_stats(user_id) or {}
+        rpg_stats = UserRPGStats(**rpg_stats_data)
         new_cards = []
         
         import random
@@ -135,8 +128,7 @@ class GamificationEngine:
             new_cards.append(new_card)
             
         if new_cards:
-            progress['rpg_stats'] = rpg_stats.model_dump(mode='json')
-            db.save_progress(progress)
+            db.save_rpg_stats(user_id, rpg_stats.model_dump(mode='json'))
             
         return new_cards
 
