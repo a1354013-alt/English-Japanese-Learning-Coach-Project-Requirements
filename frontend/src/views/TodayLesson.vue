@@ -97,8 +97,8 @@ const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: a
       lesson_id: lesson.value.metadata.lesson_id,
       exercise_type: type,
       question_index: index,
-      user_answer: String(answer),
-      is_correct: isCorrect
+      user_answer: answer,
+      correct_answer: exercise.correct_answer
     }], 'default_user', type)
   } catch (e) {
     console.error('Failed to submit review:', e)
@@ -142,7 +142,6 @@ const finishLesson = () => {
     spread: 100,
     origin: { y: 0.6 }
   })
-  // Redirect or show summary
 }
 
 const exportPdf = () => {
@@ -152,7 +151,6 @@ const exportPdf = () => {
 }
 
 const playTts = (text: string) => {
-  // TTS implementation
   console.log('Playing TTS for:', text)
 }
 
@@ -240,9 +238,9 @@ watch(currentLanguage, fetchTodayLesson)
                   <i class="pi pi-volume-up text-blue-400"></i>
                 </button>
               </div>
-              <p class="text-slate-300 mb-4"><span class="text-blue-500 font-bold">定義：</span>{{ word.definition || word.definition_zh }}</p>
+              <p class="text-slate-300 mb-4"><span class="text-blue-500 font-bold">定義：</span>{{ word.definition_zh }}</p>
               <div class="bg-slate-900/50 p-3 rounded-xl border border-white/5">
-                <p class="text-xs text-slate-400 italic">"{{ word.example || word.example_sentence }}"</p>
+                <p class="text-xs text-slate-400 italic">"{{ word.example_sentence }}"</p>
                 <p class="text-[10px] text-slate-500 mt-1">{{ word.example_translation }}</p>
               </div>
             </div>
@@ -291,8 +289,7 @@ watch(currentLanguage, fetchTodayLesson)
               </div>
             </div>
           </div>
-          <div class="flex justify-between">
-            <button @click="currentStep--" class="glass-panel px-8 py-3 rounded-xl font-bold text-white">上一步</button>
+          <div class="flex justify-end">
             <button @click="nextStep" class="btn-3d bg-blue-600 px-8 py-3 rounded-xl font-bold text-white">下一步：短篇閱讀</button>
           </div>
         </div>
@@ -300,16 +297,16 @@ watch(currentLanguage, fetchTodayLesson)
         <!-- Step 2: Reading -->
         <div v-if="currentStep === 2" class="space-y-6">
           <div class="glass-panel p-8 rounded-3xl">
-            <h2 class="text-2xl font-bold text-white mb-6">閱讀理解：{{ lesson.reading.title }}</h2>
-            <div class="bg-slate-900/80 p-8 rounded-2xl border border-white/5 mb-8">
-              <p class="text-xl text-slate-200 leading-loose font-serif whitespace-pre-wrap">{{ lesson.reading.content }}</p>
+            <h2 class="text-2xl font-bold text-white mb-6">{{ lesson.reading.title }}</h2>
+            <div class="bg-slate-900/80 p-6 rounded-2xl border border-white/5 mb-8">
+              <p class="text-slate-200 leading-loose text-lg whitespace-pre-wrap">{{ lesson.reading.content }}</p>
             </div>
             
-            <h3 class="text-lg font-bold text-white mb-4">理解題</h3>
+            <h3 class="text-lg font-bold text-white mb-4">閱讀理解</h3>
             <div class="space-y-6">
               <div v-for="(q, idx) in lesson.reading.questions" :key="idx" class="p-6 rounded-2xl bg-slate-900/50 border border-white/5">
                 <p class="text-white font-bold mb-4">{{ idx + 1 }}. {{ q.question }}</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 gap-3">
                   <button 
                     v-for="(opt, optIdx) in q.options" 
                     :key="optIdx"
@@ -326,8 +323,7 @@ watch(currentLanguage, fetchTodayLesson)
               </div>
             </div>
           </div>
-          <div class="flex justify-between">
-            <button @click="currentStep--" class="glass-panel px-8 py-3 rounded-xl font-bold text-white">上一步</button>
+          <div class="flex justify-end">
             <button @click="nextStep" class="btn-3d bg-blue-600 px-8 py-3 rounded-xl font-bold text-white">下一步：情境對話</button>
           </div>
         </div>
@@ -335,57 +331,92 @@ watch(currentLanguage, fetchTodayLesson)
         <!-- Step 3: Dialogue -->
         <div v-if="currentStep === 3" class="space-y-6">
           <div class="glass-panel p-8 rounded-3xl">
-            <h2 class="text-2xl font-bold text-white mb-6">情境對話：{{ lesson.dialogue.scenario }}</h2>
-            <div class="space-y-4">
-              <div v-for="(line, idx) in (lesson.dialogue.dialogue || lesson.dialogue.lines)" :key="idx" 
-                class="flex gap-4" :class="idx % 2 === 0 ? 'flex-row' : 'flex-row-reverse'">
-                <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shrink-0">
-                  {{ (line.speaker || line.role)[0] }}
-                </div>
-                <div class="glass-panel p-4 rounded-2xl max-w-[80%]" :class="idx % 2 === 0 ? 'rounded-tl-none' : 'rounded-tr-none'">
-                  <p class="text-white">{{ line.text || line.content }}</p>
-                  <p class="text-slate-500 text-xs mt-1">{{ line.translation }}</p>
+            <div class="mb-8">
+              <h2 class="text-2xl font-bold text-white mb-2">情境：{{ lesson.dialogue.scenario }}</h2>
+              <p class="text-slate-400">{{ lesson.dialogue.context }}</p>
+            </div>
+            
+            <div class="space-y-4 mb-8">
+              <div v-for="(line, idx) in lesson.dialogue.dialogue" :key="idx" 
+                class="flex flex-col"
+                :class="idx % 2 === 0 ? 'items-start' : 'items-end'">
+                <div class="max-w-[80%] p-4 rounded-2xl" :class="idx % 2 === 0 ? 'bg-blue-600/20 border border-blue-500/30' : 'bg-purple-600/20 border border-purple-500/30'">
+                  <p class="text-xs font-bold text-slate-500 mb-1">{{ line.speaker }}</p>
+                  <p class="text-white mb-1">{{ line.text }}</p>
+                  <p class="text-xs text-slate-400">{{ line.translation }}</p>
                 </div>
               </div>
             </div>
+
+            <h3 class="text-lg font-bold text-white mb-4">替換句型</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div v-for="(alt, idx) in lesson.dialogue.alternatives" :key="idx" class="p-4 rounded-xl bg-slate-900/50 border border-white/5">
+                <p class="text-xs text-blue-400 font-bold mb-1">原句：{{ alt.original }}</p>
+                <p class="text-white font-bold">替換：{{ alt.alternative }}</p>
+                <p class="text-[10px] text-slate-500 mt-1">情境：{{ alt.context }}</p>
+              </div>
+            </div>
           </div>
-          <div class="flex justify-between">
-            <button @click="currentStep--" class="glass-panel px-8 py-3 rounded-xl font-bold text-white">上一步</button>
-            <button @click="finishLesson" class="btn-3d bg-green-600 px-8 py-3 rounded-xl font-bold text-white">完成課程並領取獎勵！</button>
+          <div class="flex justify-end">
+            <button @click="finishLesson" class="btn-3d bg-green-600 px-12 py-4 rounded-2xl font-black text-white text-lg">完成今日課程！</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Generate Dialog -->
-    <div v-if="showGenerateDialog" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div class="glass-panel p-8 rounded-3xl w-full max-w-md animate__animated animate__zoomIn">
-        <h3 class="text-2xl font-bold text-white mb-6">生成新課程</h3>
+    <div v-if="showGenerateDialog" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div class="glass-panel max-w-md w-full p-8 animate__animated animate__zoomIn">
+        <h2 class="text-2xl font-bold text-white mb-6">生成自訂課程</h2>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-bold text-slate-400 mb-2">語言</label>
-            <select v-model="generateForm.language" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white">
-              <option value="EN">English</option>
-              <option value="JP">日本語</option>
-            </select>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">語言</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button v-for="l in ['EN', 'JP']" :key="l" @click="generateForm.language = l"
+                :class="['py-2 rounded-xl border transition-all', generateForm.language === l ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-white/10 text-slate-400']">
+                {{ l === 'EN' ? 'English' : '日本語' }}
+              </button>
+            </div>
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-400 mb-2">主題 (選填)</label>
-            <input v-model="generateForm.topic" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white" placeholder="如：商務會議、旅遊..." />
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">主題 (選填)</label>
+            <input v-model="generateForm.topic" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-white" placeholder="例如：商務會議、旅遊、動漫..." />
           </div>
           <div>
-            <label class="block text-sm font-bold text-slate-400 mb-2">難度</label>
-            <select v-model="generateForm.difficulty" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2 text-white">
-              <option v-if="generateForm.language === 'EN'" v-for="l in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']" :key="l" :value="l">{{ l }}</option>
-              <option v-if="generateForm.language === 'JP'" v-for="l in ['N5', 'N4', 'N3', 'N2', 'N1']" :key="l" :value="l">{{ l }}</option>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">難度</label>
+            <select v-model="generateForm.difficulty" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-white">
+              <option v-for="lvl in (generateForm.language === 'EN' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : ['N5', 'N4', 'N3', 'N2', 'N1'])" :key="lvl" :value="lvl">{{ lvl }}</option>
             </select>
           </div>
         </div>
-        <div class="flex gap-3 mt-8">
-          <button @click="showGenerateDialog = false" class="flex-1 px-4 py-3 rounded-xl text-slate-400 font-bold hover:bg-white/5">取消</button>
-          <button @click="generateNewLesson" class="flex-1 btn-3d bg-blue-600 px-4 py-3 rounded-xl text-white font-bold">開始生成</button>
+        <div class="mt-8 flex gap-3">
+          <button @click="showGenerateDialog = false" class="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5">取消</button>
+          <button @click="generateNewLesson" class="flex-1 py-3 bg-blue-600 rounded-xl font-bold text-white hover:bg-blue-500">開始生成</button>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.btn-3d {
+  transition: all 0.2s;
+  box-shadow: 0 4px 0 rgb(29, 78, 216);
+}
+.btn-3d:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgb(29, 78, 216);
+}
+.bg-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+</style>

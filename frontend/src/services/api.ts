@@ -40,7 +40,7 @@ export const lessonApi = {
   },
 
   // Get generation tasks
-  async getTasks(limit: int = 10) {
+  async getTasks(limit: number = 10) {
     const response = await api.get<{ success: boolean; tasks: any[] }>('/tasks', { params: { limit } })
     return response.data
   },

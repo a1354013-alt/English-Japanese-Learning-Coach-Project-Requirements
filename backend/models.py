@@ -204,8 +204,8 @@ class ReviewAnswer(BaseModel):
     lesson_id: str
     exercise_type: Literal["grammar", "reading"]
     question_index: int
-    user_answer: int
-    correct_answer: int
+    user_answer: Any
+    correct_answer: Any
 
 
 class ReviewResult(BaseModel):

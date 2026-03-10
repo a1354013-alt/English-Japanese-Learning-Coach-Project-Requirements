@@ -71,8 +71,8 @@ const showOnboarding = ref(false);
 const checkOnboarding = async () => {
   try {
     const res = await progressApi.getProgress();
-    if (res.success && res.progress.rpg_stats) {
-      showOnboarding.value = !res.data.progress.rpg_stats.is_onboarded;
+    if (res.success && res.progress && res.progress.rpg_stats) {
+      showOnboarding.value = !res.progress.rpg_stats.is_onboarded;
     }
   } catch (e) {
     console.error(e);
