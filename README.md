@@ -113,5 +113,4 @@ Excel 檔案（.xlsx 或 .xls）必須包含以下欄位：
 | `example` | 否 | 例句 |
 | `example_translation` | 否 | 例句翻譯 |
 
----
-*此文檔由 Manus AI 生成並維護。*
+
