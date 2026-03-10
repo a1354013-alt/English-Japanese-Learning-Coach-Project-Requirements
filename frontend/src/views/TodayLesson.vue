@@ -84,7 +84,17 @@ const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: a
   
   const exercises = type === 'grammar' ? lesson.value.grammar.exercises : lesson.value.reading.questions
   const exercise = exercises[index]
-  const isCorrect = String(answer) === String(exercise.correct_answer)
+  
+  // P0 Fix: Force numeric comparison if possible to avoid "1" != 1
+  const ua = Number(answer)
+  const ca = Number(exercise.correct_answer)
+  
+  let isCorrect = false
+  if (!Number.isNaN(ua) && !Number.isNaN(ca)) {
+    isCorrect = ua === ca
+  } else {
+    isCorrect = String(answer).trim().toLowerCase() === String(exercise.correct_answer).trim().toLowerCase()
+  }
   
   results.value[type][index] = {
     is_correct: isCorrect,
@@ -93,12 +103,13 @@ const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: a
 
   // Submit to backend for tracking and XP
   try {
+    // P0 Fix: Ensure payload matches backend expectations
     await reviewApi.submitReview([{
       lesson_id: lesson.value.metadata.lesson_id,
       exercise_type: type,
       question_index: index,
-      user_answer: answer,
-      correct_answer: exercise.correct_answer
+      user_answer: !Number.isNaN(ua) ? ua : answer,
+      correct_answer: !Number.isNaN(ca) ? ca : exercise.correct_answer
     }], 'default_user', type)
   } catch (e) {
     console.error('Failed to submit review:', e)
@@ -119,7 +130,13 @@ const getAnswerClass = (type: 'grammar' | 'reading', index: number, optIdx: numb
   if (!result) return 'hover:bg-white/5'
   
   const isSelected = userAnswers.value[type][index] === optIdx
-  const isCorrect = optIdx === lesson.value?.[type === 'grammar' ? 'grammar' : 'reading'].questions[index].correct_answer
+  
+  // P1 Fix: Correct data path for grammar vs reading
+  const correct = type === 'grammar' 
+    ? lesson.value?.grammar.exercises[index]?.correct_answer 
+    : lesson.value?.reading.questions[index]?.correct_answer
+    
+  const isCorrect = optIdx === Number(correct)
   
   if (isCorrect) return 'bg-green-500/20 border-green-500 text-green-400'
   if (isSelected && !isCorrect) return 'bg-red-500/20 border-red-500 text-red-400'
@@ -150,8 +167,16 @@ const exportPdf = () => {
   }
 }
 
-const playTts = (text: string) => {
-  console.log('Playing TTS for:', text)
+const playTts = async (text: string) => {
+  try {
+    const res = await lessonApi.getTts(text, currentLanguage.value)
+    if (res.audio_url) {
+      const audio = new Audio(res.audio_url)
+      audio.play()
+    }
+  } catch (e) {
+    console.error('Failed to play TTS:', e)
+  }
 }
 
 onMounted(fetchTodayLesson)
@@ -268,7 +293,7 @@ watch(currentLanguage, fetchTodayLesson)
                   <button 
                     v-for="(opt, optIdx) in ex.options" 
                     :key="optIdx"
-                    @click="checkAnswer('grammar', idx, optIdx)"
+                    @click="userAnswers.grammar[idx] = optIdx; checkAnswer('grammar', idx, optIdx)"
                     class="px-4 py-3 rounded-xl border border-white/10 text-left text-sm transition-all"
                     :class="getAnswerClass('grammar', idx, optIdx)"
                   >
@@ -297,12 +322,14 @@ watch(currentLanguage, fetchTodayLesson)
         <!-- Step 2: Reading -->
         <div v-if="currentStep === 2" class="space-y-6">
           <div class="glass-panel p-8 rounded-3xl">
-            <h2 class="text-2xl font-bold text-white mb-6">{{ lesson.reading.title }}</h2>
-            <div class="bg-slate-900/80 p-6 rounded-2xl border border-white/5 mb-8">
-              <p class="text-slate-200 leading-loose text-lg whitespace-pre-wrap">{{ lesson.reading.content }}</p>
+            <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <i class="pi pi-align-left text-green-400"></i> 閱讀理解
+            </h2>
+            <div class="bg-slate-900/50 p-6 rounded-2xl border border-white/5 mb-8">
+              <p class="text-slate-200 leading-relaxed text-lg whitespace-pre-wrap">{{ lesson.reading.content }}</p>
             </div>
             
-            <h3 class="text-lg font-bold text-white mb-4">閱讀理解</h3>
+            <h3 class="text-lg font-bold text-white mb-4">理解測試</h3>
             <div class="space-y-6">
               <div v-for="(q, idx) in lesson.reading.questions" :key="idx" class="p-6 rounded-2xl bg-slate-900/50 border border-white/5">
                 <p class="text-white font-bold mb-4">{{ idx + 1 }}. {{ q.question }}</p>
@@ -310,7 +337,7 @@ watch(currentLanguage, fetchTodayLesson)
                   <button 
                     v-for="(opt, optIdx) in q.options" 
                     :key="optIdx"
-                    @click="checkAnswer('reading', idx, optIdx)"
+                    @click="userAnswers.reading[idx] = optIdx; checkAnswer('reading', idx, optIdx)"
                     class="px-4 py-3 rounded-xl border border-white/10 text-left text-sm transition-all"
                     :class="getAnswerClass('reading', idx, optIdx)"
                   >
@@ -331,67 +358,90 @@ watch(currentLanguage, fetchTodayLesson)
         <!-- Step 3: Dialogue -->
         <div v-if="currentStep === 3" class="space-y-6">
           <div class="glass-panel p-8 rounded-3xl">
-            <div class="mb-8">
-              <h2 class="text-2xl font-bold text-white mb-2">情境：{{ lesson.dialogue.scenario }}</h2>
-              <p class="text-slate-400">{{ lesson.dialogue.context }}</p>
-            </div>
-            
+            <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <i class="pi pi-comments text-orange-400"></i> 情境對話：{{ lesson.dialogue.scenario }}
+            </h2>
             <div class="space-y-4 mb-8">
-              <div v-for="(line, idx) in lesson.dialogue.dialogue" :key="idx" 
-                class="flex flex-col"
-                :class="idx % 2 === 0 ? 'items-start' : 'items-end'">
-                <div class="max-w-[80%] p-4 rounded-2xl" :class="idx % 2 === 0 ? 'bg-blue-600/20 border border-blue-500/30' : 'bg-purple-600/20 border border-purple-500/30'">
-                  <p class="text-xs font-bold text-slate-500 mb-1">{{ line.speaker }}</p>
-                  <p class="text-white mb-1">{{ line.text }}</p>
-                  <p class="text-xs text-slate-400">{{ line.translation }}</p>
+              <div v-for="(line, idx) in lesson.dialogue.lines" :key="idx" 
+                class="flex flex-col" :class="idx % 2 === 0 ? 'items-start' : 'items-end'">
+                <div class="max-w-[80%] p-4 rounded-2xl" 
+                  :class="idx % 2 === 0 ? 'bg-slate-800 text-white rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'">
+                  <div class="text-[10px] opacity-60 mb-1 font-bold uppercase">{{ line.role }}</div>
+                  <p class="text-sm">{{ line.text }}</p>
+                  <p class="text-[10px] opacity-80 mt-1">{{ line.translation }}</p>
                 </div>
               </div>
             </div>
-
-            <h3 class="text-lg font-bold text-white mb-4">替換句型</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div v-for="(alt, idx) in lesson.dialogue.alternatives" :key="idx" class="p-4 rounded-xl bg-slate-900/50 border border-white/5">
-                <p class="text-xs text-blue-400 font-bold mb-1">原句：{{ alt.original }}</p>
-                <p class="text-white font-bold">替換：{{ alt.alternative }}</p>
-                <p class="text-[10px] text-slate-500 mt-1">情境：{{ alt.context }}</p>
+            
+            <div class="bg-orange-500/10 border border-orange-500/20 p-6 rounded-2xl">
+              <h3 class="text-orange-400 font-bold mb-3 flex items-center gap-2">
+                <i class="pi pi-bolt"></i> 替換句型
+              </h3>
+              <div class="space-y-3">
+                <div v-for="(pattern, idx) in lesson.dialogue.patterns" :key="idx" class="text-sm">
+                  <div class="text-white font-bold">{{ pattern.original }}</div>
+                  <div class="text-slate-400 mt-1">💡 可以替換為：</div>
+                  <ul class="list-disc list-inside text-blue-400 mt-1">
+                    <li v-for="(alt, aidx) in pattern.alternatives" :key="aidx">{{ alt }}</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
-          <div class="flex justify-end">
-            <button @click="finishLesson" class="btn-3d bg-green-600 px-12 py-4 rounded-2xl font-black text-white text-lg">完成今日課程！</button>
+          <div class="flex justify-end gap-4">
+            <button @click="finishLesson" class="btn-3d bg-green-600 px-8 py-3 rounded-xl font-bold text-white">完成今日課程！</button>
           </div>
         </div>
       </div>
     </div>
 
+    <div v-else class="flex flex-col items-center justify-center h-64 glass-panel rounded-3xl">
+      <p class="text-slate-400 mb-6">今天還沒有生成課程喔！</p>
+      <button @click="showGenerateDialog = true" class="btn-3d bg-blue-600 px-8 py-3 rounded-xl font-bold text-white">
+        立即生成第一課
+      </button>
+    </div>
+
     <!-- Generate Dialog -->
-    <div v-if="showGenerateDialog" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div class="glass-panel max-w-md w-full p-8 animate__animated animate__zoomIn">
-        <h2 class="text-2xl font-bold text-white mb-6">生成自訂課程</h2>
+    <div v-if="showGenerateDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-panel p-8 rounded-3xl w-full max-w-md animate__animated animate__zoomIn">
+        <h2 class="text-2xl font-bold text-white mb-6">自訂新課程</h2>
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">語言</label>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">學習語言</label>
             <div class="grid grid-cols-2 gap-2">
-              <button v-for="l in ['EN', 'JP']" :key="l" @click="generateForm.language = l"
-                :class="['py-2 rounded-xl border transition-all', generateForm.language === l ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-white/10 text-slate-400']">
-                {{ l === 'EN' ? 'English' : '日本語' }}
+              <button @click="generateForm.language = 'EN'" 
+                :class="['py-2 rounded-xl font-bold transition-all', generateForm.language === 'EN' ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400']">
+                English
+              </button>
+              <button @click="generateForm.language = 'JP'" 
+                :class="['py-2 rounded-xl font-bold transition-all', generateForm.language === 'JP' ? 'bg-blue-600 text-white' : 'bg-white/5 text-slate-400']">
+                Japanese
               </button>
             </div>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-500 uppercase mb-2">主題 (選填)</label>
-            <input v-model="generateForm.topic" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-white" placeholder="例如：商務會議、旅遊、動漫..." />
+            <input v-model="generateForm.topic" placeholder="例如：旅遊、商務、美食..." 
+              class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 outline-none" />
           </div>
           <div>
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">難度</label>
-            <select v-model="generateForm.difficulty" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-white">
-              <option v-for="lvl in (generateForm.language === 'EN' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : ['N5', 'N4', 'N3', 'N2', 'N1'])" :key="lvl" :value="lvl">{{ lvl }}</option>
+            <label class="block text-xs font-bold text-slate-500 uppercase mb-2">難度等級</label>
+            <select v-model="generateForm.difficulty" class="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white outline-none">
+              <option v-if="generateForm.language === 'EN'" value="A1">A1 - 入門</option>
+              <option v-if="generateForm.language === 'EN'" value="A2">A2 - 初級</option>
+              <option v-if="generateForm.language === 'EN'" value="B1">B1 - 中級</option>
+              <option v-if="generateForm.language === 'EN'" value="B2">B2 - 中高</option>
+              <option v-if="generateForm.language === 'JP'" value="N5">N5 - 五十音/初級</option>
+              <option v-if="generateForm.language === 'JP'" value="N4">N4 - 基礎</option>
+              <option v-if="generateForm.language === 'JP'" value="N3">N3 - 中級</option>
+              <option v-if="generateForm.language === 'JP'" value="N2">N2 - 進階</option>
             </select>
           </div>
         </div>
-        <div class="mt-8 flex gap-3">
+        <div class="flex gap-3 mt-8">
           <button @click="showGenerateDialog = false" class="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5">取消</button>
-          <button @click="generateNewLesson" class="flex-1 py-3 bg-blue-600 rounded-xl font-bold text-white hover:bg-blue-500">開始生成</button>
+          <button @click="generateNewLesson" class="flex-1 btn-3d bg-blue-600 py-3 rounded-xl font-bold text-white">開始生成</button>
         </div>
       </div>
     </div>
@@ -399,24 +449,36 @@ watch(currentLanguage, fetchTodayLesson)
 </template>
 
 <style scoped>
-.btn-3d {
-  transition: all 0.2s;
-  box-shadow: 0 4px 0 rgb(29, 78, 216);
-}
-.btn-3d:active {
-  transform: translateY(2px);
-  box-shadow: 0 2px 0 rgb(29, 78, 216);
-}
 .bg-mesh {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
-  pointer-events: none;
+  background: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(147, 51, 234, 0.15) 0px, transparent 50%);
   z-index: -1;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.btn-3d {
+  transition: all 0.2s;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btn-3d:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
 }
 </style>

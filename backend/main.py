@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional, Literal, Dict, Any
 import json
 import os
+import pandas as pd
+import io
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -215,7 +217,12 @@ async def submit_review(answers: List[ReviewAnswer], user_id: str = "default_use
         exercises = lesson_data['grammar']['exercises'] if answer.exercise_type == "grammar" else lesson_data['reading']['questions']
         if answer.question_index < len(exercises):
             exercise = exercises[answer.question_index]
-            is_correct = answer.user_answer == exercise['correct_answer']
+            
+            # P0 Fix: Force numeric comparison if possible
+            ua = str(answer.user_answer).strip().lower()
+            ca = str(exercise['correct_answer']).strip().lower()
+            is_correct = ua == ca
+            
             if is_correct: correct_count += 1
             else:
                 incorrect_items.append({"question": exercise['question'], "user_answer": answer.user_answer, "correct_answer": exercise['correct_answer'], "explanation": exercise['explanation']})
@@ -265,6 +272,14 @@ async def generate_tts(text: str, language: str):
     audio_path = await tts_service.generate_audio(text, language)
     return {"success": True, "audio_url": f"/api/audio/{os.path.basename(audio_path)}" if audio_path else None}
 
+# P1 Fix: Add audio file endpoint
+@app.get("/api/audio/{filename}")
+async def get_audio_file(filename: str):
+    file_path = os.path.join(settings.data_dir, "audio", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    return FileResponse(file_path)
+
 @app.websocket("/ws/chat/{language}")
 async def websocket_endpoint(websocket: WebSocket, language: str, scenario: str = "Daily Conversation"):
     await chat_manager.connect(websocket)
@@ -287,52 +302,37 @@ async def export_lesson_pdf(lesson_id: str):
     return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")
 
 @app.post("/api/study-plan/generate", response_model=dict)
-async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"]):
-    """Generate a personalized study plan"""
-    try:
-        progress = db.get_progress("default_user")
-        lang_key = 'english_progress' if language == 'EN' else 'japanese_progress'
-        lang_progress = progress.get(lang_key, {})
-        
-        plan = await study_planner.generate_plan("default_user", target_goal, language, lang_progress)
-        if not plan:
-            raise HTTPException(status_code=500, detail="Failed to generate study plan.")
-        
-        plan_dict = plan.model_dump(mode='json')
-        return {"success": True, "plan": plan_dict}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+async def generate_study_plan(target_goal: str, language: str):
+    plan = await study_planner.generate_plan("default_user", target_goal, language)
+    return {"success": True, "plan": plan}
 
 @app.post("/api/writing/analyze", response_model=dict)
 async def analyze_writing(submission: WritingSubmission):
-    """Analyze user writing and provide feedback"""
+    analysis = await writing_assistant.analyze_writing(submission.text, submission.language)
+    return {"success": True, "analysis": analysis}
+
+# P1 Fix: Correct Excel import logic
+@app.post("/api/import/excel")
+async def import_excel(file: UploadFile = File(...)):
     try:
-        analysis = await writing_assistant.analyze_writing(submission)
-        if not analysis:
-            raise HTTPException(status_code=500, detail="Failed to analyze writing.")
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
         
-        # Gamification: Add XP for writing
-        xp_result = gamification_engine.add_xp("default_user", 30)
-        
-        return {
-            "success": True, 
-            "analysis": analysis.model_dump(mode='json'),
-            "gamification": {"xp_added": 30, "leveled_up": xp_result.get("leveled_up")}
-        }
+        # Check columns instead of values
+        if 'word' not in df.columns or 'definition' not in df.columns:
+            raise HTTPException(status_code=400, detail="Excel must contain columns: word, definition")
+            
+        imported_count = 0
+        for _, row in df.iterrows():
+            w = str(row['word']).strip()
+            d = str(row['definition']).strip()
+            if not w or not d:
+                continue
+                
+            # Add to cards and SRS
+            gamification_engine.collect_word_cards("default_user", [w], "EN") # Default to EN
+            imported_count += 1
+            
+        return {"success": True, "count": imported_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/import/excel")
-async def import_excel(language: str, file: UploadFile = File(...)):
-    import pandas as pd
-    import io
-    content = await file.read()
-    df = pd.read_excel(io.BytesIO(content))
-    words_imported = 0
-    for _, row in df.iterrows():
-        if 'word' in row and 'definition' in row:
-            db.update_srs_item("default_user", str(row['word']), language, srs_engine.init_item(), {"word": str(row['word']), "definition_zh": str(row['definition'])})
-            words_imported += 1
-    return {"success": True, "count": words_imported}
