@@ -54,9 +54,21 @@ class ChatManager:
                     
                 history.append({"role": "user", "content": user_text})
                 
+                # Construct conversation context from recent history (last 8 turns)
+                conversation_context = "Conversation so far:\n"
+                # Exclude system prompt and take up to last 8 messages
+                recent_history = history[max(1, len(history) - 8):]
+                for msg in recent_history:
+                    if msg["role"] == "user":
+                        conversation_context += f"User: {msg["content"]}\n"
+                    elif msg["role"] == "assistant":
+                        conversation_context += f"Assistant: {msg["content"]}\n"
+                
+                full_prompt = f"{conversation_context}User: {user_text}"
+
                 # Call Ollama (using small model for faster response)
                 response = ollama_client.generate(
-                    prompt=user_text,
+                    prompt=full_prompt,
                     system_prompt=history[0]["content"],
                     model=settings.small_model_name,
                     format="text",

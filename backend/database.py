@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime
 from typing import List, Optional, Dict, Any
+from models import UserRPGStats
 from contextlib import contextmanager
 from config import settings
 
@@ -223,6 +224,16 @@ class Database:
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
+    def create_default_progress(self, user_id: str) -> Dict[str, Any]:
+        """Create a default progress dictionary for a new user"""
+        return {
+            "user_id": user_id,
+            "english_progress": {"language": "EN", "current_level": "A1", "target_level": "B2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None, "weekly_stats": {}},
+            "japanese_progress": {"language": "JP", "current_level": "N5", "target_level": "N2", "completed_lessons": 0, "total_exercises": 0, "correct_exercises": 0, "accuracy_rate": 0.0, "last_study_date": None, "weekly_stats": {}},
+            "rpg_stats": UserRPGStats().model_dump(),
+            "updated_at": datetime.now().isoformat()
+        }
+
     def get_progress(self, user_id: str = "default_user") -> Optional[Dict[str, Any]]:
         """Get user progress"""
         with self.get_connection() as conn:
@@ -232,11 +243,11 @@ class Database:
             
             if row:
                 result = dict(row)
-                result['english_progress'] = json.loads(result['english_progress'])
-                result['japanese_progress'] = json.loads(result['japanese_progress'])
-                result['rpg_stats'] = json.loads(result['rpg_stats']) if result.get('rpg_stats') else None
+                result["english_progress"] = json.loads(result["english_progress"])
+                result["japanese_progress"] = json.loads(result["japanese_progress"])
+                result["rpg_stats"] = json.loads(result["rpg_stats"]) if result.get("rpg_stats") else None
                 return result
-        return None
+        return self.create_default_progress(user_id) # Use the new function if not found
     
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
         """Save or update user progress"""
@@ -267,13 +278,8 @@ class Database:
         """Save RPG stats for a user (P0 Fix)"""
         progress = self.get_progress(user_id)
         if not progress:
-            # Create default progress if not exists
-            progress = {
-                "user_id": user_id,
-                "english_progress": {"current_level": "B1", "accuracy_rate": 0},
-                "japanese_progress": {"current_level": "N4", "accuracy_rate": 0},
-                "rpg_stats": rpg_stats
-            }
+            progress = self.create_default_progress(user_id)
+            progress["rpg_stats"] = rpg_stats # Update rpg_stats in the newly created progress
         else:
             progress['rpg_stats'] = rpg_stats
         self.save_progress(progress)

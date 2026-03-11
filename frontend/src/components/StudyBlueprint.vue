@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import axios from 'axios';
+import api from '@/services/api';
 
 const props = defineProps<{
   language: string
@@ -84,7 +84,7 @@ const generatePlan = async () => {
   if (!targetGoal.value) return;
   loading.value = true;
   try {
-    const res = await axios.post(`http://localhost:8000/api/study-plan/generate?target_goal=${targetGoal.value}&language=${props.language}`);
+    const res = await api.post(`/study-plan/generate?target_goal=${targetGoal.value}&language=${props.language}`);
     if (res.data.success) {
       plan.value = res.data.plan;
     }

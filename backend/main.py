@@ -303,17 +303,21 @@ async def export_lesson_pdf(lesson_id: str):
 
 @app.post("/api/study-plan/generate", response_model=dict)
 async def generate_study_plan(target_goal: str, language: str):
-    plan = await study_planner.generate_plan("default_user", target_goal, language)
+            progress = db.get_progress("default_user")
+        if not progress:
+            progress = db.create_default_progress("default_user")
+        current_progress = progress["english_progress"] if language=="EN" else progress["japanese_progress"]
+        plan = await study_planner.generate_plan("default_user", target_goal, language, current_progress)
     return {"success": True, "plan": plan}
 
 @app.post("/api/writing/analyze", response_model=dict)
 async def analyze_writing(submission: WritingSubmission):
-    analysis = await writing_assistant.analyze_writing(submission.text, submission.language)
+    analysis = await writing_assistant.analyze_writing(submission)
     return {"success": True, "analysis": analysis}
 
 # P1 Fix: Correct Excel import logic
 @app.post("/api/import/excel")
-async def import_excel(file: UploadFile = File(...)):
+async def import_excel(language: str = "EN", file: UploadFile = File(...)):
     try:
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
@@ -330,7 +334,7 @@ async def import_excel(file: UploadFile = File(...)):
                 continue
                 
             # Add to cards and SRS
-            gamification_engine.collect_word_cards("default_user", [w], "EN") # Default to EN
+            gamification_engine.collect_word_cards("default_user", [w], language)
             imported_count += 1
             
         return {"success": True, "count": imported_count}

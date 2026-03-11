@@ -106,7 +106,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import axios from 'axios';
+import api from '@/services/api';
 import confetti from 'canvas-confetti';
 
 const loading = ref(false);
@@ -123,7 +123,7 @@ const analyzeWriting = async () => {
   loading.value = true;
   analysis.value = null;
   try {
-    const res = await axios.post('http://localhost:8000/api/writing/analyze', submission.value);
+    const res = await api.post('/writing/analyze', submission.value);
     if (res.data.success) {
       analysis.value = res.data.analysis;
       if (analysis.value.overall_score >= 80) {
