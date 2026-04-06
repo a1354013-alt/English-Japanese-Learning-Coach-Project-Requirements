@@ -79,22 +79,21 @@ const generateNewLesson = async () => {
   }
 }
 
+const resolveCorrectAnswerText = (exercise: any) => {
+  // correct_answer is now always stored as text (normalized during lesson generation)
+  return String(exercise.correct_answer)
+}
+
 const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: any) => {
   if (!lesson.value) return
   
   const exercises = type === 'grammar' ? lesson.value.grammar.exercises : lesson.value.reading.questions
   const exercise = exercises[index]
   
-  // P0 Fix: Force numeric comparison if possible to avoid "1" != 1
-  const ua = Number(answer)
-  const ca = Number(exercise.correct_answer)
+  const correct_text = resolveCorrectAnswerText(exercise)
   
-  let isCorrect = false
-  if (!Number.isNaN(ua) && !Number.isNaN(ca)) {
-    isCorrect = ua === ca
-  } else {
-    isCorrect = String(answer).trim().toLowerCase() === String(exercise.correct_answer).trim().toLowerCase()
-  }
+  // Use string-based comparison
+  const isCorrect = String(answer).trim().toLowerCase() === String(correct_text).trim().toLowerCase()
   
   results.value[type][index] = {
     is_correct: isCorrect,
@@ -103,13 +102,12 @@ const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: a
 
   // Submit to backend for tracking and XP
   try {
-    // P0 Fix: Ensure payload matches backend expectations
     await reviewApi.submitReview([{
       lesson_id: lesson.value.metadata.lesson_id,
       exercise_type: type,
       question_index: index,
-      user_answer: !Number.isNaN(ua) ? ua : answer,
-      correct_answer: !Number.isNaN(ca) ? ca : exercise.correct_answer
+      user_answer: String(answer),
+      correct_answer: String(correct_text)
     }], 'default_user', type)
   } catch (e) {
     console.error('Failed to submit review:', e)
@@ -125,18 +123,20 @@ const checkAnswer = async (type: 'grammar' | 'reading', index: number, answer: a
   }
 }
 
-const getAnswerClass = (type: 'grammar' | 'reading', index: number, optIdx: number) => {
+const getAnswerClass = (type: 'grammar' | 'reading', index: number, opt: string) => {
   const result = results.value[type][index]
   if (!result) return 'hover:bg-white/5'
   
-  const isSelected = userAnswers.value[type][index] === optIdx
+  const isSelected = userAnswers.value[type][index] === opt
   
-  // P1 Fix: Correct data path for grammar vs reading
-  const correct = type === 'grammar' 
-    ? lesson.value?.grammar.exercises[index]?.correct_answer 
-    : lesson.value?.reading.questions[index]?.correct_answer
-    
-  const isCorrect = optIdx === Number(correct)
+  const exercise = type === 'grammar' 
+    ? lesson.value?.grammar.exercises[index] 
+    : lesson.value?.reading.questions[index]
+  
+  const correct_text = resolveCorrectAnswerText(exercise)
+  
+  // String-based comparison (consistent with checkAnswer)
+  const isCorrect = String(opt).trim().toLowerCase() === String(correct_text).trim().toLowerCase()
   
   if (isCorrect) return 'bg-green-500/20 border-green-500 text-green-400'
   if (isSelected && !isCorrect) return 'bg-red-500/20 border-red-500 text-red-400'
@@ -293,9 +293,9 @@ watch(currentLanguage, fetchTodayLesson)
                   <button 
                     v-for="(opt, optIdx) in ex.options" 
                     :key="optIdx"
-                    @click="userAnswers.grammar[idx] = optIdx; checkAnswer('grammar', idx, optIdx)"
+                    @click="userAnswers.grammar[idx] = opt; checkAnswer('grammar', idx, opt)"
                     class="px-4 py-3 rounded-xl border border-white/10 text-left text-sm transition-all"
-                    :class="getAnswerClass('grammar', idx, optIdx)"
+                    :class="getAnswerClass('grammar', idx, opt)"
                   >
                     {{ opt }}
                   </button>
@@ -337,9 +337,9 @@ watch(currentLanguage, fetchTodayLesson)
                   <button 
                     v-for="(opt, optIdx) in q.options" 
                     :key="optIdx"
-                    @click="userAnswers.reading[idx] = optIdx; checkAnswer('reading', idx, optIdx)"
+                    @click="userAnswers.reading[idx] = opt; checkAnswer('reading', idx, opt)"
                     class="px-4 py-3 rounded-xl border border-white/10 text-left text-sm transition-all"
-                    :class="getAnswerClass('reading', idx, optIdx)"
+                    :class="getAnswerClass('reading', idx, opt)"
                   >
                     {{ opt }}
                   </button>
@@ -362,11 +362,11 @@ watch(currentLanguage, fetchTodayLesson)
               <i class="pi pi-comments text-orange-400"></i> 情境對話：{{ lesson.dialogue.scenario }}
             </h2>
             <div class="space-y-4 mb-8">
-              <div v-for="(line, idx) in lesson.dialogue.lines" :key="idx" 
+              <div v-for="(line, idx) in lesson.dialogue.dialogue" :key="idx" 
                 class="flex flex-col" :class="idx % 2 === 0 ? 'items-start' : 'items-end'">
                 <div class="max-w-[80%] p-4 rounded-2xl" 
                   :class="idx % 2 === 0 ? 'bg-slate-800 text-white rounded-tl-none' : 'bg-blue-600 text-white rounded-tr-none'">
-                  <div class="text-[10px] opacity-60 mb-1 font-bold uppercase">{{ line.role }}</div>
+                  <div class="text-[10px] opacity-60 mb-1 font-bold uppercase">{{ line.speaker }}</div>
                   <p class="text-sm">{{ line.text }}</p>
                   <p class="text-[10px] opacity-80 mt-1">{{ line.translation }}</p>
                 </div>
@@ -378,11 +378,11 @@ watch(currentLanguage, fetchTodayLesson)
                 <i class="pi pi-bolt"></i> 替換句型
               </h3>
               <div class="space-y-3">
-                <div v-for="(pattern, idx) in lesson.dialogue.patterns" :key="idx" class="text-sm">
-                  <div class="text-white font-bold">{{ pattern.original }}</div>
+                <div v-for="(alternative, idx) in lesson.dialogue.alternatives" :key="idx" class="text-sm">
+                  <div class="text-white font-bold">{{ alternative.original }}</div>
                   <div class="text-slate-400 mt-1">💡 可以替換為：</div>
                   <ul class="list-disc list-inside text-blue-400 mt-1">
-                    <li v-for="(alt, aidx) in pattern.alternatives" :key="aidx">{{ alt }}</li>
+                    <li>{{ alternative.alternative }}</li>
                   </ul>
                 </div>
               </div>
