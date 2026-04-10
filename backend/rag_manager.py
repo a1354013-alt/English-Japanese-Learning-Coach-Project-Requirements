@@ -1,57 +1,50 @@
-"""
-RAG (Retrieval-Augmented Generation) manager using ChromaDB
-"""
+﻿"""RAG manager using ChromaDB."""
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
+
 import chromadb
-import uuid
-from typing import List, Dict, Any, Optional
+
 from config import settings
-from sentence_transformers import SentenceTransformer
+
 
 class RAGManager:
-    """RAG manager for language learning materials"""
-    
-    def __init__(self):
+    def __init__(self) -> None:
         self.enabled = True
+        self.init_error: Optional[str] = None
         try:
-            self.client = chromadb.PersistentClient(path=settings.chroma_db_path)
-            # Initialize embedding model
-            self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-            self.collection = self.client.get_or_create_collection(
-                name="learning_materials",
-                # Use a custom embedding function if needed, otherwise ChromaDB uses its default
-                # embedding_function=self.embedding_model.encode # This is not how it works with chromadb
-            )
-            print("ChromaDB and embedding model initialized successfully.")
-        except Exception as e:
-            print(f"Failed to initialize ChromaDB or embedding model: {e}")
+            self.client = chromadb.PersistentClient(path=str(settings.chroma_db_path))
+            self.collection = self.client.get_or_create_collection(name="learning_materials")
+        except Exception as err:
             self.enabled = False
-        
-    def add_material(self, text: str, metadata: Dict[str, Any], doc_id: Optional[str] = None):
-        """Add learning material to the vector database (P1 Fix: Optional doc_id)"""
-        if not self.enabled:
-            print("RAG is disabled, skipping add_material.")
-            return
+            self.init_error = str(err)
 
-        if not doc_id:
-            doc_id = str(uuid.uuid4())
-            
-        self.collection.add(
-            documents=[text],
-            metadatas=[metadata],
-            ids=[doc_id]
-        )
-        
-    def query_materials(self, query_text: str, n_results: int = 3, filter_criteria: Optional[Dict[str, Any]] = None) -> List[str]:
-        """Query relevant materials"""
+    def add_material(self, text: str, metadata: Dict[str, Any], doc_id: Optional[str] = None) -> None:
         if not self.enabled:
-            print("RAG is disabled, returning empty results.")
+            return
+        if not text.strip():
+            raise ValueError("Material content is empty")
+        self.collection.add(documents=[text], metadatas=[metadata], ids=[doc_id or str(uuid4())])
+
+    def query_materials(
+        self,
+        query_text: str,
+        n_results: int = 3,
+        filter_criteria: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
+        if not self.enabled:
+            return []
+        try:
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=n_results,
+                where=filter_criteria,
+            )
+            docs = results.get("documents") or []
+            if not docs:
+                return []
+            return [str(item) for item in docs[0] if item]
+        except Exception:
             return []
 
-        results = self.collection.query(
-            query_texts=[query_text],
-            n_results=n_results,
-            where=filter_criteria
-        )
-        return results["documents"][0] if results["documents"] else []
 
 rag_manager = RAGManager()

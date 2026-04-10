@@ -1,94 +1,106 @@
-"""
-Writing Assistant Service for Language Coach
-Handles AI-powered writing analysis and feedback
-"""
-import json
-from typing import Dict, Any, Optional
-from ollama_client import ollama_client
-from models import WritingSubmission, WritingAnalysis
+﻿"""Writing assistant service."""
+from typing import Any, Dict, List
+
 from config import settings
+from models import WritingAnalysis, WritingSubmission
+from ollama_client import ollama_client
+
 
 class WritingAssistant:
-    """Service for analyzing user writing and providing feedback"""
-    
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = ollama_client
 
-    async def analyze_writing(self, submission: WritingSubmission) -> Optional[WritingAnalysis]:
-        """
-        Analyze user writing using AI
-        """
-        system_prompt = self._get_system_prompt(submission.language)
-        prompt = self._get_analysis_prompt(submission)
-        
-        # Use a larger model for writing analysis if available
-        model = settings.model_name # Default to main model
-        
+    async def analyze_writing(self, submission: WritingSubmission) -> WritingAnalysis:
         result = self.client.generate(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            model=model,
-            format="json"
+            prompt=self._get_analysis_prompt(submission),
+            system_prompt=self._get_system_prompt(submission.language),
+            model=settings.model_name,
+            format="json",
         )
-        
         if not result.get("success"):
-            return None
-            
-        analysis_data = self.client.parse_json_response(result["response"])
-        if not analysis_data:
-            return None
-            
+            return self._fallback(submission, reason=result.get("error", "generation_failed"))
+
+        parsed = self.client.parse_json_response(result.get("response", ""))
+        if not isinstance(parsed, dict):
+            return self._fallback(submission, reason="invalid_json")
+
+        normalized = self._normalize_payload(parsed, submission)
         try:
-            # Ensure all required fields are present
-            analysis_data["original_text"] = submission.text
-            return WritingAnalysis(**analysis_data)
-        except Exception as e:
-            print(f"Error parsing writing analysis: {e}")
-            return None
+            return WritingAnalysis(**normalized)
+        except Exception:
+            return self._fallback(submission, reason="schema_validation_failed")
+
+    def _normalize_payload(self, data: Dict[str, Any], submission: WritingSubmission) -> Dict[str, Any]:
+        corrections = data.get("corrections")
+        if not isinstance(corrections, list):
+            corrections = []
+
+        safe_corrections: List[Dict[str, str]] = []
+        for item in corrections:
+            if not isinstance(item, dict):
+                continue
+            safe_corrections.append(
+                {
+                    "original": str(item.get("original", "")),
+                    "corrected": str(item.get("corrected", "")),
+                    "explanation": str(item.get("explanation", "")),
+                    "type": str(item.get("type", "general")),
+                }
+            )
+
+        suggestions = data.get("suggestions") if isinstance(data.get("suggestions"), list) else []
+
+        def clamp_score(key: str) -> int:
+            raw = data.get(key, 0)
+            try:
+                value = int(raw)
+            except Exception:
+                value = 0
+            return max(0, min(100, value))
+
+        return {
+            "original_text": submission.text,
+            "corrected_text": str(data.get("corrected_text", submission.text)),
+            "grammar_score": clamp_score("grammar_score"),
+            "vocabulary_score": clamp_score("vocabulary_score"),
+            "style_score": clamp_score("style_score"),
+            "overall_score": clamp_score("overall_score"),
+            "estimated_level": str(data.get("estimated_level", submission.target_level or "Unknown")),
+            "corrections": safe_corrections,
+            "suggestions": [str(s) for s in suggestions],
+            "feedback": str(data.get("feedback", "Analysis generated with limited confidence.")),
+        }
+
+    def _fallback(self, submission: WritingSubmission, reason: str) -> WritingAnalysis:
+        return WritingAnalysis(
+            original_text=submission.text,
+            corrected_text=submission.text,
+            grammar_score=0,
+            vocabulary_score=0,
+            style_score=0,
+            overall_score=0,
+            estimated_level=submission.target_level or "Unknown",
+            corrections=[],
+            suggestions=["Try shorter sentences and review common patterns.", "Submit again after revision."],
+            feedback=f"AI analysis fallback used: {reason}.",
+        )
 
     def _get_system_prompt(self, language: str) -> str:
         lang_name = "English" if language == "EN" else "Japanese"
-        level_system = "CEFR (A1-C2)" if language == "EN" else "JLPT (N5-N1)"
-        
-        return f"""You are an expert {lang_name} language tutor. 
-Your task is to analyze a student's writing and provide detailed, constructive feedback.
-You must evaluate the writing based on grammar, vocabulary, and style.
-Provide an estimated level using the {level_system} scale.
-Identify specific errors and provide corrections with explanations.
-Your response MUST be in JSON format.
-"""
+        return f"You are an expert {lang_name} writing tutor. Return strict JSON only."
 
     def _get_analysis_prompt(self, submission: WritingSubmission) -> str:
-        lang_name = "English" if submission.language == "EN" else "Japanese"
-        topic_info = f"Topic: {submission.topic}" if submission.topic else "Topic: General"
-        target_info = f"Target Level: {submission.target_level}" if submission.target_level else ""
-        
-        return f"""Analyze the following {lang_name} text:
----
-{submission.text}
----
-{topic_info}
-{target_info}
+        return f"""
+Analyze this writing and return JSON fields exactly:
+corrected_text, grammar_score, vocabulary_score, style_score, overall_score,
+estimated_level, corrections, suggestions, feedback.
 
-Please provide the analysis in the following JSON structure:
-{{
-    "corrected_text": "The full text with all corrections applied",
-    "grammar_score": 0-100,
-    "vocabulary_score": 0-100,
-    "style_score": 0-100,
-    "overall_score": 0-100,
-    "estimated_level": "e.g., B2 or N3",
-    "corrections": [
-        {{
-            "original": "incorrect part",
-            "corrected": "corrected part",
-            "explanation": "why it was wrong and how to fix it",
-            "type": "grammar/vocabulary/spelling/style"
-        }}
-    ],
-    "suggestions": ["suggestion 1", "suggestion 2"],
-    "feedback": "Overall encouraging feedback and summary of strengths/weaknesses"
-}}
+Language: {submission.language}
+Topic: {submission.topic or "General"}
+Target Level: {submission.target_level or "Not specified"}
+Text:
+{submission.text}
 """
+
 
 writing_assistant = WritingAssistant()

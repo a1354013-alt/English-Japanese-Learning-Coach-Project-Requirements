@@ -1,12 +1,12 @@
+﻿export type Language = 'EN' | 'JP'
+
 export interface VocabularyItem {
   word: string
-  reading?: string
-  phonetic?: string
+  reading?: string | null
+  phonetic?: string | null
   definition_zh: string
   example_sentence: string
   example_translation: string
-  synonyms?: string[]
-  antonyms?: string[]
 }
 
 export interface GrammarExample {
@@ -16,7 +16,7 @@ export interface GrammarExample {
 
 export interface GrammarExercise {
   question: string
-  options: string[]
+  options?: string[]
   correct_answer: string
   explanation: string
 }
@@ -63,12 +63,24 @@ export interface DialogueSection {
 
 export interface LessonMetadata {
   lesson_id: string
-  language: 'EN' | 'JP'
+  language: Language
   level: string
   topic: string
   generated_at: string
   estimated_duration_minutes: number
   key_points: string[]
+}
+
+export interface WordCard {
+  word: string
+  rarity: 'C' | 'B' | 'A' | 'S' | 'SS'
+  collected_at: string
+  language: Language
+  reading?: string | null
+  phonetic?: string | null
+  definition_zh?: string
+  example_sentence?: string
+  example_translation?: string
 }
 
 export interface Lesson {
@@ -77,10 +89,15 @@ export interface Lesson {
   grammar: GrammarSection
   reading: ReadingSection
   dialogue: DialogueSection
+  gamification?: {
+    xp_added: number
+    leveled_up: boolean
+    new_cards: WordCard[]
+  }
 }
 
 export interface LanguageProgress {
-  language: 'EN' | 'JP'
+  language: Language
   current_level: string
   target_level: string
   completed_lessons: number
@@ -88,6 +105,15 @@ export interface LanguageProgress {
   correct_exercises: number
   accuracy_rate: number
   last_study_date: string | null
+}
+
+export interface Achievement {
+  id: string
+  title: string
+  description: string
+  icon: string
+  unlocked_at: string
+  rarity: 'common' | 'rare' | 'epic' | 'legendary'
 }
 
 export interface UserRPGStats {
@@ -114,21 +140,6 @@ export interface UserProgress {
   updated_at: string
 }
 
-export interface Achievement {
-  id: string
-  title: string
-  description: string
-  icon: string
-  unlocked_at: string
-  rarity: 'common' | 'rare' | 'epic' | 'legendary'
-}
-
-export interface WordCard {
-  word: string
-  rarity: 'C' | 'B' | 'A' | 'S' | 'SS'
-  collected_at: string
-}
-
 export interface ReviewAnswer {
   lesson_id: string
   exercise_type: 'grammar' | 'reading'
@@ -137,7 +148,8 @@ export interface ReviewAnswer {
   correct_answer: string
 }
 
-export interface ReviewResultData {
+export interface ReviewResult {
+  success: boolean
   total_questions: number
   correct_count: number
   accuracy_rate: number
@@ -147,19 +159,67 @@ export interface ReviewResultData {
     correct_answer: string
     explanation: string
   }>
-}
-
-export interface ReviewApiResponse {
-  success: boolean
   gamification: {
     xp_added: number
     leveled_up: boolean
   }
-  data: ReviewResultData
+}
+
+export interface WritingSubmission {
+  language: Language
+  text: string
+  topic?: string
+  target_level?: string
+}
+
+export interface WritingAnalysis {
+  original_text: string
+  corrected_text: string
+  grammar_score: number
+  vocabulary_score: number
+  style_score: number
+  overall_score: number
+  estimated_level: string
+  corrections: Array<{ original: string; corrected: string; explanation: string; type: string }>
+  suggestions: string[]
+  feedback: string
+}
+
+export interface StudyMilestone {
+  title: string
+  description: string
+  target_date: string
+  required_skills: string[]
+  is_completed: boolean
+}
+
+export interface StudyPlan {
+  plan_id: string
+  user_id: string
+  target_goal: string
+  language: Language
+  start_date: string
+  end_date: string
+  milestones: StudyMilestone[]
+  daily_commitment_minutes: number
+  focus_areas: string[]
+  generated_at: string
 }
 
 export interface GenerateLessonRequest {
-  language: 'EN' | 'JP'
+  language: Language
   topic?: string
   difficulty?: string
+  interest_context?: string
+}
+
+export interface GenerationTask {
+  task_id: string
+  user_id: string
+  status: 'pending' | 'running' | 'success' | 'failed' | 'retried'
+  model_used: string
+  duration_ms: number
+  error_message?: string
+  retry_count: number
+  created_at: string
 }

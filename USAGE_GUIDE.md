@@ -1,146 +1,74 @@
-# Language Coach 使用指南 (深度優化版)
+﻿# Usage Guide
 
-本指南將詳細介紹 Language Coach 應用程式的各項功能，特別是深度優化後新增的進階功能。
+## Quick Start
 
-## 1. 課程生成與個人化 (RAG)
+### Backend
+```bash
+cd backend
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-### 1.1 手動生成課程
-在「今日課程」頁面，點擊「生成按鈕」可以手動生成新課程。
-*   **語言**：選擇英語 (EN) 或日語 (JP)。
-*   **主題/難度**：可選填，若留空則系統會根據您的進度自動選擇。
-*   **個人化興趣 (RAG)**：這是新增的關鍵功能。您可以在此輸入一段文字（例如：您最近閱讀的一篇新聞標題、一個感興趣的動漫角色、或一個專業術語）。AI 將使用這段文字作為**檢索增強生成 (RAG)** 的上下文，確保生成的課程內容與您的興趣高度相關。
+### Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### 1.2 上傳 RAG 材料
-為了更精準地個人化課程，您可以上傳完整的文章或文件作為 AI 的參考資料庫。
+## End-to-End Functional Check
 
-**API 端點**：`POST /api/rag/upload`
-*   **用途**：上傳純文字文件（例如：`.txt` 或 `.md` 檔案）到 ChromaDB 向量資料庫。
-*   **效果**：一旦上傳，AI 在生成課程時，會優先從這些材料中提取單字、文法點和情境，使課程內容更貼近您的學習需求。
+1. Onboarding
+- Open `http://localhost:5173`
+- Choose language, level, and difficulty
 
-## 2. 互動練習模式
+2. Generate lesson
+- Go to Today page
+- Click Generate
 
-課程中的練習題不再是單一的選擇題，而是加入了多種互動模式，以提升學習效率：
+3. Review
+- Answer grammar and reading questions
+- Click Submit Review
 
-| 練習類型 | 目的 | 互動方式 |
-| :--- | :--- | :--- |
-| **克漏字 (Cloze)** | 強化主動回想與單字/文法應用 | 閱讀文章或句子，手動填入被挖空的關鍵詞。 |
-| **句子重組 (Scramble)** | 訓練語法結構與句子組織能力 | 將打亂的單詞拖曳或點擊，重新排列成正確的句子。 |
-| **聽寫練習 (Dictation)** | 訓練聽力與拼寫能力 | 播放 TTS 音頻，使用者輸入聽到的完整句子。 |
-| **多重選擇 (Multiple Choice)** | 基礎理解與概念測試 | 傳統的選擇題，用於文法或閱讀理解。 |
+4. Progress
+- Open Progress page
+- Verify completed lessons and accuracy update
 
-## 3. 進度追蹤與視覺化
+5. Archive and lesson detail
+- Open Archive page
+- Click View Lesson on one item
 
-「進度頁」現在是一個整合了學習分析與遊戲化元素的儀表板：
+6. Writing analysis
+- Open Writing page
+- Submit text and verify analysis response
 
-### 3.1 RPG 角色成長系統
-*   **位置**：進度頁面頂部。
-*   **功能**：展示您的虛擬化身、等級、經驗值 (XP) 進度條、頭銜、連續學習天數 (Streak) 和已解鎖技能。
-*   **經驗值獲取**：完成課程、答對練習題、保持連續學習天數都會獲得 XP。
-*   **升級與技能解鎖**：達到特定等級會自動解鎖新的學習技能或內容類型，例如「商務日語」或「俚語挑戰」。
+7. Study plan
+- Open Progress page
+- Enter target goal in Study Plan section
 
-### 3.2 知識圖譜與學習熱點圖
-*   **知識圖譜 (Knowledge Graph)**：以技能樹的形式展示您在不同語言、不同主題（如：時態、敬語、詞彙量）上的掌握程度。節點的大小和顏色代表您的熟練度或錯誤率，幫助您發現知識盲區。
-*   **學習熱點圖 (Heatmap)**：以日曆形式展示您過去一年的學習活躍度。顏色越深，代表當天完成的課程或練習越多，激勵您保持學習習慣。
+8. Excel import
+- Archive page -> Excel Import
+- Upload `.xlsx` with at least:
+  - `word`
+  - `definition` or `definition_zh`
+- Optional columns:
+  - `reading`
+  - `example` or `example_sentence`
+  - `example_translation`
 
-### 3.3 成就勳章與單字卡牌收集
-*   **成就勳章**：在進度頁面下方展示您已解鎖的成就勳章。完成特定挑戰（如：連續學習 7 天、達到 90% 正確率）即可獲得。
-*   **單字卡牌收集**：學習過的單字會自動轉化為可收集的卡牌，並根據單字難度賦予不同的稀有度（C, B, A, S, SS）。您可以在此瀏覽您的卡牌收藏。
+9. RAG upload
+- Archive page -> RAG Upload
+- Upload `.txt`, `.md`, or `.csv`
 
-### 3.4 間隔複習系統 (SRS) 與交錯練習
-*   **機制**：後端採用 **SM-2 演算法**。當您在練習題中答錯或標記為「困難」時，系統會縮短該單字或文法點的下次複習間隔。
-*   **交錯練習**：在每日課程中，系統會自動插入 **20% 來自過去一週的舊內容**，強制您進行跨單元複習，有效對抗遺忘曲線。
+10. PDF export
+- Today page -> Export PDF
 
-## 4. AI 角色對話 (WebSocket)
+## Notes on Current Build
 
-### 4.1 啟動對話
-在「今日課程」頁面或獨立的「對話」頁面，您可以啟動與 AI 導師的即時對話。
-
-**API 端點**：`WS /ws/chat/{language}`
-*   **AI 導師性格**：AI 導師被設定為**友善、鼓勵且具有記憶**。
-*   **情感連結**：AI 會根據您在課程生成時提供的興趣（或未來儲存的用戶記憶），在對話中主動提及，創造更真實的互動體驗。
-*   **即時反饋**：AI 會在對話中**溫和地糾正**您的語法錯誤，並引導您使用更自然的表達方式。
-
-## 5. 其他優化
-
-*   **深色模式**：點擊導航欄的圖標，即可切換到深色模式，保護視力。
-*   **PDF 匯出**：在課程詳情頁面，您可以點擊「匯出 PDF」按鈕，將完整的課程內容下載到本地，方便列印或離線閱讀。
-*   **多模型協作 (MoE)**：系統會根據任務的複雜度，自動切換使用 `llama3:8b`（例如：簡單單字）或 `llama2:13b`（例如：複雜閱讀文章），以平衡生成速度與內容品質。
-
-## 環境變數設定 (`.env`)
-
-後端設定檔 `backend/.env` 包含以下變數：
-
-- `OLLAMA_URL`：Ollama API 的位址 (預設: `http://localhost:11434`)
-- `MODEL_NAME`：預設使用的 Ollama 模型名稱 (預設: `llama2:13b`)
-- `SMALL_MODEL_NAME`：用於輕量級任務（如聊天）的模型 (預設: `llama3:8b`)
-- `LARGE_MODEL_NAME`：用於複雜任務（如課程生成）的模型 (預設: `llama2:13b`)
-- `DB_PATH`：SQLite 資料庫檔案的路徑 (預設: `../data/language_coach.db`)
-- `AUTO_GENERATE_TIME`：每日自動生成課程的時間 (HH:MM 格式，預設: `07:30`)
-- `TIMEZONE`：排程器使用的時區 (預設: `Asia/Taipei`)
-- `API_HOST`：FastAPI 服務器監聽的主機 (預設: `0.0.0.0`)
-- `API_PORT`：FastAPI 服務器監聽的端口 (預設: `8000`)
-- `REDIS_URL`：Redis 服務的 URL (預設: `redis://localhost:6379/0`)
-- `CACHE_EXPIRE`：快取過期時間 (秒，預設: `3600`)
-- `CHROMA_DB_PATH`：ChromaDB 向量資料庫的路徑 (預設: `../data/chroma_db`)
-
-## 常見問題
-
-### Q: 如何備份我的學習數據？
-
-**A:** 備份以下三個項目即可：
-1. `data/language_coach.db`（SQLite 資料庫檔案）
-2. `data/lessons/`（課程 JSON 檔案目錄）
-3. `data/chroma_db/`（ChromaDB 向量資料庫）
-
-### Q: 如何重置進度？
-
-**A:** 刪除 `data/language_coach.db` 檔案，然後重新啟動後端服務。系統會自動建立新的資料庫並初始化預設進度。
-
-### Q: 如何切換 AI 模型？
-
-1. 使用 Ollama 下載您想要的模型：`ollama pull <model_name>`
-2. 編輯 `backend/.env` 檔案，修改 `LARGE_MODEL_NAME` 和 `SMALL_MODEL_NAME`。
-3. 重新啟動後端服務。
-
----
-
-**作者**：Manus AI  
-**版本**：2.0.0 (深度優化版)  
-**日期**：2026-01-12  
-**授權**：MIT LicensDEL_NAME`：預設使用的 Ollama 模型名稱 (預設: `llama2:13b`)。
-- `SMALL_MODEL_NAME`：用於輕量級任務（如聊天）的模型 (預設: `llama3:8b`)。
-- `LARGE_MODEL_NAME`：用於複雜任務（如課程生成）的模型 (預設: `llama2:13b`)。
-- `DB_PATH`：SQLite 資料庫檔案的路徑 (預設: `../data/language_coach.db`)。
-- `AUTO_GENERATE_TIME`：每日自動生成課程的時間 (HH:MM 格式，預設: `07:30`)。
-- `TIMEZONE`：排程器使用的時區 (預設: `Asia/Taipei`)。
-- `API_HOST`：FastAPI 服務器監聽的主機 (預設: `0.0.0.0`)。
-- `API_PORT`：FastAPI 服務器監聽的端口 (預設: `8000`)。
-- `REDIS_URL`：Redis 服務的 URL (預設: `redis://localhost:6379/0`)。
-- `CACHE_EXPIRE`：快取過期時間 (秒，預設: `3600`)。
-- `CHROMA_DB_PATH`：ChromaDB 向量資料庫的路徑 (預設: `../data/chroma_db`)。
-
-## 常見問題
-
-### Q: 如何備份我的學習數據？
-
-**A:** 備份以下三個項目即可：
-1. `data/language_coach.db`（SQLite 資料庫檔案）
-2. `data/lessons/`（課程 JSON 檔案目錄）
-3. `data/chroma_db/`（ChromaDB 向量資料庫）
-
-### Q: 如何重置進度？
-
-**A:** 刪除 `data/language_coach.db` 檔案，然後重新啟動後端服務。系統會自動建立新的資料庫並初始化預設進度。
-
-### Q: 如何切換 AI 模型？
-
-1. 使用 Ollama 下載您想要的模型：`ollama pull <model_name>`
-2. 編輯 `backend/.env` 檔案，修改 `LARGE_MODEL_NAME` 和 `SMALL_MODEL_NAME`。
-3. 重新啟動後端服務。
-
----
-
-**作者**：Manus AI  
-**版本**：2.0.0 (深度優化版)  
-**日期**：2026-01-12  
-**授權**：MIT License（建議）
+- TTS endpoint is available but returns no audio file unless a real TTS engine is integrated.
+- Chat memory currently uses explicit fallback text (no persistent memory source in this release).
+- RAG behavior depends on local vector runtime availability.

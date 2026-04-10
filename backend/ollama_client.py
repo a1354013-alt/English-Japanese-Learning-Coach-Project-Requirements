@@ -16,8 +16,8 @@ class OllamaClient:
         self,
         base_url: str = None,
         model_name: str = None,
-        timeout: int = 120,
-        max_retries: int = 3
+        timeout: int = 20,
+        max_retries: int = 1
     ):
         self.base_url = base_url or settings.ollama_url
         self.model_name = model_name or settings.model_name
@@ -55,7 +55,7 @@ class OllamaClient:
         
         except (httpx.TimeoutException, httpx.ConnectError) as e:
             if retry_count < self.max_retries:
-                wait_time = 2 ** retry_count  # Exponential backoff
+                wait_time = 1
                 print(f"Request failed, retrying in {wait_time}s... (attempt {retry_count + 1}/{self.max_retries})")
                 time.sleep(wait_time)
                 return self._make_request(endpoint, data, retry_count + 1)

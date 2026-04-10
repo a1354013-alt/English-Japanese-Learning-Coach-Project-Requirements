@@ -1,83 +1,68 @@
-"""
-Lesson generator using Ollama AI
-Generates structured language learning content with Fallback and Smart Scheduling
-"""
+﻿"""Lesson generator using Ollama AI."""
 import json
-import os
-import time
 import random
+import time
 from datetime import datetime
-from typing import Dict, Any, Optional, Literal
+from pathlib import Path
+from typing import Any, Dict, Literal, Optional
 from uuid import uuid4
 
-from ollama_client import ollama_client
-from models import Lesson, LessonMetadata, VocabularyItem, GrammarSection, ReadingSection, DialogueSection, TaskStatus
-from database import db
 from config import settings
+from database import db
+from models import (
+    DialogueSection,
+    GrammarSection,
+    Lesson,
+    LessonMetadata,
+    ReadingSection,
+    VocabularyItem,
+)
+from ollama_client import ollama_client
 
 
 class LessonGenerator:
-    """Generate language learning lessons using AI with Robustness and Intelligence"""
-    
-    # Topic pools for random selection
     ENGLISH_TOPICS = [
-        "Daily Conversation", "Business Communication", "Travel & Tourism",
-        "Technology & Innovation", "Health & Wellness", "Food & Cooking",
-        "Environment & Sustainability", "Education & Learning", "Arts & Culture",
-        "Sports & Fitness", "Finance & Economy", "Social Media & Internet"
+        "Daily Conversation",
+        "Business Communication",
+        "Travel",
+        "Technology",
+        "Health",
+        "Education",
     ]
-    
     JAPANESE_TOPICS = [
-        "日常会話", "ビジネス日本語", "旅行と観光",
-        "テクノロジー", "健康とウェルネス", "料理と食文化",
-        "環境問題", "教育", "芸術と文化",
-        "スポーツ", "經濟とビジネス", "インターネットとSNS"
+        "日常会話",
+        "仕事",
+        "旅行",
+        "買い物",
+        "学校生活",
+        "趣味",
     ]
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.ollama = ollama_client
-    
+
     def _get_system_prompt(self, language: Literal["EN", "JP"]) -> str:
         if language == "EN":
-            return """You are an expert English language teacher specializing in TOEIC preparation.
-Generate comprehensive, structured English lessons in valid JSON format.
-All content must be educational, accurate, and appropriate for the specified CEFR level."""
-        else:
-            return """You are an expert Japanese language teacher specializing in JLPT preparation.
-Generate comprehensive, structured Japanese lessons in valid JSON format.
-Include proper hiragana readings for kanji."""
+            return "You are an English tutor. Return valid JSON only."
+        return "You are a Japanese tutor. Return valid JSON only."
 
-    def _select_smart_model(self, language: str, level: str, context_len: int) -> str:
-        """Select model based on user level, task complexity, and language"""
-        # Japanese often works better with specific small models or large models
-        if language == "JP":
+    def _build_prompt(self, language: Literal["EN", "JP"], level: str, topic: str) -> str:
+        if language == "EN":
+            return (
+                f"Generate an English lesson for CEFR {level} about '{topic}'. "
+                "Return JSON with keys: vocabulary, grammar, reading, dialogue. "
+                "Vocabulary item fields: word, phonetic, definition_zh, example_sentence, example_translation."
+            )
+        return (
+            f"Generate a Japanese lesson for JLPT {level} about '{topic}'. "
+            "Return JSON with keys: vocabulary, grammar, reading, dialogue. "
+            "Vocabulary item fields: word, reading, definition_zh, example_sentence, example_translation."
+        )
+
+    def _select_model(self, language: str, level: str, context_len: int) -> str:
+        if language == "JP" or level in {"C1", "C2", "N1"} or context_len > 1000:
             return settings.large_model_name
-        
-        # For advanced users or long contexts, use the big model
-        if level in ["C1", "C2", "N1"] or context_len > 1000:
-            return settings.large_model_name
-            
         return settings.small_model_name
-
-    def _build_english_prompt(self, level: str, topic: str) -> str:
-        return f"""Generate a structured English lesson for level {level} on the topic of '{topic}'.
-        The JSON must include:
-        1. vocabulary: 10-15 items with word, phonetic, definition_zh, example_sentence, example_translation.
-        2. grammar: title, explanation, 3-5 examples, 5 exercises (question, options, correct_answer, explanation).
-        3. reading: title, content (300-450 words), word_count, 5 comprehension questions.
-        4. dialogue: scenario, context, 8-12 lines of dialogue (role, text, translation), 3-5 alternatives.
-        
-        Ensure the JSON is valid and follows the schema strictly."""
-
-    def _build_japanese_prompt(self, level: str, topic: str) -> str:
-        return f"""Generate a structured Japanese lesson for level {level} on the topic of '{topic}'.
-        The JSON must include:
-        1. vocabulary: 10-15 items with word, reading (hiragana), definition_zh, example_sentence, example_translation.
-        2. grammar: title, explanation, 3-5 examples, 5 exercises (question, options, correct_answer, explanation).
-        3. reading: title, content (250-400 words), word_count, 5 comprehension questions.
-        4. dialogue: scenario, context, 8-12 lines of dialogue (role, text, translation), 3-5 alternatives.
-        
-        Ensure the JSON is valid and follows the schema strictly."""
 
     async def generate_lesson(
         self,
@@ -85,113 +70,77 @@ Include proper hiragana readings for kanji."""
         topic: Optional[str] = None,
         level: Optional[str] = None,
         interest_context: Optional[str] = None,
-        user_id: str = "default_user"
-    ) -> Optional[Lesson]:
-        """Generate a complete lesson with Fallback and Task Tracking"""
+        user_id: str = "default_user",
+    ) -> Lesson:
         task_id = str(uuid4())
         start_time = time.time()
-        
-        # 1. Determine level and topic
+
+        progress = db.get_progress(user_id)
         if not level:
-            progress = db.get_progress(user_id)
-            if progress:
-                level = progress['english_progress']['current_level'] if language == "EN" else progress['japanese_progress']['current_level']
-            else:
-                level = "A1" if language == "EN" else "N5"
-        
+            level = progress["english_progress"]["current_level"] if language == "EN" else progress["japanese_progress"]["current_level"]
         if not topic:
             topic = random.choice(self.ENGLISH_TOPICS if language == "EN" else self.JAPANESE_TOPICS)
 
-        # 2. Smart Model Selection
-        context_len = len(interest_context) if interest_context else 0
-        model = self._select_smart_model(language, level, context_len)
-        
-        # Initial task status
-        task_data = {
+        model = self._select_model(language, level, len(interest_context or ""))
+        db.save_generation_task({
             "task_id": task_id,
             "user_id": user_id,
             "status": "running",
             "model_used": model,
-            "created_at": datetime.now().isoformat()
-        }
-        db.save_generation_task(task_data)
+            "created_at": datetime.now().isoformat(),
+        })
 
-        # 3. Generation with Fallback
         try:
-            lesson = await self._perform_generation(language, topic, level, interest_context, model)
-            
-            # Success
-            task_data["status"] = "success"
-            task_data["duration_ms"] = int((time.time() - start_time) * 1000)
-            db.save_generation_task(task_data)
+            lesson = await self._generate_with_model(language, level, topic, interest_context, model)
+            db.save_generation_task({
+                "task_id": task_id,
+                "user_id": user_id,
+                "status": "success",
+                "model_used": model,
+                "duration_ms": int((time.time() - start_time) * 1000),
+                "created_at": datetime.now().isoformat(),
+            })
             return lesson
-            
-        except Exception as e:
-            print(f"Primary generation failed: {e}. Attempting fallback...")
-            task_data["status"] = "retried"
-            task_data["retry_count"] = 1
-            db.save_generation_task(task_data)
-            
-            try:
-                # Fallback to small model
-                fallback_model = settings.small_model_name
-                task_data["model_used"] = f"{fallback_model} (fallback)"
-                lesson = await self._perform_generation(language, topic, level, interest_context, fallback_model)
-                
-                task_data["status"] = "success"
-                task_data["duration_ms"] = int((time.time() - start_time) * 1000)
-                db.save_generation_task(task_data)
-                return lesson
-            except Exception as fe:
-                # Final Fallback: Rule-based "Safe Version"
-                print(f"Fallback failed: {fe}. Using safe template.")
-                task_data["status"] = "failed"
-                task_data["error_message"] = str(fe)
-                db.save_generation_task(task_data)
-                return self._get_safe_lesson_template(language, level, topic)
+        except Exception as err:
+            fallback = self._safe_lesson(language, level, topic)
+            db.save_generation_task({
+                "task_id": task_id,
+                "user_id": user_id,
+                "status": "failed",
+                "model_used": model,
+                "error_message": str(err),
+                "duration_ms": int((time.time() - start_time) * 1000),
+                "created_at": datetime.now().isoformat(),
+            })
+            return fallback
 
-    async def _perform_generation(self, language, topic, level, interest_context, model) -> Lesson:
-        """Internal generation logic (P1 Fix: Removed circular import)"""
-        from rag_manager import rag_manager
-        
-        # RAG Context
-        query_text = f"{topic} {level}"
+    async def _generate_with_model(
+        self,
+        language: Literal["EN", "JP"],
+        level: str,
+        topic: str,
+        interest_context: Optional[str],
+        model: str,
+    ) -> Lesson:
+        prompt = self._build_prompt(language, level, topic)
         if interest_context:
-            query_text += f" {interest_context}"
-        context_materials = rag_manager.query_materials(query_text, n_results=3)
-        context_str = "\n".join(context_materials) if context_materials else ""
-        
-        # Build prompt
-        system_prompt = self._get_system_prompt(language)
-        if language == "EN":
-            user_prompt = self._build_english_prompt(level, topic)
-        else:
-            user_prompt = self._build_japanese_prompt(level, topic)
-            
-        if context_str:
-            user_prompt += f"\n\nContext:\n{context_str}"
-        if interest_context:
-            user_prompt += f"\n\nUser Interest: {interest_context}"
+            prompt += f" Context from user: {interest_context}"
 
         response = self.ollama.generate(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            temperature=0.7,
+            prompt=prompt,
+            system_prompt=self._get_system_prompt(language),
+            model=model,
             format="json",
-            model=model
         )
-        
-        if not response['success']:
-            raise Exception(response.get('error', 'Ollama generation failed'))
-        
-        lesson_content = self.ollama.parse_json_response(response['response'])
-        if not lesson_content:
-            raise Exception("Failed to parse JSON response")
-        
-        # Normalize correct answers to text format
-        self._normalize_correct_answers(lesson_content)
-        
-        # Create metadata
+        if not response.get("success"):
+            raise RuntimeError(response.get("error", "generation failed"))
+
+        content = self.ollama.parse_json_response(response["response"])
+        if not content:
+            raise RuntimeError("model returned non-json content")
+
+        self._normalize(content)
+
         metadata = LessonMetadata(
             lesson_id=str(uuid4()),
             language=language,
@@ -199,88 +148,72 @@ Include proper hiragana readings for kanji."""
             topic=topic,
             generated_at=datetime.now(),
             estimated_duration_minutes=45,
-            key_points=[f"Topic: {topic}", f"Level: {level}"]
+            key_points=[f"Topic: {topic}", f"Level: {level}"],
         )
-        
-        # Interleave old content
-        self._interleave_old_content(lesson_content, language)
 
         full_lesson = {
-            "metadata": metadata.model_dump(mode='json'),
-            **lesson_content
+            "metadata": metadata.model_dump(mode="json"),
+            **content,
         }
-        
-        # Save
-        file_path = self._save_lesson_file(full_lesson)
-        db.save_lesson(full_lesson, file_path)
-        
-        return Lesson(**full_lesson)
+        lesson = Lesson(**full_lesson)
 
-    def _normalize_correct_answers(self, lesson_content: Dict[str, Any]):
-        """Convert correct_answer from index to text for option-based exercises"""
-        # Normalize grammar exercises
-        if 'grammar' in lesson_content and 'exercises' in lesson_content['grammar']:
-            for exercise in lesson_content['grammar']['exercises']:
-                if 'options' in exercise and exercise['options'] and 'correct_answer' in exercise:
-                    try:
-                        index = int(exercise['correct_answer'])
-                        if 0 <= index < len(exercise['options']):
-                            exercise['correct_answer'] = exercise['options'][index]
-                    except (ValueError, TypeError):
-                        pass  # Keep as is if not a valid index
-        
-        # Normalize reading questions
-        if 'reading' in lesson_content and 'questions' in lesson_content['reading']:
-            for question in lesson_content['reading']['questions']:
-                if 'options' in question and question['options'] and 'correct_answer' in question:
-                    try:
-                        index = int(question['correct_answer'])
-                        if 0 <= index < len(question['options']):
-                            question['correct_answer'] = question['options'][index]
-                    except (ValueError, TypeError):
-                        pass  # Keep as is if not a valid index
+        file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
+        db.save_lesson(lesson.model_dump(mode="json"), str(file_path))
+        return lesson
 
-    def _interleave_old_content(self, lesson_content: Dict[str, Any], language: str):
-        """Insert 20% content from past lessons"""
-        try:
-            old_lessons_meta = db.query_lessons(language=language, limit=5)
-            if len(old_lessons_meta) < 2: return
-            target_meta = random.choice(old_lessons_meta)
-            with open(target_meta['file_path'], 'r', encoding='utf-8') as f:
-                old_data = json.load(f)
-            if 'vocabulary' in old_data and len(old_data['vocabulary']) >= 2:
-                old_vocab = random.sample(old_data['vocabulary'], 2)
-                lesson_content['vocabulary'].extend(old_vocab)
-        except: pass
+    def _normalize(self, content: Dict[str, Any]) -> None:
+        content.setdefault("vocabulary", [])
+        content.setdefault("grammar", {"title": "Grammar", "explanation": "", "examples": [], "exercises": []})
+        content.setdefault("reading", {"title": "Reading", "content": "", "word_count": 0, "questions": []})
+        content.setdefault("dialogue", {"scenario": "Conversation", "context": "Practice", "dialogue": [], "alternatives": []})
 
-    def _save_lesson_file(self, lesson_data: Dict[str, Any]) -> str:
-        metadata = lesson_data['metadata']
-        date_str = datetime.fromisoformat(metadata['generated_at']).strftime('%Y-%m-%d')
-        lesson_dir = f"../data/lessons/{date_str}"
-        os.makedirs(lesson_dir, exist_ok=True)
-        file_path = f"{lesson_dir}/lesson_{metadata['lesson_id']}.json"
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(lesson_data, f, ensure_ascii=False, indent=2)
+        for section in ("grammar", "reading"):
+            key = "exercises" if section == "grammar" else "questions"
+            for item in content.get(section, {}).get(key, []):
+                options = item.get("options") or []
+                answer = item.get("correct_answer")
+                if isinstance(answer, int) and 0 <= answer < len(options):
+                    item["correct_answer"] = options[answer]
+                elif answer is None:
+                    item["correct_answer"] = ""
+
+    def _save_lesson_file(self, lesson_data: Dict[str, Any]) -> Path:
+        metadata = lesson_data["metadata"]
+        generated_at = datetime.fromisoformat(metadata["generated_at"])
+        lesson_dir = settings.lessons_dir / generated_at.strftime("%Y-%m-%d")
+        lesson_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = lesson_dir / f"lesson_{metadata['lesson_id']}.json"
+        file_path.write_text(json.dumps(lesson_data, ensure_ascii=False, indent=2), encoding="utf-8")
         return file_path
 
-    def _get_safe_lesson_template(self, language, level, topic) -> Lesson:
-        """Return a pre-defined safe lesson when AI fails completely"""
-        return Lesson(
-            metadata=LessonMetadata(
-                language=language,
-                level=level,
-                topic=f"{topic} (Safe Mode)",
-                estimated_duration_minutes=15,
-                key_points=["System Resilience", "Stability"]
-            ),
-            vocabulary=[
-                VocabularyItem(word="Resilience", definition_zh="韌性", example_sentence="The system showed resilience.", example_translation="系統展現了韌性。")
-            ],
-            grammar=GrammarSection(title="Stability", explanation="Always have a backup plan.", examples=[], exercises=[]),
-            reading=ReadingSection(title="System Stability", content="Learning continues even during maintenance.", word_count=50, questions=[]),
-            dialogue=DialogueSection(scenario="Support", context="Maintenance", dialogue=[], alternatives=[])
+    def _safe_lesson(self, language: Literal["EN", "JP"], level: str, topic: str) -> Lesson:
+        metadata = LessonMetadata(
+            language=language,
+            level=level,
+            topic=f"{topic} (Fallback)",
+            estimated_duration_minutes=15,
+            key_points=["Fallback lesson", "Core practice"],
         )
+        lesson = Lesson(
+            metadata=metadata,
+            vocabulary=[
+                VocabularyItem(
+                    word="resilience",
+                    reading=None,
+                    phonetic="/rɪˈzɪl.jəns/" if language == "EN" else None,
+                    definition_zh="韌性",
+                    example_sentence="Consistency builds resilience.",
+                    example_translation="持續練習會建立韌性。",
+                )
+            ],
+            grammar=GrammarSection(title="Simple Present", explanation="Use it for habits.", examples=[], exercises=[]),
+            reading=ReadingSection(title="Short Reading", content="Study a little every day.", word_count=6, questions=[]),
+            dialogue=DialogueSection(scenario="Practice", context="Daily study", dialogue=[], alternatives=[]),
+        )
+        file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
+        db.save_lesson(lesson.model_dump(mode="json"), str(file_path))
+        return lesson
 
 
-# Global lesson generator instance
 lesson_generator = LessonGenerator()
