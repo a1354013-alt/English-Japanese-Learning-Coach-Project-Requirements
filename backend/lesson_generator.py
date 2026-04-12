@@ -126,11 +126,12 @@ class LessonGenerator:
         if interest_context:
             prompt += f" Context from user: {interest_context}"
 
-        response = self.ollama.generate(
+        response = await self.ollama.generate(
             prompt=prompt,
             system_prompt=self._get_system_prompt(language),
             model=model,
             format="json",
+            timeout_profile="lesson",
         )
         if not response.get("success"):
             raise RuntimeError(response.get("error", "generation failed"))

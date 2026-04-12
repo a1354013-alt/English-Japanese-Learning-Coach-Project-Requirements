@@ -11,11 +11,12 @@ class WritingAssistant:
         self.client = ollama_client
 
     async def analyze_writing(self, submission: WritingSubmission) -> WritingAnalysis:
-        result = self.client.generate(
+        result = await self.client.generate(
             prompt=self._get_analysis_prompt(submission),
             system_prompt=self._get_system_prompt(submission.language),
             model=settings.model_name,
             format="json",
+            timeout_profile="structured_json",
         )
         if not result.get("success"):
             return self._fallback(submission, reason=result.get("error", "generation_failed"))

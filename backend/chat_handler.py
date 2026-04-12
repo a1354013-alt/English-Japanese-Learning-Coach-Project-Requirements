@@ -52,12 +52,13 @@ class ChatManager:
                         lines.append(f"Assistant: {msg['content']}")
                 full_prompt = "\n".join(lines + [f"User: {user_text}"])
 
-                response = ollama_client.generate(
+                response = await ollama_client.generate(
                     prompt=full_prompt,
                     system_prompt=system_prompt,
                     model=settings.small_model_name,
                     format="text",
                     use_cache=False,
+                    timeout_profile="chat",
                 )
 
                 if response.get("success"):

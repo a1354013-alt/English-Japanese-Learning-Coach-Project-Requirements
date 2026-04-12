@@ -17,10 +17,11 @@ class StudyPlanner:
         language: str,
         current_progress: Dict[str, Any],
     ) -> StudyPlan:
-        result = self.client.generate(
+        result = await self.client.generate(
             prompt=self._get_plan_prompt(target_goal, language, current_progress),
             system_prompt=f"You are a study planning coach for {language}. Return strict JSON only.",
             format="json",
+            timeout_profile="structured_json",
         )
 
         if not result.get("success"):
