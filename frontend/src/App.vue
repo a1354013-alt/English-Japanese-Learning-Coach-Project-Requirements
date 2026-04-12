@@ -1,5 +1,10 @@
 ﻿<template>
   <div class="app-shell">
+    <div v-if="apiErrorMessage" class="api-error-banner row between center" role="alert">
+      <span>{{ apiErrorMessage }}</span>
+      <button type="button" class="secondary" @click="clearApiError">Dismiss</button>
+    </div>
+
     <header class="topbar">
       <div class="container row between center">
         <h1 class="brand" @click="$router.push('/')">English-Japanese Learning Coach</h1>
@@ -22,12 +27,17 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import Onboarding from '@/components/Onboarding.vue'
+import { apiErrorMessage, clearApiError } from '@/services/apiNotifications'
 import { progressApi } from '@/services/api'
 
 const showOnboarding = ref(false)
 
 onMounted(async () => {
-  const { progress } = await progressApi.getProgress()
-  showOnboarding.value = !progress.rpg_stats.is_onboarded
+  try {
+    const { progress } = await progressApi.getProgress()
+    showOnboarding.value = !progress.rpg_stats.is_onboarded
+  } catch {
+    showOnboarding.value = false
+  }
 })
 </script>

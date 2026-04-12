@@ -3,6 +3,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Query
 
+from config import settings
 from database import db
 from gamification_engine import gamification_engine
 from lesson_generator import lesson_generator
@@ -21,9 +22,9 @@ async def generate_lesson(request: GenerateLessonRequest):
         interest_context=request.interest_context,
     )
 
-    xp_result = gamification_engine.add_xp("default_user", 50)
+    xp_result = gamification_engine.add_xp(settings.default_user_id, 50)
     words = [item.word for item in lesson.vocabulary]
-    new_cards = gamification_engine.collect_word_cards("default_user", words, request.language)
+    new_cards = gamification_engine.collect_word_cards(settings.default_user_id, words, request.language)
 
     lesson_dict = lesson.model_dump(mode="json")
     lesson_dict["gamification"] = {
@@ -64,11 +65,11 @@ async def get_lesson(lesson_id: str):
 
 @router.post("/onboard")
 async def onboard_user(language: Literal["EN", "JP"], level: str, difficulty: str):
-    progress = db.get_progress("default_user")
+    progress = db.get_progress(settings.default_user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
     progress[key]["current_level"] = level
 
-    stats = UserRPGStats(**db.get_rpg_stats("default_user"))
+    stats = UserRPGStats(**db.get_rpg_stats(settings.default_user_id))
     stats.is_onboarded = True
     stats.difficulty_mode = difficulty
 

@@ -5,7 +5,11 @@
       <button class="secondary" @click="$router.push('/archive')">Back to Archive</button>
     </div>
 
-    <div class="panel" v-if="loading">Loading lesson...</div>
+    <div class="panel" v-if="loading">Loading lesson…</div>
+    <div class="panel" v-else-if="error">
+      <p class="error-text">{{ error }}</p>
+      <button type="button" @click="loadLesson">Retry</button>
+    </div>
     <div class="panel" v-else-if="!lesson">Lesson not found.</div>
 
     <div v-else class="grid">
@@ -39,22 +43,43 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { lessonApi } from '@/services/api'
 import type { Lesson } from '@/types'
 
 const route = useRoute()
 const loading = ref(true)
+const error = ref<string | null>(null)
 const lesson = ref<Lesson | null>(null)
 
-onMounted(async () => {
+const loadLesson = async () => {
+  loading.value = true
+  error.value = null
+  lesson.value = null
   try {
     const id = String(route.params.id)
     const res = await lessonApi.getLesson(id)
     lesson.value = res.lesson
+  } catch {
+    error.value = 'Could not load this lesson. It may have been removed or the API is unavailable.'
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadLesson)
+watch(
+  () => route.params.id,
+  () => {
+    void loadLesson()
+  },
+)
 </script>
+
+<style scoped>
+.error-text {
+  color: #b91c1c;
+  margin: 0 0 0.75rem;
+}
+</style>

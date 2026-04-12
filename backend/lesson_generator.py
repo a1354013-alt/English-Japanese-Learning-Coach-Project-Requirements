@@ -18,6 +18,7 @@ from models import (
     VocabularyItem,
 )
 from ollama_client import ollama_client
+from rag_manager import rag_manager
 
 
 class LessonGenerator:
@@ -70,12 +71,13 @@ class LessonGenerator:
         topic: Optional[str] = None,
         level: Optional[str] = None,
         interest_context: Optional[str] = None,
-        user_id: str = "default_user",
+        user_id: Optional[str] = None,
     ) -> Lesson:
         task_id = str(uuid4())
         start_time = time.time()
 
-        progress = db.get_progress(user_id)
+        uid = user_id or settings.default_user_id
+        progress = db.get_progress(uid)
         if not level:
             level = progress["english_progress"]["current_level"] if language == "EN" else progress["japanese_progress"]["current_level"]
         if not topic:
@@ -84,7 +86,7 @@ class LessonGenerator:
         model = self._select_model(language, level, len(interest_context or ""))
         db.save_generation_task({
             "task_id": task_id,
-            "user_id": user_id,
+            "user_id": uid,
             "status": "running",
             "model_used": model,
             "created_at": datetime.now().isoformat(),
@@ -94,7 +96,7 @@ class LessonGenerator:
             lesson = await self._generate_with_model(language, level, topic, interest_context, model)
             db.save_generation_task({
                 "task_id": task_id,
-                "user_id": user_id,
+                "user_id": uid,
                 "status": "success",
                 "model_used": model,
                 "duration_ms": int((time.time() - start_time) * 1000),
@@ -105,7 +107,7 @@ class LessonGenerator:
             fallback = self._safe_lesson(language, level, topic)
             db.save_generation_task({
                 "task_id": task_id,
-                "user_id": user_id,
+                "user_id": uid,
                 "status": "failed",
                 "model_used": model,
                 "error_message": str(err),
@@ -125,6 +127,15 @@ class LessonGenerator:
         prompt = self._build_prompt(language, level, topic)
         if interest_context:
             prompt += f" Context from user: {interest_context}"
+
+        snippets = rag_manager.query_materials(
+            f"{topic} {level}",
+            n_results=3,
+            filter_criteria={"language": language},
+        )
+        if snippets:
+            prompt += "\n\nLearner-uploaded reference excerpts (optional; use only if relevant, do not invent facts):\n"
+            prompt += "\n---\n".join(snippets[:3])
 
         response = await self.ollama.generate(
             prompt=prompt,

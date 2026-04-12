@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
+    # CORS: comma-separated origins (no spaces required). Used by FastAPI CORSMiddleware.
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # Single-tenant demo default; override for multi-user / auth later.
+    default_user_id: str = "default_user"
+
     @property
     def data_path(self) -> Path:
         return Path(self.data_dir).resolve()

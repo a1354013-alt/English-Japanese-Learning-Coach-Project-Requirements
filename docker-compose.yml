@@ -1,0 +1,19 @@
+# Local / demo stack: API + persistent data volume. Run frontend with `npm run dev` on the host
+# (Vite proxies /api to the backend). Set CORS_ORIGINS to include your dev origin if needed.
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_DIR: /data
+      DB_PATH: /data/language_coach.db
+      CHROMA_DB_PATH: /data/chroma_db
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+    volumes:
+      - language_coach_data:/data
+
+volumes:
+  language_coach_data:

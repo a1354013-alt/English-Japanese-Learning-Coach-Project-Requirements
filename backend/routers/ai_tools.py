@@ -1,7 +1,8 @@
 """Study plan, writing analysis, TTS, audio files, and chat WebSocket."""
+from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from chat_handler import chat_manager
@@ -20,9 +21,9 @@ chat_ws_router = APIRouter(tags=["ai-tools"])
 
 @router.post("/study-plan/generate", response_model=dict)
 async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"]):
-    progress = db.get_progress("default_user")
+    progress = db.get_progress(settings.default_user_id)
     current_progress = progress["english_progress"] if language == "EN" else progress["japanese_progress"]
-    plan = await study_planner.generate_plan("default_user", target_goal, language, current_progress)
+    plan = await study_planner.generate_plan(settings.default_user_id, target_goal, language, current_progress)
     return {"success": True, "plan": plan.model_dump(mode="json")}
 
 
@@ -40,7 +41,15 @@ async def generate_tts(text: str, language: str):
 
 @router.get("/audio/{filename}")
 async def get_audio_file(filename: str):
-    file_path = settings.audio_dir / filename
+    safe_name = Path(filename).name
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    base = settings.audio_dir.resolve()
+    file_path = (base / safe_name).resolve()
+    try:
+        file_path.relative_to(base)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid audio path") from None
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")
     return FileResponse(file_path)

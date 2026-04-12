@@ -36,7 +36,23 @@ class ChatManager:
         try:
             while True:
                 raw = await websocket.receive_text()
-                payload = json.loads(raw)
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    await websocket.send_json(
+                        {
+                            "role": "system",
+                            "text": 'Invalid message format. Send JSON: {"text":"your message"}.',
+                        }
+                    )
+                    continue
+
+                if not isinstance(payload, dict):
+                    await websocket.send_json(
+                        {"role": "system", "text": "Message must be a JSON object with a \"text\" field."}
+                    )
+                    continue
+
                 user_text = str(payload.get("text", "")).strip()
                 if not user_text:
                     continue

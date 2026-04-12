@@ -3,10 +3,10 @@ import io
 from typing import Literal
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from config import settings
+from fastapi.responses import FileResponse
 from database import db
 from export_service import pdf_exporter
 from gamification_engine import gamification_engine
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["imports"])
 async def import_excel(
     language: Literal["EN", "JP"] = "EN",
     file: UploadFile = File(...),
-    user_id: str = "default_user",
+    user_id: str = Query(default=settings.default_user_id),
 ):
     contents = await file.read()
     try:

@@ -2,7 +2,6 @@
 Gamification Engine for Language Coach
 Handles XP calculation, leveling, and achievements
 """
-import math
 from datetime import datetime, time
 from typing import List, Dict, Any, Optional
 from models import UserRPGStats, Achievement, WordCard

@@ -1,4 +1,6 @@
 ﻿import axios from 'axios'
+import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
+import { showApiError } from '@/services/apiNotifications'
 import type {
   GenerateLessonRequest,
   Language,
@@ -16,6 +18,20 @@ const api = axios.create({
   baseURL: '/api',
   timeout: 120000,
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const data = error.response?.data
+      const msg = data !== undefined ? formatApiErrorDetail(data) : error.message || 'Network error'
+      showApiError(msg)
+    } else {
+      showApiError('Unexpected error')
+    }
+    return Promise.reject(error)
+  },
+)
 
 export const lessonApi = {
   async generateLesson(request: GenerateLessonRequest) {

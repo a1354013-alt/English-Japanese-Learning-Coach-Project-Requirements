@@ -226,11 +226,12 @@ class Database:
             "updated_at": datetime.now().isoformat(),
         }
 
-    def get_progress(self, user_id: str = "default_user") -> Dict[str, Any]:
+    def get_progress(self, user_id: Optional[str] = None) -> Dict[str, Any]:
+        uid = user_id or settings.default_user_id
         with self.get_connection() as conn:
-            row = conn.execute("SELECT * FROM progress WHERE user_id = ?", (user_id,)).fetchone()
+            row = conn.execute("SELECT * FROM progress WHERE user_id = ?", (uid,)).fetchone()
         if not row:
-            progress = self.create_default_progress(user_id)
+            progress = self.create_default_progress(uid)
             self.save_progress(progress)
             return progress
 
@@ -241,7 +242,7 @@ class Database:
         return result
 
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
-        user_id = progress_data.get("user_id", "default_user")
+        user_id = progress_data.get("user_id") or settings.default_user_id
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -262,7 +263,7 @@ class Database:
                 ),
             )
 
-    def get_rpg_stats(self, user_id: str = "default_user") -> Dict[str, Any]:
+    def get_rpg_stats(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         progress = self.get_progress(user_id)
         return progress.get("rpg_stats") or UserRPGStats().model_dump(mode="json")
 
@@ -306,7 +307,7 @@ class Database:
                 """,
                 (
                     task_data["task_id"],
-                    task_data.get("user_id", "default_user"),
+                    task_data.get("user_id") or settings.default_user_id,
                     task_data.get("status", "pending"),
                     task_data.get("model_used", ""),
                     task_data.get("duration_ms", 0),

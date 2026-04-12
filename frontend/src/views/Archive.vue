@@ -85,17 +85,37 @@ const viewLesson = (id: string) => {
   void router.push({ name: 'LessonDetail', params: { id } })
 }
 
+const resolveImportLanguage = (): Language | null => {
+  if (!filters.language) {
+    window.alert('請先選擇語言（English 或 Japanese），不可使用「All」。')
+    return null
+  }
+  return filters.language
+}
+
 const handleExcelUpload = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
-  await importApi.importExcel('EN', file)
-  await loadLessons()
+  const lang = resolveImportLanguage()
+  if (!lang) return
+  try {
+    await importApi.importExcel(lang, file)
+    await loadLessons()
+  } finally {
+    ;(event.target as HTMLInputElement).value = ''
+  }
 }
 
 const handleRagUpload = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
-  await importApi.uploadRagMaterial('EN', file)
+  const lang = resolveImportLanguage()
+  if (!lang) return
+  try {
+    await importApi.uploadRagMaterial(lang, file)
+  } finally {
+    ;(event.target as HTMLInputElement).value = ''
+  }
 }
 
 onMounted(loadLessons)

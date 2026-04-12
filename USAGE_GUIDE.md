@@ -52,6 +52,7 @@ npm run dev
 
 8. Excel import
 - Archive page -> Excel Import
+- **Select English or Japanese in the language filter** (imports are disabled while filter is “All”)
 - Upload `.xlsx` with at least:
   - `word`
   - `definition` or `definition_zh`
@@ -62,6 +63,7 @@ npm run dev
 
 9. RAG upload
 - Archive page -> RAG Upload
+- **Select a language** (same rule as Excel)
 - Upload `.txt`, `.md`, or `.csv`
 
 10. PDF export
@@ -71,4 +73,12 @@ npm run dev
 
 - TTS endpoint is available but returns no audio file unless a real TTS engine is integrated.
 - Chat memory currently uses explicit fallback text (no persistent memory source in this release).
-- RAG behavior depends on local vector runtime availability.
+- RAG: uploads go to Chroma; lesson generation may pull short excerpts into the prompt when Chroma is running (see README).
+- Optional: run the API with `docker compose up --build` from the repo root (see README).
+
+## Tests (optional)
+
+```bash
+cd backend && pip install -r requirements.txt -r requirements-dev.txt && pytest tests/ -v
+cd frontend && npm install && npm run test
+```

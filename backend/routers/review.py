@@ -1,7 +1,9 @@
 """Exercise review, SRS due items, and generation task history."""
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+
+from config import settings
 
 from database import db
 from gamification_engine import gamification_engine
@@ -19,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["review"])
 @router.post("/review", response_model=dict)
 async def submit_review(
     answers: List[ReviewAnswer],
-    user_id: str = "default_user",
+    user_id: str = Query(default=settings.default_user_id),
     error_type: Optional[str] = None,
 ):
     if not answers:
@@ -38,16 +40,16 @@ async def submit_review(
         accuracy_rate=review_data["accuracy_rate"],
     )
 
+    xp_amount = (review_data["correct_count"] * 10) + (
+        (review_data["total_questions"] - review_data["correct_count"]) * 2
+    )
+    # Apply XP first so DB holds updated level/XP, then merge error_distribution on a fresh snapshot.
+    xp_result = gamification_engine.add_xp(user_id, xp_amount)
     stats = UserRPGStats(**db.get_rpg_stats(user_id))
     if error_type and review_data["correct_count"] < review_data["total_questions"]:
         stats.error_distribution[error_type] = stats.error_distribution.get(error_type, 0) + (
             review_data["total_questions"] - review_data["correct_count"]
         )
-
-    xp_amount = (review_data["correct_count"] * 10) + (
-        (review_data["total_questions"] - review_data["correct_count"]) * 2
-    )
-    xp_result = gamification_engine.add_xp(user_id, xp_amount)
     db.save_rpg_stats(user_id, stats.model_dump(mode="json"))
 
     language = lesson_data["metadata"]["language"]
@@ -62,10 +64,13 @@ async def submit_review(
 
 
 @router.get("/srs/due")
-async def get_due_items(language: Optional[str] = None, user_id: str = "default_user"):
+async def get_due_items(
+    language: Optional[str] = None,
+    user_id: str = Query(default=settings.default_user_id),
+):
     return {"success": True, "items": db.get_due_srs_items(user_id, language=language)}
 
 
 @router.get("/tasks")
 async def get_tasks(limit: int = 10):
-    return {"success": True, "tasks": db.get_generation_tasks("default_user", limit)}
+    return {"success": True, "tasks": db.get_generation_tasks(settings.default_user_id, limit)}

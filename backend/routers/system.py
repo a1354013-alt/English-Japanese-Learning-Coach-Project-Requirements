@@ -1,7 +1,7 @@
 """Root metadata, health checks, and user progress."""
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from config import settings
 from database import db
@@ -50,5 +50,5 @@ async def health_check():
 
 
 @api_router.get("/progress", response_model=dict)
-async def get_progress(user_id: str = "default_user"):
+async def get_progress(user_id: str = Query(default=settings.default_user_id)):
     return {"success": True, "progress": db.get_progress(user_id)}
