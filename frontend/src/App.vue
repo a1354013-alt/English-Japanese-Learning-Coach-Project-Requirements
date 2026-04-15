@@ -11,6 +11,7 @@
         <nav class="row gap-sm">
           <RouterLink to="/">Today</RouterLink>
           <RouterLink to="/archive">Archive</RouterLink>
+          <RouterLink to="/mistakes">Mistakes</RouterLink>
           <RouterLink to="/progress">Progress</RouterLink>
           <RouterLink to="/writing">Writing</RouterLink>
         </nav>

@@ -22,6 +22,8 @@ async def generate_lesson(request: GenerateLessonRequest):
         interest_context=request.interest_context,
     )
 
+    db.record_learning_activity(user_id=settings.default_user_id, activity_type="generate_lesson")
+
     xp_result = gamification_engine.add_xp(settings.default_user_id, 50)
     words = [item.word for item in lesson.vocabulary]
     new_cards = gamification_engine.collect_word_cards(settings.default_user_id, words, request.language)

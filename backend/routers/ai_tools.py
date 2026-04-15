@@ -24,12 +24,14 @@ async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"]):
     progress = db.get_progress(settings.default_user_id)
     current_progress = progress["english_progress"] if language == "EN" else progress["japanese_progress"]
     plan = await study_planner.generate_plan(settings.default_user_id, target_goal, language, current_progress)
+    db.record_learning_activity(user_id=settings.default_user_id, activity_type="study_plan_generate")
     return {"success": True, "plan": plan.model_dump(mode="json")}
 
 
 @router.post("/writing/analyze", response_model=dict)
 async def analyze_writing(submission: WritingSubmission):
     analysis = await writing_assistant.analyze_writing(submission)
+    db.record_learning_activity(user_id=settings.default_user_id, activity_type="writing_analyze")
     return {"success": True, "analysis": analysis.model_dump(mode="json")}
 
 

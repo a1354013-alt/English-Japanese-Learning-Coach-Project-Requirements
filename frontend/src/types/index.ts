@@ -223,3 +223,45 @@ export interface GenerationTask {
   retry_count: number
   created_at: string
 }
+
+export type WrongAnswerStatus = 'active' | 'mastered'
+
+export interface WrongAnswer {
+  id: number
+  user_id: string
+  language: Language
+  question_type: string
+  question: string
+  user_answer: string
+  correct_answer: string
+  source_lesson_id?: string | null
+  status: WrongAnswerStatus
+  wrong_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface WrongAnswerListResponse {
+  success: boolean
+  count: number
+  items: WrongAnswer[]
+}
+
+export interface WrongAnswerItemResponse {
+  success: boolean
+  item: WrongAnswer
+}
+
+export interface WrongAnswerRetryResponse {
+  success: boolean
+  correct: boolean
+  item: WrongAnswer
+}
+
+export interface StreakResponse {
+  success: boolean
+  current_streak: number
+  longest_streak: number
+  last_active_date: string | null
+  today_completed: boolean
+}

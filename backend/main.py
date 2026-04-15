@@ -8,7 +8,7 @@ from config import settings
 from ollama_client import ollama_client
 from scheduler import lesson_scheduler
 
-from routers import ai_tools, imports, lessons, review, system
+from routers import ai_tools, imports, lessons, review, system, streak, wrong_answers
 
 
 @asynccontextmanager
@@ -47,6 +47,8 @@ app.include_router(system.root_router)
 app.include_router(system.api_router)
 app.include_router(lessons.router)
 app.include_router(review.router)
+app.include_router(wrong_answers.router)
+app.include_router(streak.router)
 app.include_router(imports.router)
 app.include_router(ai_tools.router)
 app.include_router(ai_tools.chat_ws_router)
