@@ -14,15 +14,28 @@
       </div>
     </div>
 
-    <div class="panel grid" v-if="!lesson">
+    <!-- Loading State -->
+    <div class="panel" v-if="loading && !lesson">
+      <p>Loading today's lesson...</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="panel" v-else-if="error && !lesson">
+      <p style="color: #d32f2f">{{ error }}</p>
+      <button @click="loadTodayLesson" class="secondary">Retry</button>
+    </div>
+
+    <!-- Empty State - Generate Lesson -->
+    <div class="panel grid" v-if="!lesson && !loading && !error">
       <h3>Generate lesson</h3>
       <input v-model="request.topic" placeholder="Optional topic" />
       <select v-model="request.difficulty">
         <option v-for="level in currentLevels" :key="level" :value="level">{{ level }}</option>
       </select>
-      <button :disabled="loading" @click="generateLesson">{{ loading ? 'Generating...' : 'Generate' }}</button>
+      <button :disabled="loadingGenerate" @click="generateLesson">{{ loadingGenerate ? 'Generating...' : 'Generate' }}</button>
     </div>
 
+    <!-- Lesson Content -->
     <div v-else class="grid">
       <div class="panel">
         <h3>Vocabulary</h3>
@@ -70,6 +83,7 @@
         <button class="secondary" @click="exportPdf">Export PDF</button>
       </div>
 
+      <!-- Success State - Review Result -->
       <div class="panel" v-if="reviewResult">
         <h3>Review Result</h3>
         <p>Score: {{ reviewResult.correct_count }} / {{ reviewResult.total_questions }} ({{ reviewResult.accuracy_rate.toFixed(1) }}%)</p>
@@ -96,6 +110,8 @@ const request = reactive<{ language: Language; topic: string; difficulty: string
 
 const lesson = ref<Lesson | null>(null)
 const loading = ref(false)
+const loadingGenerate = ref(false)
+const error = ref<string | null>(null)
 const submitting = ref(false)
 const reviewResult = ref<ReviewResult | null>(null)
 
@@ -114,17 +130,21 @@ const resetAnswers = () => {
 
 const loadTodayLesson = async () => {
   loading.value = true
+  error.value = null
   try {
     const res = await lessonApi.getTodayLesson(request.language)
     lesson.value = res.lesson
     resetAnswers()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load today\'s lesson'
   } finally {
     loading.value = false
   }
 }
 
 const generateLesson = async () => {
-  loading.value = true
+  loadingGenerate.value = true
+  error.value = null
   try {
     const res = await lessonApi.generateLesson({
       language: request.language,
@@ -133,8 +153,10 @@ const generateLesson = async () => {
     })
     lesson.value = res.lesson
     resetAnswers()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to generate lesson'
   } finally {
-    loading.value = false
+    loadingGenerate.value = false
   }
 }
 

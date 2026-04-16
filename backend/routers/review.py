@@ -72,5 +72,5 @@ async def get_due_items(
 
 
 @router.get("/tasks")
-async def get_tasks(limit: int = 10):
-    return {"success": True, "tasks": db.get_generation_tasks(settings.default_user_id, limit)}
+async def get_tasks(limit: int = 10, user_id: str = Query(default=settings.default_user_id)):
+    return {"success": True, "tasks": db.get_generation_tasks(user_id, limit)}
