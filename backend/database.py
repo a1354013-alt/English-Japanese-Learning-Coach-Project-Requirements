@@ -368,7 +368,10 @@ class Database:
             return [dict(row) for row in rows]
 
     def get_today_lesson(self, language: str) -> Optional[Dict[str, Any]]:
-        today = datetime.now().date().isoformat()
+        # Use configured timezone instead of naive datetime.now().date()
+        import pytz
+        tz = pytz.timezone(settings.timezone)
+        today = datetime.now(tz).date().isoformat()
         with self.get_connection() as conn:
             row = conn.execute(
                 """

@@ -26,7 +26,8 @@ async def root():
 @api_router.get("/health")
 async def health_check():
     db_reachable = db.check_connection()
-    ollama_model_ready = await ollama_client.check_model_availability()
+    ollama_small_ready = await ollama_client.check_model_availability(settings.small_model_name)
+    ollama_large_ready = await ollama_client.check_model_availability(settings.large_model_name)
 
     return {
         "api": "healthy",
@@ -37,8 +38,11 @@ async def health_check():
         },
         "ollama": {
             "configured": bool(settings.ollama_url),
-            "model": settings.model_name,
-            "ready": ollama_model_ready,
+            "small_model": settings.small_model_name,
+            "large_model": settings.large_model_name,
+            "small_model_ready": ollama_small_ready,
+            "large_model_ready": ollama_large_ready,
+            "ready": ollama_small_ready or ollama_large_ready,
         },
         "rag": {
             "configured": bool(settings.chroma_db_path),

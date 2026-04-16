@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, WebSocket
 from fastapi.responses import FileResponse
 
 from chat_handler import chat_manager
@@ -20,15 +20,18 @@ chat_ws_router = APIRouter(tags=["ai-tools"])
 
 
 @router.post("/study-plan/generate", response_model=dict)
-async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"]):
-    progress = db.get_progress(settings.default_user_id)
+async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"], user_id: str = Query(default=settings.default_user_id)):
+    progress = db.get_progress(user_id)
     current_progress = progress["english_progress"] if language == "EN" else progress["japanese_progress"]
+    plan = await study_planner.generate_plan(user_id, target_goal, language, current_progress)
     plan = await study_planner.generate_plan(settings.default_user_id, target_goal, language, current_progress)
     db.record_learning_activity(user_id=settings.default_user_id, activity_type="study_plan_generate")
     return {"success": True, "plan": plan.model_dump(mode="json")}
 
 
 @router.post("/writing/analyze", response_model=dict)
+async def analyze_writing(submission: WritingSubmission, user_id: str = Query(default=settings.default_user_id)):
+    analysis = await writing_assistant.analyze_writing(submission, user_id)
 async def analyze_writing(submission: WritingSubmission):
     analysis = await writing_assistant.analyze_writing(submission)
     db.record_learning_activity(user_id=settings.default_user_id, activity_type="writing_analyze")
@@ -36,7 +39,7 @@ async def analyze_writing(submission: WritingSubmission):
 
 
 @router.post("/tts")
-async def generate_tts(text: str, language: str):
+async def generate_tts(text: str, language: str, user_id: str = Query(default=settings.default_user_id)):
     audio_path = await tts_service.generate_audio(text, language)
     return {"success": True, "audio_url": f"/api/audio/{audio_path.name}" if audio_path else None}
 

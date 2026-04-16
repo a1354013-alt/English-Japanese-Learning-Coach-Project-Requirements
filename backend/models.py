@@ -163,18 +163,18 @@ class UserRPGStats(BaseModel):
     total_xp: int = 0
     avatar_url: str = "https://api.dicebear.com/7.x/avataaars/svg?seed=Manus"
     title: str = "Beginner Adventurer"
-    unlocked_skills: List[str] = []
-    achievements: List[Achievement] = []
-    word_cards: List[WordCard] = []
+    unlocked_skills: List[str] = Field(default_factory=list)
+    achievements: List[Achievement] = Field(default_factory=list)
+    word_cards: List[WordCard] = Field(default_factory=list)
     streak_days: int = 0
     difficulty_mode: str = "normal" # easy, normal, hardcore
     is_onboarded: bool = False
-    error_distribution: Dict[str, int] = {
+    error_distribution: Dict[str, int] = Field(default_factory=lambda: {
         "spelling": 0,
         "grammar": 0,
         "vocabulary": 0,
         "comprehension": 0
-    }
+    })
 
 # ============ Progress Models ============
 class LanguageProgress(BaseModel):
