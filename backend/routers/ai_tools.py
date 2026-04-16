@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket
 from fastapi.responses import FileResponse
 
 from chat_handler import chat_manager

@@ -1,36 +1,46 @@
-﻿# Python
-.venv/
+```
+# Python
 __pycache__/
-*.py[cod]
-.pytest_cache/
-*.log
-
-# Node
-node_modules/
-npm-debug.log*
-pnpm-debug.log*
-
-# Environment
-.env
-.env.*
-!.env.example
-backend/.env
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.ENV.*
+.venv.bak/
+.python-version
 
 # Build artifacts
-frontend/dist/
-dist/
 build/
+dist/
+*.egg-info/
 
-# Runtime data
-data/language_coach.db
-data/chroma_db/
-data/audio/
-data/exports/
-data/lessons/
-exports/
-audio/
-lessons/
+# Logs
+*.log
 
-# Caches and temp
-*.tmp
-*.temp
+# Environment files
+.env
+.env.local
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.coverage
+htmlcov/
+.coverage.*
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+```
