@@ -169,14 +169,12 @@ class UserRPGStats(BaseModel):
     streak_days: int = 0
     difficulty_mode: str = "normal" # easy, normal, hardcore
     is_onboarded: bool = False
-    error_distribution: Dict[str, int] = Field(
-        default_factory=lambda: {
-            "spelling": 0,
-            "grammar": 0,
-            "vocabulary": 0,
-            "comprehension": 0
-        }
-    )
+    error_distribution: Dict[str, int] = Field(default_factory=lambda: {
+        "spelling": 0,
+        "grammar": 0,
+        "vocabulary": 0,
+        "comprehension": 0
+    })
 
 # ============ Progress Models ============
 class LanguageProgress(BaseModel):

@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi import APIRouter, HTTPException, Query, WebSocket
 from fastapi.responses import FileResponse
 
 from chat_handler import chat_manager
@@ -34,7 +34,7 @@ async def analyze_writing(submission: WritingSubmission, user_id: str = Query(de
 
 
 @router.post("/tts")
-async def generate_tts(text: str, language: str):
+async def generate_tts(text: str, language: str, user_id: str = Query(default=settings.default_user_id)):
     audio_path = await tts_service.generate_audio(text, language)
     return {"success": True, "audio_url": f"/api/audio/{audio_path.name}" if audio_path else None}
 

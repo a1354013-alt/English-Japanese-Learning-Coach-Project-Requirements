@@ -40,7 +40,7 @@
       <div class="panel">
         <h3>Vocabulary</h3>
         <ul>
-          <li v-for="(item, idx) in lesson.vocabulary" :key="`${item.word}-${idx}`">
+          <li v-for="(item, idx) in lesson?.vocabulary" :key="`${item.word}-${idx}`">
             <strong>{{ item.word }}</strong>
             <span v-if="item.reading"> ({{ item.reading }})</span>
             <span v-if="item.phonetic"> ({{ item.phonetic }})</span>
@@ -52,7 +52,7 @@
 
       <div class="panel">
         <h3>Grammar Exercises</h3>
-        <div v-for="(exercise, index) in lesson.grammar.exercises" :key="`g-${index}`" class="panel" style="margin-top: 0.75rem">
+        <div v-for="(exercise, index) in lesson?.grammar.exercises" :key="`g-${index}`" class="panel" style="margin-top: 0.75rem">
           <p><strong>{{ index + 1 }}. {{ exercise.question }}</strong></p>
           <div class="grid" v-if="exercise.options?.length">
             <label v-for="option in exercise.options" :key="option" class="row gap-sm center">
@@ -66,8 +66,8 @@
 
       <div class="panel">
         <h3>Reading</h3>
-        <p style="white-space: pre-wrap">{{ lesson.reading.content }}</p>
-        <div v-for="(question, index) in lesson.reading.questions" :key="`r-${index}`" class="panel" style="margin-top: 0.75rem">
+        <p style="white-space: pre-wrap">{{ lesson?.reading.content }}</p>
+        <div v-for="(question, index) in lesson?.reading.questions" :key="`r-${index}`" class="panel" style="margin-top: 0.75rem">
           <p><strong>{{ index + 1 }}. {{ question.question }}</strong></p>
           <div class="grid">
             <label v-for="option in question.options" :key="option" class="row gap-sm center">
