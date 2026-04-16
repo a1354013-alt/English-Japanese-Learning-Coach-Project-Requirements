@@ -10,7 +10,7 @@ class WritingAssistant:
     def __init__(self) -> None:
         self.client = ollama_client
 
-    async def analyze_writing(self, submission: WritingSubmission) -> WritingAnalysis:
+    async def analyze_writing(self, submission: WritingSubmission, user_id: str) -> WritingAnalysis:
         result = await self.client.generate(
             prompt=self._get_analysis_prompt(submission),
             system_prompt=self._get_system_prompt(submission.language),

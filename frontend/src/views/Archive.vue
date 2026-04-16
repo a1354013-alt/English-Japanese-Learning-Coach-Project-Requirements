@@ -2,10 +2,22 @@
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
       <h2 style="margin: 0">Lesson Archive</h2>
-      <button class="secondary" @click="loadLessons">Refresh</button>
+      <button class="secondary" @click="loadLessons" :disabled="loading">Refresh</button>
     </div>
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
+    <!-- Loading State -->
+    <div class="panel" v-if="loading && lessons.length === 0">
+      <p>Loading lessons...</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="panel" v-else-if="error">
+      <p style="color: #d32f2f">{{ error }}</p>
+      <button @click="loadLessons" class="secondary">Retry</button>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))" v-if="!loading && !error">
       <div>
         <label>Language</label>
         <select v-model="filters.language">
@@ -19,11 +31,12 @@
         <input v-model="filters.topic" placeholder="Filter by topic" />
       </div>
       <div class="row center" style="margin-top: 1.6rem">
-        <button @click="loadLessons">Apply Filters</button>
+        <button @click="loadLessons" :disabled="loading">Apply Filters</button>
       </div>
     </div>
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))" v-if="lessons.length">
+    <!-- Lessons Grid -->
+    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))" v-if="lessons.length && !loading && !error">
       <div class="panel" v-for="lesson in lessons" :key="lesson.lesson_id">
         <h3 style="margin: 0">{{ lesson.topic }}</h3>
         <p>{{ lesson.language }} / {{ lesson.level }}</p>
@@ -31,20 +44,29 @@
         <button class="secondary" @click="viewLesson(lesson.lesson_id)">View Lesson</button>
       </div>
     </div>
-    <div class="panel" v-else>No lessons found.</div>
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))">
+    <!-- Empty State -->
+    <div class="panel" v-if="!lessons.length && !loading && !error">
+      <p>No lessons found. Generate your first lesson to get started!</p>
+    </div>
+
+    <!-- Import Section -->
+    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))" v-if="!loading && !error">
       <div>
         <h3>Excel Import</h3>
-        <input type="file" accept=".xlsx,.xls" @change="handleExcelUpload" />
+        <p style="font-size: 0.85rem; color: #666">Select language before uploading</p>
+        <input type="file" accept=".xlsx,.xls" @change="handleExcelUpload" :disabled="!filters.language" />
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">Please select a language first</p>
       </div>
       <div>
         <h3>RAG Upload</h3>
-        <input type="file" accept=".txt,.md,.csv" @change="handleRagUpload" />
+        <p style="font-size: 0.85rem; color: #666">Select language before uploading</p>
+        <input type="file" accept=".txt,.md,.csv" @change="handleRagUpload" :disabled="!filters.language" />
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">Please select a language first</p>
       </div>
     </div>
 
-    <TaskHistory />
+    <TaskHistory v-if="!loading && !error" />
   </section>
 </template>
 
@@ -66,6 +88,8 @@ interface LessonListItem {
 
 const router = useRouter()
 const lessons = ref<LessonListItem[]>([])
+const loading = ref(false)
+const error = ref<string | null>(null)
 
 const filters = reactive<{ language: '' | Language; topic: string }>({
   language: '',
@@ -73,12 +97,20 @@ const filters = reactive<{ language: '' | Language; topic: string }>({
 })
 
 const loadLessons = async () => {
-  const res = await lessonApi.listLessons({
-    language: filters.language || undefined,
-    topic: filters.topic || undefined,
-    limit: 100,
-  })
-  lessons.value = res.lessons
+  loading.value = true
+  error.value = null
+  try {
+    const res = await lessonApi.listLessons({
+      language: filters.language || undefined,
+      topic: filters.topic || undefined,
+      limit: 100,
+    })
+    lessons.value = res.lessons
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load lessons'
+  } finally {
+    loading.value = false
+  }
 }
 
 const viewLesson = (id: string) => {

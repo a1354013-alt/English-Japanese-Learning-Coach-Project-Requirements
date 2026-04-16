@@ -224,20 +224,21 @@ class OllamaClient:
 
         return result
 
-    async def check_model_availability(self) -> bool:
+    async def check_model_availability(self, model_name: Optional[str] = None) -> bool:
         """GET /api/tags with a short timeout (health checks only)."""
         timeout = _timeout_for_profile("health")
+        target_model = model_name or self.model_name
         try:
             client = await self._get_client()
             response = await client.get("/api/tags", timeout=timeout)
             response.raise_for_status()
             models = response.json().get("models", [])
             model_names = [m.get("name", "") for m in models]
-            ready = any(self.model_name in name for name in model_names)
+            ready = any(target_model in name for name in model_names)
             if not ready:
                 logger.warning(
                     "ollama_model_missing",
-                    extra={"expected": self.model_name, "available": model_names},
+                    extra={"expected": target_model, "available": model_names},
                 )
             return ready
         except httpx.HTTPStatusError as e:

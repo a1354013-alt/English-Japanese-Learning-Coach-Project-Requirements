@@ -1,36 +1,12 @@
-﻿# Python
-.venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-*.log
-
-# Node
+```
+# Dependencies
 node_modules/
-npm-debug.log*
-pnpm-debug.log*
+
+# Build artifacts
+frontend/node_modules/.vite/
 
 # Environment
 .env
+.env.local
 .env.*
-!.env.example
-backend/.env
-
-# Build artifacts
-frontend/dist/
-dist/
-build/
-
-# Runtime data
-data/language_coach.db
-data/chroma_db/
-data/audio/
-data/exports/
-data/lessons/
-exports/
-audio/
-lessons/
-
-# Caches and temp
-*.tmp
-*.temp
+```

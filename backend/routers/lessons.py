@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["lessons"])
 
 
 @router.post("/generate/lesson", response_model=dict)
-async def generate_lesson(request: GenerateLessonRequest):
+async def generate_lesson(request: GenerateLessonRequest, user_id: str = Query(default=settings.default_user_id)):
     lesson = await lesson_generator.generate_lesson(
         language=request.language,
         topic=request.topic,
@@ -22,9 +22,9 @@ async def generate_lesson(request: GenerateLessonRequest):
         interest_context=request.interest_context,
     )
 
-    xp_result = gamification_engine.add_xp(settings.default_user_id, 50)
+    xp_result = gamification_engine.add_xp(user_id, 50)
     words = [item.word for item in lesson.vocabulary]
-    new_cards = gamification_engine.collect_word_cards(settings.default_user_id, words, request.language)
+    new_cards = gamification_engine.collect_word_cards(user_id, words, request.language)
 
     lesson_dict = lesson.model_dump(mode="json")
     lesson_dict["gamification"] = {
@@ -64,12 +64,12 @@ async def get_lesson(lesson_id: str):
 
 
 @router.post("/onboard")
-async def onboard_user(language: Literal["EN", "JP"], level: str, difficulty: str):
-    progress = db.get_progress(settings.default_user_id)
+async def onboard_user(language: Literal["EN", "JP"], level: str, difficulty: str, user_id: str = Query(default=settings.default_user_id)):
+    progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
     progress[key]["current_level"] = level
 
-    stats = UserRPGStats(**db.get_rpg_stats(settings.default_user_id))
+    stats = UserRPGStats(**db.get_rpg_stats(user_id))
     stats.is_onboarded = True
     stats.difficulty_mode = difficulty
 

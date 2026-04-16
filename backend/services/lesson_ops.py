@@ -27,16 +27,33 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
     incorrect_items: List[Dict[str, str]] = []
     correct_count = 0
 
+    # Calculate total questions from the lesson structure (not from submitted answers)
+    grammar_exercises = lesson_data.get("grammar", {}).get("exercises", [])
+    reading_questions = lesson_data.get("reading", {}).get("questions", [])
+    total_grammar = len(grammar_exercises)
+    total_reading = len(reading_questions)
+    total_questions = total_grammar + total_reading
+
+    # Build a map of submitted answers by (exercise_type, question_index)
+    answer_map: Dict[tuple, ReviewAnswer] = {}
     for answer in answers:
-        exercises = (
-            lesson_data["grammar"]["exercises"]
-            if answer.exercise_type == "grammar"
-            else lesson_data["reading"]["questions"]
-        )
-        if answer.question_index < 0 or answer.question_index >= len(exercises):
+        answer_map[(answer.exercise_type, answer.question_index)] = answer
+
+    # Score grammar exercises
+    for idx, exercise in enumerate(grammar_exercises):
+        answer = answer_map.get(("grammar", idx))
+        if answer is None:
+            # Unanswered question counts as wrong
+            incorrect_items.append(
+                {
+                    "question": str(exercise.get("question", "")),
+                    "user_answer": "(no answer)",
+                    "correct_answer": str(exercise.get("correct_answer", "")),
+                    "explanation": str(exercise.get("explanation", "")),
+                }
+            )
             continue
 
-        exercise = exercises[answer.question_index]
         user_text = str(answer.user_answer).strip().lower()
         correct_text = str(exercise.get("correct_answer", "")).strip().lower()
         if user_text == correct_text:
@@ -51,7 +68,35 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
                 }
             )
 
-    total_questions = len(answers)
+    # Score reading questions
+    for idx, question in enumerate(reading_questions):
+        answer = answer_map.get(("reading", idx))
+        if answer is None:
+            # Unanswered question counts as wrong
+            incorrect_items.append(
+                {
+                    "question": str(question.get("question", "")),
+                    "user_answer": "(no answer)",
+                    "correct_answer": str(question.get("correct_answer", "")),
+                    "explanation": str(question.get("explanation", "")),
+                }
+            )
+            continue
+
+        user_text = str(answer.user_answer).strip().lower()
+        correct_text = str(question.get("correct_answer", "")).strip().lower()
+        if user_text == correct_text:
+            correct_count += 1
+        else:
+            incorrect_items.append(
+                {
+                    "question": str(question.get("question", "")),
+                    "user_answer": str(answer.user_answer),
+                    "correct_answer": str(question.get("correct_answer", "")),
+                    "explanation": str(question.get("explanation", "")),
+                }
+            )
+
     accuracy_rate = (correct_count / total_questions * 100) if total_questions else 0.0
     return {
         "total_questions": total_questions,
