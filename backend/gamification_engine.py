@@ -101,6 +101,10 @@ class GamificationEngine:
             rpg_stats.achievements.append(new_achievement)
             unlocked_list.append(new_achievement)
 
+    def check_and_unlock_achievements(self, user_id: str) -> List[Achievement]:
+        """Public method to check and unlock achievements (called from routers)"""
+        return self.check_achievements(user_id)
+
     def collect_word_cards(self, user_id: str, words: List[str], language: str) -> List[WordCard]:
         """Convert learned words into collectible cards with rarity"""
         rpg_stats_data = db.get_rpg_stats(user_id) or {}

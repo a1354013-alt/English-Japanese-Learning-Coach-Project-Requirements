@@ -18,11 +18,20 @@ class PDFExporter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.font_name = "Helvetica"
-        for path in [
+        # Cross-platform font paths for CJK support
+        font_paths = [
+            # Linux (Noto CJK)
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-        ]:
+            # macOS (system fonts)
+            "/System/Library/Fonts/PingFang.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+            # Windows (common locations)
+            "C:/Windows/Fonts/msyh.ttc",  # Microsoft YaHei
+            "C:/Windows/Fonts/simsun.ttc",  # SimSun
+        ]
+        for path in font_paths:
             p = Path(path)
             if p.exists():
                 try:

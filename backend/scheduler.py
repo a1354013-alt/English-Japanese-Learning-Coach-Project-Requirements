@@ -1,6 +1,7 @@
 """
 Scheduler for automatic lesson generation
 """
+import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
@@ -10,6 +11,8 @@ import asyncio
 from config import settings
 from lesson_generator import lesson_generator
 from database import db
+
+logger = logging.getLogger(__name__)
 
 
 class LessonScheduler:
@@ -22,14 +25,21 @@ class LessonScheduler:
     def _run_async_task(self, coro):
         """Helper to run async coroutine in a synchronous scheduler (P1 Fix)"""
         try:
-            loop = asyncio.get_event_loop()
+            # In FastAPI context, get the running loop
+            loop = asyncio.get_running_loop()
         except RuntimeError:
+            # No running loop, create a new one (for standalone usage)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
         if loop.is_running():
             # If the loop is already running (e.g. in FastAPI), use run_coroutine_threadsafe
-            asyncio.run_coroutine_threadsafe(coro, loop)
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            # Wait for completion with timeout to avoid blocking indefinitely
+            try:
+                future.result(timeout=300)  # 5 minute timeout
+            except Exception as e:
+                logger.error(f"Async task failed in scheduler: {e}")
         else:
             loop.run_until_complete(coro)
 
