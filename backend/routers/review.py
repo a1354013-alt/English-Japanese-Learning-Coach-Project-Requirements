@@ -31,6 +31,9 @@ async def submit_review(
     lesson_data = load_lesson_payload(lesson_id)
     review_data = score_answers(lesson_data, answers)
 
+    # Any review submission counts as a learning activity (one per local day).
+    db.record_learning_activity(user_id=user_id, activity_type="review")
+
     db.save_exercise_result(
         user_id=user_id,
         lesson_id=lesson_id,
@@ -55,6 +58,31 @@ async def submit_review(
     language = lesson_data["metadata"]["language"]
     update_progress_after_review(user_id, language, review_data["total_questions"], review_data["correct_count"])
     update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
+
+    # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
+    for answer in answers:
+        exercises = (
+            lesson_data["grammar"]["exercises"]
+            if answer.exercise_type == "grammar"
+            else lesson_data["reading"]["questions"]
+        )
+        if answer.question_index < 0 or answer.question_index >= len(exercises):
+            continue
+        exercise = exercises[answer.question_index]
+        user_text = str(answer.user_answer).strip().lower()
+        correct_text = str(exercise.get("correct_answer", "")).strip().lower()
+        if user_text == correct_text:
+            continue
+
+        db.upsert_wrong_answer(
+            user_id=user_id,
+            language=language,
+            question_type=answer.exercise_type,
+            question=str(exercise.get("question", "")),
+            user_answer=str(answer.user_answer),
+            correct_answer=str(exercise.get("correct_answer", "")),
+            source_lesson_id=lesson_id,
+        )
 
     return {
         "success": True,

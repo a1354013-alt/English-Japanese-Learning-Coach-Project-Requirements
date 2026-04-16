@@ -4,6 +4,9 @@
       <div>
         <h2 style="margin: 0">Today's Lesson</h2>
         <p style="margin: 0.2rem 0 0">{{ lesson?.metadata.topic || 'No lesson generated yet' }}</p>
+        <p v-if="streak" style="margin: 0.2rem 0 0; color: #475569">
+          🔥 連續學習 {{ streak.current_streak }} 天（最長 {{ streak.longest_streak }} 天） · 今日已完成學習：{{ streak.today_completed ? '是' : '否' }}
+        </p>
       </div>
       <div class="row gap-sm">
         <select v-model="request.language">
@@ -99,8 +102,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { lessonApi, reviewApi } from '@/services/api'
-import type { Language, Lesson, ReviewAnswer, ReviewResult } from '@/types'
+import { lessonApi, reviewApi, streakApi } from '@/services/api'
+import type { Language, Lesson, ReviewAnswer, ReviewResult, StreakResponse } from '@/types'
 
 const request = reactive<{ language: Language; topic: string; difficulty: string }>({
   language: 'EN',
@@ -114,6 +117,7 @@ const loadingGenerate = ref(false)
 const error = ref<string | null>(null)
 const submitting = ref(false)
 const reviewResult = ref<ReviewResult | null>(null)
+const streak = ref<StreakResponse | null>(null)
 
 const answers = reactive<{ grammar: Record<number, string>; reading: Record<number, string> }>({
   grammar: {},
@@ -142,6 +146,14 @@ const loadTodayLesson = async () => {
   }
 }
 
+const loadStreak = async () => {
+  try {
+    streak.value = await streakApi.getStreak()
+  } catch {
+    streak.value = null
+  }
+}
+
 const generateLesson = async () => {
   loadingGenerate.value = true
   error.value = null
@@ -155,6 +167,7 @@ const generateLesson = async () => {
     resetAnswers()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to generate lesson'
+    await loadStreak()
   } finally {
     loadingGenerate.value = false
   }
@@ -204,6 +217,7 @@ const submitReview = async () => {
   submitting.value = true
   try {
     reviewResult.value = await reviewApi.submitReview(payload)
+    await loadStreak()
   } finally {
     submitting.value = false
   }
@@ -224,4 +238,5 @@ watch(
 )
 
 onMounted(loadTodayLesson)
+onMounted(loadStreak)
 </script>

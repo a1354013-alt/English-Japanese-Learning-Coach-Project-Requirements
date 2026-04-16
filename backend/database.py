@@ -2,9 +2,11 @@
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from zoneinfo import ZoneInfo
 
 from config import settings
 from models import UserRPGStats
@@ -45,6 +47,14 @@ class Database:
     def init_database(self) -> None:
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS lessons (
@@ -136,6 +146,33 @@ class Database:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_language ON lessons(language)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(generated_at)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
+
+        self.run_migrations()
+
+    def run_migrations(self) -> None:
+        """Apply SQL migrations from backend/migrations (idempotent, tracked in schema_migrations)."""
+        migrations_dir = Path(__file__).resolve().parent / "migrations"
+        if not migrations_dir.exists():
+            return
+
+        migration_files = sorted(migrations_dir.glob("*.sql"))
+        if not migration_files:
+            return
+
+        with self.get_connection() as conn:
+            existing = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+            for file_path in migration_files:
+                version = file_path.name
+                if version in existing:
+                    continue
+                sql = file_path.read_text(encoding="utf-8")
+                conn.executescript(sql)
+                conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+
+    def _local_date_str(self, dt: Optional[datetime] = None) -> str:
+        tz = ZoneInfo(settings.timezone)
+        now = dt.astimezone(tz) if dt else datetime.now(tz)
+        return now.date().isoformat()
 
     def save_lesson(self, lesson_data: Dict[str, Any], file_path: str) -> str:
         metadata = lesson_data["metadata"]
@@ -440,6 +477,235 @@ class Database:
                     item.get("example_translation", ""),
                 ),
             )
+
+    # ================= Wrong Answer Notebook =================
+    def list_wrong_answers(
+        self,
+        user_id: str,
+        status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        query = "SELECT * FROM wrong_answers WHERE user_id = ?"
+        params: List[Any] = [user_id]
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        with self.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+            return [dict(row) for row in rows]
+
+    def upsert_wrong_answer(
+        self,
+        user_id: str,
+        language: str,
+        question_type: str,
+        question: str,
+        user_answer: str,
+        correct_answer: str,
+        source_lesson_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        now = datetime.now().isoformat()
+        key_source = source_lesson_id or ""
+        with self.get_connection() as conn:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO wrong_answers (
+                        user_id, language, question_type, question, user_answer, correct_answer, source_lesson_id,
+                        status, wrong_count, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        language,
+                        question_type,
+                        question,
+                        user_answer,
+                        correct_answer,
+                        source_lesson_id,
+                        now,
+                        now,
+                    ),
+                )
+            except sqlite3.IntegrityError:
+                conn.execute(
+                    """
+                    UPDATE wrong_answers
+                    SET user_answer = ?,
+                        wrong_count = wrong_count + 1,
+                        updated_at = ?
+                    WHERE user_id = ?
+                      AND language = ?
+                      AND question_type = ?
+                      AND question = ?
+                      AND correct_answer = ?
+                      AND IFNULL(source_lesson_id, '') = ?
+                      AND status = 'active'
+                    """,
+                    (
+                        user_answer,
+                        now,
+                        user_id,
+                        language,
+                        question_type,
+                        question,
+                        correct_answer,
+                        key_source,
+                    ),
+                )
+
+            row = conn.execute(
+                """
+                SELECT * FROM wrong_answers
+                WHERE user_id = ?
+                  AND language = ?
+                  AND question_type = ?
+                  AND question = ?
+                  AND correct_answer = ?
+                  AND IFNULL(source_lesson_id, '') = ?
+                  AND status = 'active'
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (user_id, language, question_type, question, correct_answer, key_source),
+            ).fetchone()
+            return dict(row) if row else {}
+
+    def update_wrong_answer_status(self, user_id: str, wrong_answer_id: int, status: str) -> Optional[Dict[str, Any]]:
+        now = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                """
+                UPDATE wrong_answers
+                SET status = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (status, now, wrong_answer_id, user_id),
+            )
+            if cur.rowcount == 0:
+                return None
+            row = conn.execute(
+                "SELECT * FROM wrong_answers WHERE id = ? AND user_id = ?",
+                (wrong_answer_id, user_id),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def delete_wrong_answer(self, user_id: str, wrong_answer_id: int) -> bool:
+        with self.get_connection() as conn:
+            cur = conn.execute("DELETE FROM wrong_answers WHERE id = ? AND user_id = ?", (wrong_answer_id, user_id))
+            return cur.rowcount > 0
+
+    def retry_wrong_answer(
+        self,
+        user_id: str,
+        wrong_answer_id: int,
+        user_answer: str,
+    ) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        now = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM wrong_answers WHERE id = ? AND user_id = ?",
+                (wrong_answer_id, user_id),
+            ).fetchone()
+            if not row:
+                return False, None
+
+            correct = str(row["correct_answer"]).strip().lower() == str(user_answer).strip().lower()
+            if correct:
+                conn.execute(
+                    "UPDATE wrong_answers SET status = 'mastered', user_answer = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+                    (user_answer, now, wrong_answer_id, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE wrong_answers SET user_answer = ?, wrong_count = wrong_count + 1, updated_at = ? WHERE id = ? AND user_id = ?",
+                    (user_answer, now, wrong_answer_id, user_id),
+                )
+
+            out = conn.execute(
+                "SELECT * FROM wrong_answers WHERE id = ? AND user_id = ?",
+                (wrong_answer_id, user_id),
+            ).fetchone()
+            return correct, (dict(out) if out else None)
+
+    # ================= Daily Learning Activity (Streak) =================
+    def record_learning_activity(
+        self,
+        user_id: str,
+        activity_type: str,
+        activity_date: Optional[str] = None,
+        created_at: Optional[str] = None,
+    ) -> None:
+        activity_date = activity_date or self._local_date_str()
+        created_at = created_at or datetime.now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO user_learning_activity (user_id, activity_date, activity_type, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, activity_date, activity_type) DO NOTHING
+                """,
+                (user_id, activity_date, activity_type, created_at),
+            )
+
+    def _get_activity_dates(self, user_id: str) -> List[date]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT activity_date FROM user_learning_activity WHERE user_id = ? ORDER BY activity_date ASC",
+                (user_id,),
+            ).fetchall()
+        out: List[date] = []
+        for row in rows:
+            try:
+                out.append(date.fromisoformat(str(row["activity_date"])))
+            except ValueError:
+                continue
+        return out
+
+    def get_streak_info(self, user_id: str, today: Optional[date] = None) -> Dict[str, Any]:
+        tz_today = today or date.fromisoformat(self._local_date_str())
+        dates = self._get_activity_dates(user_id)
+        if not dates:
+            return {
+                "current_streak": 0,
+                "longest_streak": 0,
+                "last_active_date": None,
+                "today_completed": False,
+            }
+
+        date_set = set(dates)
+        last_active = max(dates)
+        today_completed = tz_today in date_set
+
+        # Streak persists through the day until a day is missed.
+        anchor = tz_today if today_completed else (tz_today - timedelta(days=1))
+        current = 0
+        while anchor in date_set:
+            current += 1
+            anchor -= timedelta(days=1)
+
+        longest = 0
+        run = 0
+        prev: Optional[date] = None
+        for d in dates:
+            if prev is None or d == prev + timedelta(days=1):
+                run += 1
+            else:
+                run = 1
+            if run > longest:
+                longest = run
+            prev = d
+
+        return {
+            "current_streak": current,
+            "longest_streak": longest,
+            "last_active_date": last_active.isoformat(),
+            "today_completed": today_completed,
+        }
 
 
 # Global database instance

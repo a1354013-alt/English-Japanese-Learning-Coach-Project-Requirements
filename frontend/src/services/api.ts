@@ -12,6 +12,11 @@ import type {
   WritingAnalysis,
   WritingSubmission,
   GenerationTask,
+  WrongAnswerItemResponse,
+  WrongAnswerListResponse,
+  WrongAnswerRetryResponse,
+  WrongAnswerStatus,
+  StreakResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -136,6 +141,54 @@ export const aiTutorApi = {
     const response = await api.post<{ success: boolean; plan: StudyPlan }>('/study-plan/generate', null, {
       params: { target_goal: targetGoal, language },
     })
+    return response.data
+  },
+}
+
+export const wrongAnswerApi = {
+  async listWrongAnswers(params: { status?: WrongAnswerStatus; userId?: string; limit?: number; offset?: number } = {}) {
+    const response = await api.get<WrongAnswerListResponse>('/wrong-answers', {
+      params: {
+        user_id: params.userId ?? 'default_user',
+        status: params.status,
+        limit: params.limit,
+        offset: params.offset,
+      },
+    })
+    return response.data
+  },
+
+  async addWrongAnswer(payload: {
+    language: Language
+    question_type: string
+    question: string
+    user_answer: string
+    correct_answer: string
+    source_lesson_id?: string | null
+  }, userId = 'default_user') {
+    const response = await api.post<WrongAnswerItemResponse>('/wrong-answers', payload, { params: { user_id: userId } })
+    return response.data
+  },
+
+  async updateStatus(id: number, status: WrongAnswerStatus, userId = 'default_user') {
+    const response = await api.patch<WrongAnswerItemResponse>(`/wrong-answers/${id}`, { status }, { params: { user_id: userId } })
+    return response.data
+  },
+
+  async deleteWrongAnswer(id: number, userId = 'default_user') {
+    const response = await api.delete<{ success: boolean }>(`/wrong-answers/${id}`, { params: { user_id: userId } })
+    return response.data
+  },
+
+  async retry(id: number, userAnswer: string, userId = 'default_user') {
+    const response = await api.post<WrongAnswerRetryResponse>(`/wrong-answers/${id}/retry`, { user_answer: userAnswer }, { params: { user_id: userId } })
+    return response.data
+  },
+}
+
+export const streakApi = {
+  async getStreak(userId = 'default_user') {
+    const response = await api.get<StreakResponse>('/streak', { params: { user_id: userId } })
     return response.data
   },
 }

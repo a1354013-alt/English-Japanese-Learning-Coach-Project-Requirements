@@ -224,6 +224,50 @@ class ReviewResult(BaseModel):
     incorrect_items: List[IncorrectItem]
 
 
+# ============ Wrong Answer Notebook Models ============
+WrongAnswerStatus = Literal["active", "mastered"]
+
+
+class WrongAnswerCreate(BaseModel):
+    language: str
+    question_type: str
+    question: str
+    user_answer: str
+    correct_answer: str
+    source_lesson_id: Optional[str] = None
+
+
+class WrongAnswerUpdate(BaseModel):
+    status: WrongAnswerStatus
+
+
+class WrongAnswerRetryRequest(BaseModel):
+    user_answer: str
+
+
+class WrongAnswer(BaseModel):
+    id: int
+    user_id: str
+    language: str
+    question_type: str
+    question: str
+    user_answer: str
+    correct_answer: str
+    source_lesson_id: Optional[str] = None
+    status: WrongAnswerStatus
+    wrong_count: int = 1
+    created_at: datetime
+    updated_at: datetime
+
+
+# ============ Daily Learning Streak Models ============
+class StreakInfo(BaseModel):
+    current_streak: int
+    longest_streak: int
+    last_active_date: Optional[str] = None  # YYYY-MM-DD
+    today_completed: bool
+
+
 # ============ Writing Assistant Models ============
 class WritingAnalysis(BaseModel):
     """AI analysis of user writing"""
