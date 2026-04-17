@@ -3,6 +3,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -13,139 +14,145 @@ from models import UserRPGStats
 
 
 class Database:
-    """SQLite database handler."""
+    """SQLite database handler with connection pooling."""
 
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or settings.db_path).resolve()
         self._ensure_db_directory()
+        self._local: sqlite3.Connection | None = None
         self.init_database()
 
     def _ensure_db_directory(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    @contextmanager
-    def get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+    @property
+    def _connection(self) -> sqlite3.Connection:
+        """Get thread-local connection (lazy initialization)."""
+        if self._local is None:
+            self._local = sqlite3.connect(
+                str(self.db_path),
+                timeout=30.0,
+                isolation_level=None,  # Autocommit mode for better concurrency
+            )
+            self._local.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrent read/write performance
+            self._local.execute("PRAGMA journal_mode=WAL")
+            # Increase cache size for better performance (2000 pages)
+            self._local.execute("PRAGMA cache_size=-2000")
+            # Enable foreign keys
+            self._local.execute("PRAGMA foreign_keys=ON")
+        return self._local
 
     def check_connection(self) -> bool:
         try:
-            with self.get_connection() as conn:
-                conn.execute("SELECT 1")
+            conn = self._connection
+            conn.execute("SELECT 1")
             return True
         except Exception:
             return False
 
     def init_database(self) -> None:
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version TEXT PRIMARY KEY,
-                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )
-                """
+        conn = self._connection
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version TEXT PRIMARY KEY,
+                applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS lessons (
-                    lesson_id TEXT PRIMARY KEY,
-                    language TEXT NOT NULL,
-                    level TEXT NOT NULL,
-                    topic TEXT NOT NULL,
-                    generated_at TIMESTAMP NOT NULL,
-                    estimated_duration_minutes INTEGER,
-                    key_points TEXT,
-                    file_path TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS lessons (
+                lesson_id TEXT PRIMARY KEY,
+                language TEXT NOT NULL,
+                level TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                generated_at TIMESTAMP NOT NULL,
+                estimated_duration_minutes INTEGER,
+                key_points TEXT,
+                file_path TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS progress (
-                    user_id TEXT PRIMARY KEY,
-                    english_progress TEXT NOT NULL,
-                    japanese_progress TEXT NOT NULL,
-                    rpg_stats TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS progress (
+                user_id TEXT PRIMARY KEY,
+                english_progress TEXT NOT NULL,
+                japanese_progress TEXT NOT NULL,
+                rpg_stats TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS generation_tasks (
-                    task_id TEXT PRIMARY KEY,
-                    user_id TEXT,
-                    status TEXT,
-                    model_used TEXT,
-                    duration_ms INTEGER,
-                    error_message TEXT,
-                    retry_count INTEGER,
-                    created_at TIMESTAMP
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS generation_tasks (
+                task_id TEXT PRIMARY KEY,
+                user_id TEXT,
+                status TEXT,
+                model_used TEXT,
+                duration_ms INTEGER,
+                error_message TEXT,
+                retry_count INTEGER,
+                created_at TIMESTAMP
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS exercise_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    lesson_id TEXT NOT NULL,
-                    exercise_type TEXT NOT NULL,
-                    total_questions INTEGER NOT NULL,
-                    correct_count INTEGER NOT NULL,
-                    accuracy_rate REAL NOT NULL,
-                    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (lesson_id) REFERENCES lessons(lesson_id)
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS exercise_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                lesson_id TEXT NOT NULL,
+                exercise_type TEXT NOT NULL,
+                total_questions INTEGER NOT NULL,
+                correct_count INTEGER NOT NULL,
+                accuracy_rate REAL NOT NULL,
+                submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (lesson_id) REFERENCES lessons(lesson_id)
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS srs_vocabulary (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    word TEXT NOT NULL,
-                    language TEXT NOT NULL,
-                    data TEXT NOT NULL,
-                    srs_level INTEGER DEFAULT 0,
-                    ease_factor REAL DEFAULT 2.5,
-                    interval INTEGER DEFAULT 0,
-                    next_review TIMESTAMP,
-                    last_reviewed TIMESTAMP,
-                    UNIQUE(user_id, word, language)
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS srs_vocabulary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                word TEXT NOT NULL,
+                language TEXT NOT NULL,
+                data TEXT NOT NULL,
+                srs_level INTEGER DEFAULT 0,
+                ease_factor REAL DEFAULT 2.5,
+                interval INTEGER DEFAULT 0,
+                next_review TIMESTAMP,
+                last_reviewed TIMESTAMP,
+                UNIQUE(user_id, word, language)
             )
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS imported_vocabulary (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    language TEXT NOT NULL,
-                    word TEXT NOT NULL,
-                    reading TEXT,
-                    definition_zh TEXT NOT NULL,
-                    example_sentence TEXT,
-                    example_translation TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(user_id, language, word)
-                )
-                """
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS imported_vocabulary (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                word TEXT NOT NULL,
+                reading TEXT,
+                definition_zh TEXT NOT NULL,
+                example_sentence TEXT,
+                example_translation TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, language, word)
             )
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_language ON lessons(language)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(generated_at)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_language ON lessons(language)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(generated_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
 
         self.run_migrations()
 
@@ -159,15 +166,15 @@ class Database:
         if not migration_files:
             return
 
-        with self.get_connection() as conn:
-            existing = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
-            for file_path in migration_files:
-                version = file_path.name
-                if version in existing:
-                    continue
-                sql = file_path.read_text(encoding="utf-8")
-                conn.executescript(sql)
-                conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+        conn = self._connection
+        existing = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+        for file_path in migration_files:
+            version = file_path.name
+            if version in existing:
+                continue
+            sql = file_path.read_text(encoding="utf-8")
+            conn.executescript(sql)
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
 
     def _local_date_str(self, dt: Optional[datetime] = None) -> str:
         tz = ZoneInfo(settings.timezone)
@@ -176,31 +183,31 @@ class Database:
 
     def save_lesson(self, lesson_data: Dict[str, Any], file_path: str) -> str:
         metadata = lesson_data["metadata"]
-        with self.get_connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO lessons (
-                    lesson_id, language, level, topic, generated_at,
-                    estimated_duration_minutes, key_points, file_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    metadata["lesson_id"],
-                    metadata["language"],
-                    metadata["level"],
-                    metadata["topic"],
-                    metadata["generated_at"],
-                    metadata.get("estimated_duration_minutes"),
-                    json.dumps(metadata.get("key_points", []), ensure_ascii=False),
-                    str(Path(file_path).resolve()),
-                ),
-            )
+        conn = self._connection
+        conn.execute(
+            """
+            INSERT INTO lessons (
+                lesson_id, language, level, topic, generated_at,
+                estimated_duration_minutes, key_points, file_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                metadata["lesson_id"],
+                metadata["language"],
+                metadata["level"],
+                metadata["topic"],
+                metadata["generated_at"],
+                metadata.get("estimated_duration_minutes"),
+                json.dumps(metadata.get("key_points", []), ensure_ascii=False),
+                str(Path(file_path).resolve()),
+            ),
+        )
         return metadata["lesson_id"]
 
     def get_lesson(self, lesson_id: str) -> Optional[Dict[str, Any]]:
-        with self.get_connection() as conn:
-            row = conn.execute("SELECT * FROM lessons WHERE lesson_id = ?", (lesson_id,)).fetchone()
-            return dict(row) if row else None
+        conn = self._connection
+        row = conn.execute("SELECT * FROM lessons WHERE lesson_id = ?", (lesson_id,)).fetchone()
+        return dict(row) if row else None
 
     def query_lessons(
         self,
@@ -232,9 +239,9 @@ class Database:
         query += " ORDER BY generated_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        with self.get_connection() as conn:
-            rows = conn.execute(query, params).fetchall()
-            return [dict(row) for row in rows]
+        conn = self._connection
+        rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
 
     def create_default_progress(self, user_id: str) -> Dict[str, Any]:
         return {

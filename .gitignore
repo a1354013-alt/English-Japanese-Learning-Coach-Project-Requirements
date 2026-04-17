@@ -6,10 +6,11 @@ __pycache__/
 *.pyd
 
 # Database
-data/chroma_db/
-data/language_coach.db
+data/*.db
 
-# Environment
+# Dependencies
+venv/
+.venv/
 .env
 .env.local
 *.env.*
@@ -17,24 +18,16 @@ data/language_coach.db
 # Logs
 *.log
 
-# Temporary files
-*.tmp
-*.swp
-*.swo
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Coverage reports
-coverage/
-htmlcov/
+# Test coverage
 .coverage
-
-# Testing
+htmlcov/
+.coveragerc
 .pytest_cache/
 
-# Dependencies (if any virtual envs exist)
-venv/
-.venv/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
 ```
