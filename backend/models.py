@@ -202,7 +202,7 @@ class UserProgress(BaseModel):
 class ReviewAnswer(BaseModel):
     """User's answer to an exercise"""
     lesson_id: str
-    exercise_type: Literal["grammar", "reading"]
+    exercise_type: Literal["grammar", "reading"]  # Restricted to valid exercise types
     question_index: int
     user_answer: str
     correct_answer: str

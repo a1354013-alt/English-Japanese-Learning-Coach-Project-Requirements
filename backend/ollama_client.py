@@ -195,8 +195,9 @@ class OllamaClient:
         if use_cache:
             from cache import cache
 
+            # Include temperature and format in cache key to avoid collisions
             cache_key = (
-                f"ollama:{target_model}:"
+                f"ollama:{target_model}:{format}:{temperature}:"
                 f"{hashlib.md5((prompt + (system_prompt or '')).encode()).hexdigest()}"
             )
             cached_res = cache.get(cache_key)

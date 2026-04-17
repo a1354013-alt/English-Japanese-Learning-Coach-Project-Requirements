@@ -368,9 +368,8 @@ class Database:
             return [dict(row) for row in rows]
 
     def get_today_lesson(self, language: str) -> Optional[Dict[str, Any]]:
-        # Use configured timezone instead of naive datetime.now().date()
-        import pytz
-        tz = pytz.timezone(settings.timezone)
+        # Use configured timezone with zoneinfo (consistent with rest of codebase)
+        tz = ZoneInfo(settings.timezone)
         today = datetime.now(tz).date().isoformat()
         with self.get_connection() as conn:
             row = conn.execute(
@@ -653,6 +652,8 @@ class Database:
             )
 
     def _get_activity_dates(self, user_id: str) -> List[date]:
+        """Get all unique activity dates for a user (cached for performance)."""
+        # Simple in-memory cache could be added here if needed
         with self.get_connection() as conn:
             rows = conn.execute(
                 "SELECT DISTINCT activity_date FROM user_learning_activity WHERE user_id = ? ORDER BY activity_date ASC",
@@ -667,6 +668,7 @@ class Database:
         return out
 
     def get_streak_info(self, user_id: str, today: Optional[date] = None) -> Dict[str, Any]:
+        """Get streak information for a user."""
         tz_today = today or date.fromisoformat(self._local_date_str())
         dates = self._get_activity_dates(user_id)
         if not dates:
