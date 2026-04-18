@@ -4,30 +4,63 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Database
-data/*.db
-
-# Dependencies
+.Python
+env/
 venv/
 .venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+.MF
+tags
+TAGS
+*.tmproj
+*.swp
+*.swo
+*~
+# Build artifacts
+build/
+dist/
+*.egg
+*.egg-info/
+MANIFEST
+# Environment variables
 .env
 .env.local
-*.env.*
-
-# Logs
-*.log
-
-# Test coverage
-.coverage
-htmlcov/
-.coveragerc
-.pytest_cache/
-
+.env.*
+!.env.example
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+.nox/
+# Documentation
+docs/_build/
 ```

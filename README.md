@@ -1,59 +1,84 @@
 # English-Japanese Learning Coach
 
-**Version: 1.2.0** - Production Ready for Portfolio Showcase
+**Version: 1.2.0** — Portfolio-grade AI learning platform
 
 A comprehensive AI-powered language learning platform built with FastAPI + Vue 3, featuring personalized lesson generation, SRS vocabulary tracking, gamification, and RAG-enhanced content.
 
-## 🎯 Project Highlights (Portfolio-Ready Features)
+## 🎯 Project Overview
 
-### Architecture Excellence
-- **Clean Architecture**: Modular routers (`backend/routers/`), shared services (`backend/services/`), clear separation of concerns
-- **Async-First Design**: Non-blocking LLM calls via `httpx.AsyncClient`, proper event loop handling
-- **Type Safety**: Full Pydantic v2 models, TypeScript frontend, strict API contracts
-- **Database Layer**: SQLite with migrations, connection pooling, transaction management
+This project demonstrates **full-stack engineering discipline** with:
 
-### Key Features Implemented
-- ✅ **AI Lesson Generation**: Dynamic lessons tailored to user level, interests, and goals
-- ✅ **Spaced Repetition System (SRS)**: SM-2 algorithm for vocabulary retention
-- ✅ **Gamification Engine**: XP system, leveling, achievements, collectible word cards
-- ✅ **RAG Integration**: ChromaDB vector store for semantic search over uploaded materials
-- ✅ **Writing Analysis**: AI-powered grammar, vocabulary, and style feedback
-- ✅ **Study Planning**: Personalized milestone-based study plans
-- ✅ **Multi-language Support**: English (CEFR) and Japanese (JLPT) tracks
-- ✅ **PDF Export**: Cross-platform lesson export with CJK font support
-- ✅ **Daily Streaks**: Learning activity tracking with timezone awareness
-- ✅ **Auto-Scheduler**: APScheduler for daily lesson generation
-
-### Code Quality & DevOps
-- ✅ **Multi-stage Dockerfile**: Optimized image size, non-root user, health checks
-- ✅ **CI/CD Pipeline**: GitHub Actions with pytest, vitest, type checking
-- ✅ **Comprehensive Tests**: Unit tests for routers, services, and integrations
-- ✅ **Documentation**: Detailed `.env.example`, API docs (Swagger/OpenAPI)
+- Clean modular architecture (routers, services, shared models)
+- Async-first design with proper error handling
+- Type safety across backend (Pydantic v2) and frontend (TypeScript)
+- Retrieval-augmented generation (RAG) for personalized learning
+- Gamification engine with XP, levels, achievements, and word cards
+- Reproducible developer workflow (Docker, tests, documented setup)
 
 ---
 
-## Project Status
+## Architecture
 
-### ✅ Production Ready
-- FastAPI backend with unified API contracts
-- SQLite persistence with migrations
-- Async Ollama client with retry logic and caching
-- RAG-enhanced lesson generation
-- Vue 3 + TypeScript frontend with error handling
-- Docker Compose deployment
-- Automated testing suite
+```
+┌─────────────────────┐         ┌─────────────────────┐
+│   Vue 3 Frontend    │ ◄─────► │   FastAPI Backend   │
+│   (TypeScript)      │  HTTP   │   (Python 3.11+)    │
+│   - Vite build      │         │   - Async routers   │
+│   - Vue Router      │         │   - Pydantic models │
+│   - Axios client    │         │   - SQLite + Chroma │
+└─────────────────────┘         └──────────┬──────────┘
+                                           │
+                    ┌──────────────────────┼──────────────────────┐
+                    ▼                      ▼                      ▼
+           ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
+           │   SQLite (DB)   │   │  ChromaDB (RAG) │   │   Ollama LLM    │
+           │   - Lessons     │   │  - Documents    │   │   - Generation  │
+           │   - Progress    │   │  - Embeddings   │   │   - Analysis    │
+           │   - SRS/Vocab   │   │  - Metadata     │   │   - Chat        │
+           │   - Gamification│   └─────────────────┘   └─────────────────┘
+           └─────────────────┘
+```
 
-### ⚠️ Beta / Placeholder (Documented Limitations)
-- TTS endpoint returns placeholder (ready for integration)
-- Chat uses ephemeral memory (persistent memory planned)
-- Demo authentication only (`DEFAULT_USER_ID`) - **add real auth before production**
+### Data Flow
 
-### 📋 Roadmap
-- [ ] Persistent chat memory with user profiles
-- [ ] Production TTS integration (Azure/Google/Edge)
-- [ ] OAuth2/JWT authentication
-- [ ] E2E testing with Playwright
-- [ ] WebSocket improvements for real-time features
+1. **Lesson Generation**: User request → LLM prompt → Structured JSON → SQLite storage → Frontend render
+2. **Review/SRS**: User answers → Scoring service → XP/progress update → SRS interval calculation → DB persistence
+3. **RAG Upload**: File upload → Text extraction → Chunking (metadata: source, language, timestamp) → ChromaDB embedding
+4. **RAG Query**: Search query → Vector similarity → Retrieved chunks → LLM context → Personalized lesson/explanation
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | FastAPI, Pydantic v2, SQLite, APScheduler |
+| Frontend | Vue 3, TypeScript, Vite, Vue Router, Axios |
+| AI/ML | Ollama (local LLM), ChromaDB (vector store) |
+| DevOps | Docker Compose, GitHub Actions (CI), pytest, vitest |
+
+---
+
+## Feature Status
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| AI Lesson Generation | ✅ Stable | EN (CEFR A1-C2) / JP (JLPT N5-N1) |
+| Spaced Repetition (SRS) | ✅ Stable | SM-2 algorithm, vocabulary tracking |
+| Gamification Engine | ✅ Stable | XP, levels, achievements, word cards |
+| Wrong Answer Notebook | ✅ Stable | CRUD + retry practice |
+| Daily Streak Tracking | ✅ Stable | Derived from learning activity log |
+| RAG Document Upload | ✅ Stable | .txt/.md/.csv with metadata |
+| Writing Analysis | ✅ Stable | Grammar, vocabulary, style scoring |
+| Study Plan Generation | ✅ Stable | Milestone-based planning |
+| PDF Export | ✅ Stable | Cross-platform with CJK font support |
+| Excel Vocabulary Import | ✅ Stable | Requires explicit language selection |
+| TTS Audio Generation | ⚠️ Placeholder | Returns `null` audio_url; ready for integration |
+| WebSocket AI Chat | ⚠️ Beta | Ephemeral session memory; no persistence |
+| User Authentication | ⚠️ Demo Only | Single `default_user` ID; add real auth before production |
+| Persistent Chat Memory | 📋 Planned | User profile memory under roadmap |
+| OAuth2/JWT Auth | 📋 Planned | Production authentication roadmap |
+| E2E Testing | 📋 Planned | Playwright integration planned |
 
 ---
 
@@ -61,32 +86,46 @@ A comprehensive AI-powered language learning platform built with FastAPI + Vue 3
 
 | Path | Role |
 |------|------|
-| `backend/main.py` | FastAPI app, CORS (from `CORS_ORIGINS`), lifespan, router includes |
-| `backend/routers/` | `lessons`, `review`, `imports`, `ai_tools`, `system` API routers |
-| `backend/services/` | Shared domain helpers (e.g. `lesson_ops.py`: load lesson JSON, score answers, SRS/progress hooks) |
-| `backend/tests/` | Pytest suite (`pytest tests/` from `backend/`) |
-| `frontend/` | Vue 3 + Vite + TypeScript |
-| `data/` | Runtime data (gitignored contents) |
-| `docker-compose.yml` | API service + volume for `/data` |
-| `.github/workflows/ci.yml` | CI pipeline |
+| `backend/main.py` | FastAPI app, CORS, lifespan, router includes |
+| `backend/routers/` | API routers: `lessons`, `review`, `imports`, `ai_tools`, `system`, `streak`, `wrong_answers` |
+| `backend/services/` | Shared domain helpers (`lesson_ops.py`: load lesson, score answers, SRS/progress hooks) |
+| `backend/tests/` | Pytest suite (run `pytest tests/` from `backend/`) |
+| `frontend/` | Vue 3 + Vite + TypeScript application |
+| `frontend/src/views/` | Page components: TodayLesson, LessonDetail, Archive, Progress, WrongAnswers, WritingCenter |
+| `frontend/src/services/` | API client layer with TypeScript types |
+| `data/` | Runtime data (SQLite DB, ChromaDB, exports — gitignored) |
+| `docker-compose.yml` | API service + volume mounts for `/data` |
+| `.github/workflows/ci.yml` | CI pipeline (pytest, vitest, type check) |
 
-Legacy scripts: `start_backend.sh`, `start_frontend.sh` (bash).
+Legacy scripts: `start_backend.sh`, `start_frontend.sh` (bash wrappers).
+
+---
 
 ## Local Setup
 
-### 1. Backend
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Ollama running locally (or set `OLLAMA_URL` to remote instance)
+- Optional: Docker Compose for containerized deployment
+
+### 1. Backend Setup
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+# Windows: .venv\\Scripts\\activate
 # macOS/Linux: source .venv/bin/activate
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 cp .env.example .env
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 2. Frontend
+Backend runs at: `http://localhost:8000`  
+API docs: `http://localhost:8000/docs`
+
+### 2. Frontend Setup
 
 ```bash
 cd frontend
@@ -94,8 +133,7 @@ npm install
 npm run dev
 ```
 
-Frontend default URL: `http://localhost:5173`  
-Backend default URL: `http://localhost:8000`
+Frontend runs at: `http://localhost:5173`
 
 ### 3. Docker (API only)
 
@@ -103,22 +141,30 @@ Backend default URL: `http://localhost:8000`
 docker compose up --build
 ```
 
-Point the Vite dev server at `http://localhost:8000` (default proxy). Set `CORS_ORIGINS` in Compose or `.env` if you use another frontend origin.
+Point the Vite dev server at `http://localhost:8000` (default proxy target).
 
-## Environment Variables (`backend/.env`)
+---
 
-See `backend/.env.example`. Notable entries:
+## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `CORS_ORIGINS` | Comma-separated allowed browser origins (no JSON array) |
-| `DEFAULT_USER_ID` | Default demo user for routes that accept `user_id` |
-| `DATA_DIR` / `DB_PATH` / `CHROMA_DB_PATH` | Storage locations |
-| Ollama / Redis / scheduler | As in `.env.example` |
+See `backend/.env.example`. Key variables:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:5173` |
+| `DEFAULT_USER_ID` | Demo user ID for routes accepting `user_id` | `default_user` |
+| `DATA_DIR` | Base directory for runtime data | `./data` |
+| `DB_PATH` | SQLite database path | `./data/language_coach.db` |
+| `CHROMA_DB_PATH` | ChromaDB persistent path | `./data/chroma_db` |
+| `OLLAMA_URL` | Ollama API endpoint | `http://localhost:11434` |
+| `SMALL_MODEL_NAME` | Model for chat/fast tasks | `llama3.2` |
+| `LARGE_MODEL_NAME` | Model for lesson generation | `llama3.1` |
+
+---
 
 ## Tests & Build
 
-### Backend
+### Backend Tests
 
 ```bash
 cd backend
@@ -127,7 +173,7 @@ pytest tests/ -v
 python -m compileall .
 ```
 
-### Frontend
+### Frontend Tests & Build
 
 ```bash
 cd frontend
@@ -136,10 +182,64 @@ npm run test
 npm run build
 ```
 
+Build output: `frontend/dist/`
+
+---
+
 ## Minimal Verification Flow
 
-1. Onboarding → 2. Generate lesson (Today) → 3. Submit review → 4. Archive / lesson detail → 5. Writing → 6. Study plan (Progress) → 7. Excel import & RAG upload (**select EN or JP** in Archive; “All” is blocked for imports) → 8. Export PDF
+1. **Onboarding** → Select language (EN/JP), level, difficulty
+2. **Generate Lesson** (Today tab) → AI generates structured lesson
+3. **Submit Review** → Answer grammar/reading questions → See score + XP gain
+4. **Archive** → View past lessons → Click into Lesson Detail
+5. **Writing Center** → Submit text → Get AI analysis
+6. **Study Plan** (Progress tab) → Generate milestone-based plan
+7. **Excel Import** (Archive) → Upload vocabulary (select EN or JP language)
+8. **RAG Upload** (Archive) → Upload .txt/.md/.csv materials
+9. **Export PDF** → Download lesson as PDF
 
-## Excel / RAG language (Archive)
+> **Note**: Imports require explicit language selection (English or Japanese). "All" filter is blocked for imports.
 
-Imports require an explicit language (English or Japanese). If the filter is “All”, the UI prompts you to pick a language first.
+---
+
+## Known Limitations
+
+| Limitation | Impact | Workaround / Roadmap |
+|------------|--------|---------------------|
+| Demo authentication only | All data scoped to `default_user` | Add OAuth2/JWT before multi-user deployment |
+| TTS returns placeholder | No audio playback in lessons | Integrate Azure TTS / Google Cloud TTS / Edge TTS |
+| Chat uses ephemeral memory | Conversation history lost on disconnect | Implement persistent user memory store |
+| No E2E tests | Manual QA required for full flows | Add Playwright test suite |
+| Single-file RAG uploads only | Bulk upload not supported | Add ZIP/folder upload with batch processing |
+
+---
+
+## Portfolio Talking Points
+
+This project showcases:
+
+1. **Full-Stack Architecture**: Clean separation of concerns (routers, services, models), async patterns, dependency injection
+2. **AI Integration**: Prompt engineering, structured JSON extraction, fallback handling, caching strategies
+3. **Retrieval-Augmented Workflows**: Vector embeddings, semantic search, metadata filtering, citation tracking
+4. **Product Thinking**: Gamification loops, spaced repetition, error tracking, progressive difficulty
+5. **Engineering Discipline**: Type safety, test coverage, reproducible builds, documented APIs, Docker deployment
+6. **Data Modeling**: Relational schema design, SRS algorithm implementation, activity logging, analytics hooks
+
+---
+
+## Roadmap
+
+- [ ] Persistent chat memory with user profiles
+- [ ] Production TTS integration (Azure/Google/Edge)
+- [ ] OAuth2/JWT authentication with role-based access
+- [ ] E2E testing with Playwright
+- [ ] Real-time WebSocket improvements (typing indicators, presence)
+- [ ] Bulk RAG upload (ZIP/folder support)
+- [ ] Mobile-responsive UI enhancements
+- [ ] Analytics dashboard (learning trends, time spent, weak areas)
+
+---
+
+## License
+
+MIT License — See LICENSE file for details.

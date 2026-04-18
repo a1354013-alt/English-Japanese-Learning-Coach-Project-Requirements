@@ -8,6 +8,8 @@ from database import db
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 
+APP_VERSION = "1.2.0"
+
 root_router = APIRouter(tags=["system"])
 
 api_router = APIRouter(prefix="/api", tags=["system"])
@@ -18,7 +20,7 @@ async def root():
     return {
         "status": "healthy",
         "service": "Language Coach API",
-        "version": "1.1.0",
+        "version": APP_VERSION,
         "timestamp": datetime.now().isoformat(),
     }
 
