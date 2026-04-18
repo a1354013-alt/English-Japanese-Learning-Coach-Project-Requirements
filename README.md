@@ -186,6 +186,44 @@ Build output: `frontend/dist/`
 
 ---
 
+## Demo Flow
+
+Follow this flow to experience the full platform capabilities:
+
+1. **Generate Lesson** → Select language (EN/JP), level, difficulty → AI generates structured lesson
+2. **Complete Exercises** → Answer grammar & reading questions → Receive instant scoring + XP
+3. **Review Results** → View detailed feedback → Wrong answers saved to Mistakes notebook
+4. **See Progress Update** → Check Progress tab → Watch XP, level, and streak grow
+5. **Upload Notes (RAG)** → Upload .txt/.md files in Archive → Materials chunked and indexed
+6. **Generate Personalized Lesson** → RAG-enhanced lessons use your uploaded materials
+7. **Chat with Tutor** → Practice conversation in target language → WebSocket real-time chat
+8. **View Analytics** → Identify hardest words, weakest categories, accuracy trends
+9. **Export PDF** → Download complete lesson with vocabulary, grammar, reading, dialogue
+
+---
+
+## Screenshots
+
+### Dashboard - Today Lesson
+![Dashboard](./docs/screenshots/dashboard.png)
+*Generate AI-powered lessons tailored to your level*
+
+### Lesson Detail
+![Lesson Detail](./docs/screenshots/lesson-detail.png)
+*Complete lesson with vocabulary, grammar, reading, and dialogue sections*
+
+### Chat Tutor
+![Chat Tutor](./docs/screenshots/chat.png)
+*Real-time conversation practice with AI tutor*
+
+### Analytics Dashboard
+![Analytics](./docs/screenshots/analytics.png)
+*Track progress, identify weak areas, monitor streaks*
+
+> **Note**: Screenshots are placeholders. Run the application and capture actual screens for your portfolio.
+
+---
+
 ## Minimal Verification Flow
 
 1. **Onboarding** → Select language (EN/JP), level, difficulty
@@ -237,6 +275,30 @@ This project showcases:
 - [ ] Bulk RAG upload (ZIP/folder support)
 - [ ] Mobile-responsive UI enhancements
 - [ ] Analytics dashboard (learning trends, time spent, weak areas)
+
+---
+
+## License
+
+MIT License — See LICENSE file for details.
+
+---
+
+## Repository Hygiene
+
+**Note**: `node_modules` and build artifacts are excluded from version control. Run `npm install` and `npm run build` to reproduce the build.
+
+### Excluded from Git
+
+- `frontend/node_modules/` - npm dependencies
+- `frontend/dist/` - Vite build output
+- `data/*.db` - SQLite database (runtime data)
+- `data/chroma_db/` - Vector store (runtime data)
+- `__pycache__/` - Python bytecode
+- `.pytest_cache/`, `.mypy_cache/` - Testing caches
+- `coverage/`, `htmlcov/` - Test coverage reports
+
+This keeps the repository clean, lightweight, and focused on source code.
 
 ---
 
