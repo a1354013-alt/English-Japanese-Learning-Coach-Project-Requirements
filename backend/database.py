@@ -1,9 +1,7 @@
 ﻿"""Database operations for Language Coach."""
 import json
 import sqlite3
-from contextlib import contextmanager
 from datetime import date, datetime, timedelta
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -42,6 +40,10 @@ class Database:
             # Enable foreign keys
             self._local.execute("PRAGMA foreign_keys=ON")
         return self._local
+
+    def get_connection(self) -> sqlite3.Connection:
+        """Compatibility wrapper for code paths using context-managed connections."""
+        return self._connection
 
     def check_connection(self) -> bool:
         try:
@@ -167,7 +169,10 @@ class Database:
             return
 
         conn = self._connection
-        existing = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+        existing = {
+            row["version"]
+            for row in conn.execute("SELECT version FROM schema_migrations").fetchall()
+        }
         for file_path in migration_files:
             version = file_path.name
             if version in existing:
@@ -221,6 +226,7 @@ class Database:
     ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM lessons WHERE 1=1"
         params: List[Any] = []
+
         if language:
             query += " AND language = ?"
             params.append(language)
@@ -236,6 +242,7 @@ class Database:
         if topic:
             query += " AND topic LIKE ?"
             params.append(f"%{topic}%")
+
         query += " ORDER BY generated_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
@@ -274,6 +281,7 @@ class Database:
         uid = user_id or settings.default_user_id
         with self.get_connection() as conn:
             row = conn.execute("SELECT * FROM progress WHERE user_id = ?", (uid,)).fetchone()
+
         if not row:
             progress = self.create_default_progress(uid)
             self.save_progress(progress)
@@ -282,7 +290,11 @@ class Database:
         result = dict(row)
         result["english_progress"] = json.loads(result["english_progress"])
         result["japanese_progress"] = json.loads(result["japanese_progress"])
-        result["rpg_stats"] = json.loads(result["rpg_stats"]) if result.get("rpg_stats") else UserRPGStats().model_dump(mode="json")
+        result["rpg_stats"] = (
+            json.loads(result["rpg_stats"])
+            if result.get("rpg_stats")
+            else UserRPGStats().model_dump(mode="json")
+        )
         return result
 
     def save_progress(self, progress_data: Dict[str, Any]) -> None:
@@ -375,7 +387,6 @@ class Database:
             return [dict(row) for row in rows]
 
     def get_today_lesson(self, language: str) -> Optional[Dict[str, Any]]:
-        # Use configured timezone with zoneinfo (consistent with rest of codebase)
         tz = ZoneInfo(settings.timezone)
         today = datetime.now(tz).date().isoformat()
         with self.get_connection() as conn:
@@ -389,7 +400,6 @@ class Database:
                 (language, today),
             ).fetchone()
             return dict(row) if row else None
-
 
     def get_srs_item(self, user_id: str, word: str, language: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
@@ -441,12 +451,19 @@ class Database:
                 ),
             )
 
-    def get_due_srs_items(self, user_id: str, language: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_due_srs_items(
+        self,
+        user_id: str,
+        language: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM srs_vocabulary WHERE user_id = ? AND next_review <= ?"
         params: List[Any] = [user_id, datetime.now().isoformat()]
+
         if language:
             query += " AND language = ?"
             params.append(language)
+
         query += " ORDER BY next_review ASC LIMIT ?"
         params.append(limit)
 
@@ -494,9 +511,11 @@ class Database:
     ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM wrong_answers WHERE user_id = ?"
         params: List[Any] = [user_id]
+
         if status:
             query += " AND status = ?"
             params.append(status)
+
         query += " ORDER BY updated_at DESC, created_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
@@ -516,6 +535,7 @@ class Database:
     ) -> Dict[str, Any]:
         now = datetime.now().isoformat()
         key_source = source_lesson_id or ""
+
         with self.get_connection() as conn:
             try:
                 conn.execute(
@@ -581,7 +601,12 @@ class Database:
             ).fetchone()
             return dict(row) if row else {}
 
-    def update_wrong_answer_status(self, user_id: str, wrong_answer_id: int, status: str) -> Optional[Dict[str, Any]]:
+    def update_wrong_answer_status(
+        self,
+        user_id: str,
+        wrong_answer_id: int,
+        status: str,
+    ) -> Optional[Dict[str, Any]]:
         now = datetime.now().isoformat()
         with self.get_connection() as conn:
             cur = conn.execute(
@@ -594,6 +619,7 @@ class Database:
             )
             if cur.rowcount == 0:
                 return None
+
             row = conn.execute(
                 "SELECT * FROM wrong_answers WHERE id = ? AND user_id = ?",
                 (wrong_answer_id, user_id),
@@ -602,7 +628,10 @@ class Database:
 
     def delete_wrong_answer(self, user_id: str, wrong_answer_id: int) -> bool:
         with self.get_connection() as conn:
-            cur = conn.execute("DELETE FROM wrong_answers WHERE id = ? AND user_id = ?", (wrong_answer_id, user_id))
+            cur = conn.execute(
+                "DELETE FROM wrong_answers WHERE id = ? AND user_id = ?",
+                (wrong_answer_id, user_id),
+            )
             return cur.rowcount > 0
 
     def retry_wrong_answer(
@@ -621,14 +650,23 @@ class Database:
                 return False, None
 
             correct = str(row["correct_answer"]).strip().lower() == str(user_answer).strip().lower()
+
             if correct:
                 conn.execute(
-                    "UPDATE wrong_answers SET status = 'mastered', user_answer = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+                    """
+                    UPDATE wrong_answers
+                    SET status = 'mastered', user_answer = ?, updated_at = ?
+                    WHERE id = ? AND user_id = ?
+                    """,
                     (user_answer, now, wrong_answer_id, user_id),
                 )
             else:
                 conn.execute(
-                    "UPDATE wrong_answers SET user_answer = ?, wrong_count = wrong_count + 1, updated_at = ? WHERE id = ? AND user_id = ?",
+                    """
+                    UPDATE wrong_answers
+                    SET user_answer = ?, wrong_count = wrong_count + 1, updated_at = ?
+                    WHERE id = ? AND user_id = ?
+                    """,
                     (user_answer, now, wrong_answer_id, user_id),
                 )
 
@@ -648,6 +686,7 @@ class Database:
     ) -> None:
         activity_date = activity_date or self._local_date_str()
         created_at = created_at or datetime.now().isoformat()
+
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -659,13 +698,18 @@ class Database:
             )
 
     def _get_activity_dates(self, user_id: str) -> List[date]:
-        """Get all unique activity dates for a user (cached for performance)."""
-        # Simple in-memory cache could be added here if needed
+        """Get all unique activity dates for a user."""
         with self.get_connection() as conn:
             rows = conn.execute(
-                "SELECT DISTINCT activity_date FROM user_learning_activity WHERE user_id = ? ORDER BY activity_date ASC",
+                """
+                SELECT DISTINCT activity_date
+                FROM user_learning_activity
+                WHERE user_id = ?
+                ORDER BY activity_date ASC
+                """,
                 (user_id,),
             ).fetchall()
+
         out: List[date] = []
         for row in rows:
             try:
@@ -678,6 +722,7 @@ class Database:
         """Get streak information for a user."""
         tz_today = today or date.fromisoformat(self._local_date_str())
         dates = self._get_activity_dates(user_id)
+
         if not dates:
             return {
                 "current_streak": 0,
@@ -690,7 +735,6 @@ class Database:
         last_active = max(dates)
         today_completed = tz_today in date_set
 
-        # Streak persists through the day until a day is missed.
         anchor = tz_today if today_completed else (tz_today - timedelta(days=1))
         current = 0
         while anchor in date_set:
