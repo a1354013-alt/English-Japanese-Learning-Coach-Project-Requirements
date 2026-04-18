@@ -32,12 +32,39 @@
         <h3>Grammar</h3>
         <p>{{ lesson.grammar.title }}</p>
         <p>{{ lesson.grammar.explanation }}</p>
+        <div v-if="lesson.grammar.exercises && lesson.grammar.exercises.length > 0">
+          <h4>Grammar Exercises</h4>
+          <ul>
+            <li v-for="(ex, idx) in lesson.grammar.exercises" :key="idx">
+              {{ ex.question }}
+              <br/>
+              <small>Answer: {{ ex.answer }}</small>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section>
         <h3>Reading</h3>
         <p style="white-space: pre-wrap">{{ lesson.reading.content }}</p>
+        <div v-if="lesson.reading.questions && lesson.reading.questions.length > 0">
+          <h4>Reading Questions</h4>
+          <ol>
+            <li v-for="(q, idx) in lesson.reading.questions" :key="idx">
+              {{ q }}
+            </li>
+          </ol>
+        </div>
       </section>
+
+      <section v-if="lesson.dialogue">
+        <h3>Dialogue</h3>
+        <div v-for="(line, idx) in lesson.dialogue" :key="idx" style="margin-bottom: 0.5rem">
+          <strong>{{ line.speaker }}:</strong> {{ line.text }}
+        </div>
+      </section>
+
+      <RagEvidencePanel v-if="lesson.evidence" :evidence="lesson.evidence" />
     </div>
   </section>
 </template>
@@ -47,6 +74,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { lessonApi } from '@/services/api'
 import type { Lesson } from '@/types'
+import RagEvidencePanel from '@/components/RagEvidencePanel.vue'
 
 const route = useRoute()
 const loading = ref(true)
