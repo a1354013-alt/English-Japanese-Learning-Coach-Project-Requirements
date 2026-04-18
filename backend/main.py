@@ -10,6 +10,8 @@ from scheduler import lesson_scheduler
 
 from routers import ai_tools, imports, lessons, review, system, streak, wrong_answers
 
+APP_VERSION = "1.2.0"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Language Coach API",
     description="API for English and Japanese learning with AI-generated lessons",
-    version="1.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
