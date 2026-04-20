@@ -106,12 +106,20 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
     }
 
 
-def update_progress_after_review(user_id: str, language: str, total: int, correct: int) -> Dict[str, Any]:
+def update_progress_after_review(
+    user_id: str,
+    language: str,
+    total: int,
+    correct: int,
+    *,
+    increment_completed_lessons: bool,
+) -> Dict[str, Any]:
     progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
 
     target = progress[key]
-    target["completed_lessons"] += 1
+    if increment_completed_lessons:
+        target["completed_lessons"] += 1
     target["total_exercises"] += total
     target["correct_exercises"] += correct
     target["last_study_date"] = datetime.now().isoformat()

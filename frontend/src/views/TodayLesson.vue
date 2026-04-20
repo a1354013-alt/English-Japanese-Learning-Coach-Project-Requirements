@@ -165,9 +165,9 @@ const generateLesson = async () => {
     })
     lesson.value = res.lesson
     resetAnswers()
+    await loadStreak()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to generate lesson'
-    await loadStreak()
   } finally {
     loadingGenerate.value = false
   }

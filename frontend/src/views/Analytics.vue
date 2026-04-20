@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { progressApi, wrongAnswersApi } from '@/services/api'
+import { progressApi, wrongAnswerApi } from '@/services/api'
 
 interface HardWord {
   word: string
@@ -136,16 +136,18 @@ const loadAnalytics = async () => {
     const progressRes = await progressApi.getProgress()
     const rpgStats = progressRes.progress.rpg_stats
     stats.value = {
-      totalXp: rpgStats.xp,
+      totalXp: rpgStats.total_xp,
       level: rpgStats.level,
-      streak: progressRes.progress.streak?.current_streak || 0,
-      lessonsCompleted: rpgStats.lessons_completed || 0,
+      streak: rpgStats.streak_days,
+      lessonsCompleted:
+        (progressRes.progress.english_progress?.completed_lessons ?? 0) +
+        (progressRes.progress.japanese_progress?.completed_lessons ?? 0),
     }
 
     // Load wrong answers for hardest words
     try {
-      const wrongRes = await wrongAnswersApi.getWrongAnswers()
-      const wrongAnswers = wrongRes.wrong_answers || []
+      const wrongRes = await wrongAnswerApi.listWrongAnswers()
+      const wrongAnswers = wrongRes.items || []
       
       // Count mistakes per word
       const wordCounts = new Map<string, number>()

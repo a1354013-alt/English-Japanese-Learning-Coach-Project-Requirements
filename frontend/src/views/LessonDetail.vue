@@ -38,7 +38,7 @@
             <li v-for="(ex, idx) in lesson.grammar.exercises" :key="idx">
               {{ ex.question }}
               <br/>
-              <small>Answer: {{ ex.answer }}</small>
+              <small>Answer: {{ ex.correct_answer }}</small>
             </li>
           </ul>
         </div>
@@ -51,7 +51,8 @@
           <h4>Reading Questions</h4>
           <ol>
             <li v-for="(q, idx) in lesson.reading.questions" :key="idx">
-              {{ q }}
+              <div>{{ q.question }}</div>
+              <small>Answer: {{ q.correct_answer }}</small>
             </li>
           </ol>
         </div>
@@ -59,7 +60,13 @@
 
       <section v-if="lesson.dialogue">
         <h3>Dialogue</h3>
-        <div v-for="(line, idx) in lesson.dialogue" :key="idx" style="margin-bottom: 0.5rem">
+        <p v-if="lesson.dialogue.scenario">{{ lesson.dialogue.scenario }}</p>
+        <p v-if="lesson.dialogue.context" style="color: #64748b">{{ lesson.dialogue.context }}</p>
+        <div
+          v-for="(line, idx) in lesson.dialogue.dialogue"
+          :key="idx"
+          style="margin-bottom: 0.5rem"
+        >
           <strong>{{ line.speaker }}:</strong> {{ line.text }}
         </div>
       </section>

@@ -89,6 +89,10 @@ export interface Lesson {
   grammar: GrammarSection
   reading: ReadingSection
   dialogue: DialogueSection
+  evidence?: Array<{
+    source: string
+    chunk_index: number
+  }>
   gamification?: {
     xp_added: number
     leveled_up: boolean

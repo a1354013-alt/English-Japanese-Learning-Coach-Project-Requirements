@@ -1,6 +1,7 @@
 ﻿"""Database operations for Language Coach."""
 import json
 import sqlite3
+import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,7 +18,7 @@ class Database:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or settings.db_path).resolve()
         self._ensure_db_directory()
-        self._local: sqlite3.Connection | None = None
+        self._local = threading.local()
         self.init_database()
 
     def _ensure_db_directory(self) -> None:
@@ -26,20 +27,22 @@ class Database:
     @property
     def _connection(self) -> sqlite3.Connection:
         """Get thread-local connection (lazy initialization)."""
-        if self._local is None:
-            self._local = sqlite3.connect(
+        conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(
                 str(self.db_path),
                 timeout=30.0,
                 isolation_level=None,  # Autocommit mode for better concurrency
             )
-            self._local.row_factory = sqlite3.Row
+            conn.row_factory = sqlite3.Row
             # Enable WAL mode for better concurrent read/write performance
-            self._local.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA journal_mode=WAL")
             # Increase cache size for better performance (2000 pages)
-            self._local.execute("PRAGMA cache_size=-2000")
+            conn.execute("PRAGMA cache_size=-2000")
             # Enable foreign keys
-            self._local.execute("PRAGMA foreign_keys=ON")
-        return self._local
+            conn.execute("PRAGMA foreign_keys=ON")
+            self._local.conn = conn
+        return conn
 
     def get_connection(self) -> sqlite3.Connection:
         """Compatibility wrapper for code paths using context-managed connections."""
@@ -346,6 +349,14 @@ class Database:
                 """,
                 (user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate),
             )
+
+    def has_exercise_result(self, user_id: str, lesson_id: str) -> bool:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM exercise_results WHERE user_id = ? AND lesson_id = ? LIMIT 1",
+                (user_id, lesson_id),
+            ).fetchone()
+            return row is not None
 
     def save_generation_task(self, task_data: Dict[str, Any]) -> None:
         with self.get_connection() as conn:

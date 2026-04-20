@@ -30,6 +30,7 @@ async def submit_review(
     lesson_id = answers[0].lesson_id
     lesson_data = load_lesson_payload(lesson_id)
     review_data = score_answers(lesson_data, answers)
+    was_completed = db.has_exercise_result(user_id=user_id, lesson_id=lesson_id)
 
     # Any review submission counts as a learning activity (one per local day).
     db.record_learning_activity(user_id=user_id, activity_type="review")
@@ -56,7 +57,13 @@ async def submit_review(
     db.save_rpg_stats(user_id, stats.model_dump(mode="json"))
 
     language = lesson_data["metadata"]["language"]
-    update_progress_after_review(user_id, language, review_data["total_questions"], review_data["correct_count"])
+    update_progress_after_review(
+        user_id,
+        language,
+        review_data["total_questions"],
+        review_data["correct_count"],
+        increment_completed_lessons=not was_completed,
+    )
     update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
 
     # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
