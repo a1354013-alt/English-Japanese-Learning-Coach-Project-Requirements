@@ -123,7 +123,9 @@ class LessonGenerator:
         topic: str,
         interest_context: Optional[str],
         model: str,
+        user_id: Optional[str] = None,
     ) -> Lesson:
+        uid = user_id or settings.default_user_id
         prompt = self._build_prompt(language, level, topic)
         if interest_context:
             prompt += f" Context from user: {interest_context}"
@@ -181,7 +183,7 @@ class LessonGenerator:
         lesson = Lesson(**full_lesson)
 
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
-        db.save_lesson(lesson.model_dump(mode="json"), str(file_path))
+        db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=uid)
         return lesson
 
     def _normalize(self, content: Dict[str, Any]) -> None:
