@@ -93,7 +93,14 @@ class LessonGenerator:
         })
 
         try:
-            lesson = await self._generate_with_model(language, level, topic, interest_context, model)
+            lesson = await self._generate_with_model(
+                language=language,
+                level=level,
+                topic=topic,
+                interest_context=interest_context,
+                model=model,
+                user_id=uid,
+            )
             db.save_generation_task({
                 "task_id": task_id,
                 "user_id": uid,
@@ -104,7 +111,7 @@ class LessonGenerator:
             })
             return lesson
         except Exception as err:
-            fallback = self._safe_lesson(language, level, topic)
+            fallback = self._safe_lesson(language, level, topic, user_id=uid)
             db.save_generation_task({
                 "task_id": task_id,
                 "user_id": uid,
@@ -133,8 +140,9 @@ class LessonGenerator:
         # Query RAG for relevant materials
         rag_evidence = rag_manager.query_materials(
             f"{topic} {level}",
+            user_id=uid,
+            language=language,
             n_results=3,
-            filter_criteria={"language": language},
         )
         
         # Properly extract text from evidence objects and add to prompt
@@ -212,7 +220,14 @@ class LessonGenerator:
         file_path.write_text(json.dumps(lesson_data, ensure_ascii=False, indent=2), encoding="utf-8")
         return file_path
 
-    def _safe_lesson(self, language: Literal["EN", "JP"], level: str, topic: str) -> Lesson:
+    def _safe_lesson(
+        self,
+        language: Literal["EN", "JP"],
+        level: str,
+        topic: str,
+        *,
+        user_id: str,
+    ) -> Lesson:
         metadata = LessonMetadata(
             language=language,
             level=level,
@@ -237,7 +252,7 @@ class LessonGenerator:
             dialogue=DialogueSection(scenario="Practice", context="Daily study", dialogue=[], alternatives=[]),
         )
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
-        db.save_lesson(lesson.model_dump(mode="json"), str(file_path))
+        db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=user_id)
         return lesson
 
 

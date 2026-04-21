@@ -64,8 +64,8 @@ async def get_today_lesson(language: Literal["EN", "JP"], user_id: str = Query(d
 
 
 @router.get("/lessons/{lesson_id}", response_model=dict)
-async def get_lesson(lesson_id: str):
-    return {"success": True, "lesson": load_lesson_payload(lesson_id)}
+async def get_lesson(lesson_id: str, user_id: str = Query(default=settings.default_user_id)):
+    return {"success": True, "lesson": load_lesson_payload(lesson_id, user_id=user_id)}
 
 
 @router.post("/onboard")

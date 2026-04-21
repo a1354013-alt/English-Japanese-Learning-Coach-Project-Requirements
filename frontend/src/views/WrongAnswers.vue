@@ -6,18 +6,19 @@
         <p style="margin: 0.2rem 0 0; color: #475569">Review, retry, and master your mistakes.</p>
       </div>
       <div class="row gap-sm center" style="min-width: 280px">
-        <select v-model="statusFilter">
+        <select v-model="statusFilter" :disabled="loading">
           <option value="active">Active</option>
           <option value="mastered">Mastered</option>
           <option value="all">All</option>
         </select>
         <button class="secondary" type="button" @click="loadItems" :disabled="loading">
-          {{ loading ? 'Loading…' : 'Refresh' }}
+          {{ loading ? 'Loading...' : 'Refresh' }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="panel">Loading…</div>
+    <div v-if="loading" class="panel">Loading...</div>
+
     <div v-else-if="error" class="panel">
       <p style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
       <button type="button" @click="loadItems">Retry</button>
@@ -25,7 +26,9 @@
 
     <div v-else-if="items.length === 0" class="panel">
       <p style="margin: 0">No items yet.</p>
-      <p style="margin: 0.35rem 0 0; color: #475569">Answer a quiz question wrong and it will show up here automatically.</p>
+      <p style="margin: 0.35rem 0 0; color: #475569">
+        Submit a lesson review with incorrect answers and it will show up here automatically.
+      </p>
     </div>
 
     <div v-else class="grid">
@@ -35,7 +38,7 @@
             <strong>{{ item.question_type.toUpperCase() }}</strong>
             <span style="color: #475569"> · {{ item.language }}</span>
             <span style="color: #475569"> · {{ formatDate(item.created_at) }}</span>
-            <span v-if="item.wrong_count > 1" style="color: #475569"> · Wrong ×{{ item.wrong_count }}</span>
+            <span v-if="item.wrong_count > 1" style="color: #475569"> · wrong ×{{ item.wrong_count }}</span>
           </div>
           <span
             :style="{
@@ -71,37 +74,36 @@
           <div class="row gap-sm center" style="flex-wrap: wrap">
             <input v-model="retryAnswer" placeholder="Type your answer and retry" style="flex: 1 1 240px" />
             <button type="button" @click="submitRetry(item)" :disabled="submittingRetry">
-              {{ submittingRetry ? 'Checking…' : 'Submit' }}
+              {{ submittingRetry ? 'Checking...' : 'Submit' }}
             </button>
             <button class="secondary" type="button" @click="cancelRetry" :disabled="submittingRetry">Cancel</button>
           </div>
-          <p v-if="retryFeedback" style="margin: 0.6rem 0 0" :style="{ color: retryFeedback.ok ? '#065f46' : '#b91c1c' }">
+          <p
+            v-if="retryFeedback"
+            style="margin: 0.6rem 0 0"
+            :style="{ color: retryFeedback.ok ? '#065f46' : '#b91c1c' }"
+          >
             {{ retryFeedback.ok ? 'Correct! Marked as mastered.' : 'Not yet — keep practicing.' }}
           </p>
         </div>
 
         <div class="row gap-sm center" style="flex-wrap: wrap">
-          <button class="secondary" type="button" @click="startRetry(item)" :disabled="retryingId !== null && retryingId !== item.id">
+          <button
+            class="secondary"
+            type="button"
+            @click="startRetry(item)"
+            :disabled="retryingId !== null && retryingId !== item.id"
+          >
             Retry
           </button>
-          <button
-            v-if="item.status === 'active'"
-            type="button"
-            @click="markMastered(item)"
-            :disabled="updatingId === item.id"
-          >
-            {{ updatingId === item.id ? 'Updating…' : 'Mark mastered' }}
+          <button v-if="item.status === 'active'" type="button" @click="markMastered(item)" :disabled="updatingId === item.id">
+            {{ updatingId === item.id ? 'Updating...' : 'Mark mastered' }}
           </button>
           <button class="secondary" type="button" @click="openSourceLesson(item)" :disabled="!item.source_lesson_id">
             Open source lesson
           </button>
-          <button
-            type="button"
-            style="background: #ef4444"
-            @click="removeItem(item)"
-            :disabled="deletingId === item.id"
-          >
-            {{ deletingId === item.id ? 'Deleting…' : 'Delete' }}
+          <button type="button" style="background: #ef4444" @click="removeItem(item)" :disabled="deletingId === item.id">
+            {{ deletingId === item.id ? 'Deleting...' : 'Delete' }}
           </button>
         </div>
       </article>
@@ -151,9 +153,7 @@ const removeItem = async (item: WrongAnswer) => {
   try {
     await wrongAnswerApi.deleteWrongAnswer(item.id)
     items.value = items.value.filter((x) => x.id !== item.id)
-    if (retryingId.value === item.id) {
-      cancelRetry()
-    }
+    if (retryingId.value === item.id) cancelRetry()
   } finally {
     deletingId.value = null
   }

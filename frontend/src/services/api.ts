@@ -17,6 +17,7 @@ import type {
   WrongAnswerRetryResponse,
   WrongAnswerStatus,
   StreakResponse,
+  AnalyticsResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -189,6 +190,13 @@ export const wrongAnswerApi = {
 export const streakApi = {
   async getStreak(userId = 'default_user') {
     const response = await api.get<StreakResponse>('/streak', { params: { user_id: userId } })
+    return response.data
+  },
+}
+
+export const analyticsApi = {
+  async getAnalytics(userId = 'default_user') {
+    const response = await api.get<AnalyticsResponse>('/analytics', { params: { user_id: userId } })
     return response.data
   },
 }

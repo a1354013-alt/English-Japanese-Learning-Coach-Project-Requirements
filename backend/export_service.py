@@ -44,16 +44,19 @@ class PDFExporter:
     def _add_lesson_sections(self, lesson_data: Dict[str, Any], styles: Dict[str, ParagraphStyle]) -> List:
         """Build PDF elements for a complete lesson."""
         elements = []
-        metadata = lesson_data["metadata"]
+        metadata = lesson_data.get("metadata") or {}
 
         # Title
         title_style = styles["Title"]
         heading_style = styles["Heading2"]
         body_style = styles["Body"]
 
-        elements.append(Paragraph(f"Language Lesson: {metadata['topic']}", title_style))
+        elements.append(Paragraph(f"Language Lesson: {metadata.get('topic', 'Lesson')}", title_style))
         elements.append(
-            Paragraph(f"Language: {metadata['language']} | Level: {metadata['level']}", body_style)
+            Paragraph(
+                f"Language: {metadata.get('language', 'N/A')} | Level: {metadata.get('level', 'N/A')}",
+                body_style,
+            )
         )
         elements.append(Spacer(1, 0.3 * inch))
 
@@ -65,7 +68,7 @@ class PDFExporter:
             definition = item.get("definition_zh", "")
             example = item.get("example_sentence", "")
             translation = item.get("example_translation", "")
-            
+
             elements.append(Paragraph(f"<b>{word}</b>", body_style))
             if definition:
                 elements.append(Paragraph(f"Definition: {definition}", body_style))
@@ -80,23 +83,24 @@ class PDFExporter:
         if grammar:
             elements.append(Paragraph("Grammar", heading_style))
             elements.append(Spacer(1, 0.15 * inch))
-            
+
             if grammar.get("title"):
                 elements.append(Paragraph(f"<b>{grammar['title']}</b>", body_style))
                 elements.append(Spacer(1, 0.1 * inch))
-            
+
             if grammar.get("explanation"):
                 elements.append(Paragraph(grammar["explanation"], body_style))
                 elements.append(Spacer(1, 0.15 * inch))
-            
+
             # Grammar Exercises
             exercises = grammar.get("exercises", [])
             if exercises:
                 elements.append(Paragraph("<i>Exercises:</i>", body_style))
                 for i, ex in enumerate(exercises, 1):
                     elements.append(Paragraph(f"{i}. {ex.get('question', '')}", body_style))
-                    if ex.get("answer"):
-                        elements.append(Paragraph(f"   Answer: {ex['answer']}", body_style))
+                    correct = ex.get("correct_answer")
+                    if correct:
+                        elements.append(Paragraph(f"   Answer: {correct}", body_style))
                 elements.append(Spacer(1, 0.2 * inch))
 
         # Reading Section
@@ -104,39 +108,76 @@ class PDFExporter:
         if reading:
             elements.append(Paragraph("Reading", heading_style))
             elements.append(Spacer(1, 0.15 * inch))
-            
+
             content = reading.get("content", "")
             if content:
                 elements.append(Paragraph(content.replace("\n", "<br/>"), body_style))
                 elements.append(Spacer(1, 0.15 * inch))
-            
+
             # Reading Questions
             questions = reading.get("questions", [])
             if questions:
                 elements.append(Paragraph("<i>Comprehension Questions:</i>", body_style))
                 for i, q in enumerate(questions, 1):
-                    elements.append(Paragraph(f"{i}. {q}", body_style))
+                    if not isinstance(q, dict):
+                        elements.append(Paragraph(f"{i}. {str(q)}", body_style))
+                        continue
+                    elements.append(Paragraph(f"{i}. {q.get('question', '')}", body_style))
+                    correct = q.get("correct_answer")
+                    if correct:
+                        elements.append(Paragraph(f"   Answer: {correct}", body_style))
                 elements.append(Spacer(1, 0.2 * inch))
 
         # Dialogue Section
-        dialogue = lesson_data.get("dialogue", [])
-        if dialogue:
+        dialogue_section = lesson_data.get("dialogue") or {}
+        lines = dialogue_section.get("dialogue") if isinstance(dialogue_section, dict) else None
+        if isinstance(lines, list) and lines:
             elements.append(Paragraph("Dialogue", heading_style))
             elements.append(Spacer(1, 0.15 * inch))
-            
-            for line in dialogue:
+
+            scenario = dialogue_section.get("scenario")
+            context = dialogue_section.get("context")
+            if scenario:
+                elements.append(Paragraph(f"<b>{scenario}</b>", body_style))
+            if context:
+                elements.append(Paragraph(str(context), body_style))
+            if scenario or context:
+                elements.append(Spacer(1, 0.1 * inch))
+
+            for line in lines:
+                if not isinstance(line, dict):
+                    continue
                 speaker = line.get("speaker", "")
                 text = line.get("text", "")
+                translation = line.get("translation", "")
                 if speaker and text:
                     elements.append(Paragraph(f"<b>{speaker}:</b> {text}", body_style))
+                    if translation:
+                        elements.append(Paragraph(f"<i>{translation}</i>", body_style))
             elements.append(Spacer(1, 0.2 * inch))
+
+        # Evidence (RAG)
+        evidence = lesson_data.get("evidence") or []
+        if isinstance(evidence, list) and evidence:
+            elements.append(Paragraph("Evidence", heading_style))
+            elements.append(Spacer(1, 0.15 * inch))
+            for item in evidence:
+                if not isinstance(item, dict):
+                    continue
+                source = item.get("source", "unknown")
+                text = item.get("text", "")
+                if text:
+                    elements.append(Paragraph(f"<b>{source}</b>", body_style))
+                    elements.append(Paragraph(str(text).replace("\n", "<br/>"), body_style))
+                    elements.append(Spacer(1, 0.1 * inch))
 
         return elements
 
     def export_lesson(self, lesson_data: Dict[str, Any]) -> Path:
         """Export a complete lesson to PDF with all sections."""
-        metadata = lesson_data["metadata"]
-        file_path = self.output_dir / f"lesson_{metadata['lesson_id']}.pdf"
+        metadata = lesson_data.get("metadata") or {}
+        lesson_id = metadata.get("lesson_id") or "unknown"
+        file_path = self.output_dir / f"lesson_{lesson_id}.pdf"
 
         doc = SimpleDocTemplate(str(file_path), pagesize=letter)
         styles = getSampleStyleSheet()

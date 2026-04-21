@@ -4,10 +4,10 @@
   "version": "1.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
+    "dev": "node scripts/run-with-esbuild-temp.mjs vite",
+    "build": "node scripts/run-with-esbuild-temp.mjs vue-tsc && node scripts/run-with-esbuild-temp.mjs vite build",
+    "preview": "node scripts/run-with-esbuild-temp.mjs vite preview",
+    "test": "node scripts/run-with-esbuild-temp.mjs vitest run",
     "e2e": "playwright test"
   },
   "dependencies": {

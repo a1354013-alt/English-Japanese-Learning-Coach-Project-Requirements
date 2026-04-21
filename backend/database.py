@@ -215,9 +215,15 @@ class Database:
         )
         return metadata["lesson_id"]
 
-    def get_lesson(self, lesson_id: str) -> Optional[Dict[str, Any]]:
+    def get_lesson(self, lesson_id: str, *, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         conn = self._connection
-        row = conn.execute("SELECT * FROM lessons WHERE lesson_id = ?", (lesson_id,)).fetchone()
+        if user_id is None:
+            row = conn.execute("SELECT * FROM lessons WHERE lesson_id = ?", (lesson_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM lessons WHERE lesson_id = ? AND user_id = ?",
+                (lesson_id, user_id),
+            ).fetchone()
         return dict(row) if row else None
 
     def query_lessons(
@@ -353,6 +359,20 @@ class Database:
                 """,
                 (user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate),
             )
+
+    def list_recent_exercise_results(self, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT lesson_id, exercise_type, total_questions, correct_count, accuracy_rate, submitted_at
+                FROM exercise_results
+                WHERE user_id = ?
+                ORDER BY submitted_at DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def has_exercise_result(self, user_id: str, lesson_id: str) -> bool:
         with self.get_connection() as conn:

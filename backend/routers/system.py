@@ -80,44 +80,35 @@ async def get_analytics(user_id: str = Query(default=settings.default_user_id)):
     japanese_completed = progress.get("japanese_progress", {}).get("completed_lessons", 0)
     total_lessons = english_completed + japanese_completed
     
-    # Get wrong answers for analysis
-    try:
-        wrong_answers = db.get_wrong_answers(user_id, status="active", limit=100)
-        
-        # Analyze word difficulties
-        word_counts: Dict[str, int] = {}
-        category_counts: Dict[str, int] = {}
-        
-        for item in wrong_answers:
-            question = item.get("question", "Unknown")
-            category = item.get("question_type", "general")
-            
-            word_counts[question] = word_counts.get(question, 0) + 1
-            category_counts[category] = category_counts.get(category, 0) + 1
-        
-        # Top 5 hardest words
-        hardest_words = sorted(
-            [{"word": k, "mistakes": v} for k, v in word_counts.items()],
-            key=lambda x: x["mistakes"],
-            reverse=True
-        )[:5]
-        
-        # Weakest category (most errors)
-        weakest_category = None
-        if category_counts:
-            max_cat = max(category_counts.items(), key=lambda x: x[1])
-            weakest_category = {
-                "category": max_cat[0],
-                "error_count": max_cat[1],
-                "accuracy": round(100 * (1 - max_cat[1] / len(wrong_answers))) if wrong_answers else 100
-            }
-    except Exception:
-        hardest_words = []
-        weakest_category = None
-    
-    # Accuracy trend - would need exercise_results history
-    # For now, return empty array rather than fake data
-    accuracy_trend: List[float] = []
+    wrong_answers = db.list_wrong_answers(user_id=user_id, status="active", limit=500, offset=0)
+
+    # Hardest prompts (by wrong_count; stable, DB-authoritative)
+    hardest_words = sorted(
+        [{"word": item.get("question", "Unknown"), "mistakes": int(item.get("wrong_count", 1))} for item in wrong_answers],
+        key=lambda x: x["mistakes"],
+        reverse=True,
+    )[:5]
+
+    # Weakest category: most active wrong answers (by count of items, not guesses)
+    category_counts: Dict[str, int] = {}
+    for item in wrong_answers:
+        cat = str(item.get("question_type") or "general")
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    weakest_category = None
+    if category_counts:
+        cat, count = max(category_counts.items(), key=lambda x: x[1])
+        weakest_category = {"category": cat, "active_items": count}
+
+    recent = db.list_recent_exercise_results(user_id=user_id, limit=5)
+    accuracy_trend: List[Dict[str, Any]] = [
+        {
+            "lesson_id": r.get("lesson_id"),
+            "accuracy_rate": r.get("accuracy_rate"),
+            "submitted_at": r.get("submitted_at"),
+        }
+        for r in reversed(recent)
+    ]
     
     return {
         "success": True,
@@ -129,7 +120,7 @@ async def get_analytics(user_id: str = Query(default=settings.default_user_id)):
             "lessons_completed": total_lessons,
             "hardest_words": hardest_words,
             "weakest_category": weakest_category,
-            "accuracy_trend": accuracy_trend,  # Empty until exercise history is tracked properly
+            "accuracy_trend": accuracy_trend,
             "today_completed": streak_info["today_completed"],
         }
     }

@@ -270,3 +270,36 @@ export interface StreakResponse {
   last_active_date: string | null
   today_completed: boolean
 }
+
+export interface AnalyticsHardestWord {
+  word: string
+  mistakes: number
+}
+
+export interface AnalyticsWeakestCategory {
+  category: string
+  active_items: number
+}
+
+export interface AnalyticsTrendPoint {
+  lesson_id: string
+  accuracy_rate: number
+  submitted_at: string
+}
+
+export interface AnalyticsPayload {
+  total_xp: number
+  level: number
+  streak: number
+  longest_streak: number
+  lessons_completed: number
+  hardest_words: AnalyticsHardestWord[]
+  weakest_category: AnalyticsWeakestCategory | null
+  accuracy_trend: AnalyticsTrendPoint[]
+  today_completed: boolean
+}
+
+export interface AnalyticsResponse {
+  success: boolean
+  analytics: AnalyticsPayload
+}

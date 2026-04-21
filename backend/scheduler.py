@@ -47,15 +47,16 @@ class LessonScheduler:
         """Internal async implementation of daily lesson generation"""
         print(f"\n[{datetime.now()}] Starting daily lesson generation...")
         
-        # Check if lessons already generated today
-        today_en = db.get_today_lesson("EN")
-        today_jp = db.get_today_lesson("JP")
+        # Check if lessons already generated today (single-tenant demo user)
+        user_id = settings.default_user_id
+        today_en = db.get_today_lesson(user_id, "EN")
+        today_jp = db.get_today_lesson(user_id, "JP")
         
         # Generate English lesson if not exists
         if not today_en:
             print("Generating English lesson...")
             try:
-                await lesson_generator.generate_lesson(language="EN")
+                await lesson_generator.generate_lesson(language="EN", user_id=user_id)
                 print("✓ English lesson generated successfully")
             except Exception as e:
                 print(f"✗ Failed to generate English lesson: {e}")
@@ -66,7 +67,7 @@ class LessonScheduler:
         if not today_jp:
             print("Generating Japanese lesson...")
             try:
-                await lesson_generator.generate_lesson(language="JP")
+                await lesson_generator.generate_lesson(language="JP", user_id=user_id)
                 print("✓ Japanese lesson generated successfully")
             except Exception as e:
                 print(f"✗ Failed to generate Japanese lesson: {e}")

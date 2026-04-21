@@ -75,7 +75,11 @@ async def import_excel(
 
 
 @router.post("/rag/upload")
-async def upload_rag_material(language: Literal["EN", "JP"], file: UploadFile = File(...)):
+async def upload_rag_material(
+    language: Literal["EN", "JP"],
+    file: UploadFile = File(...),
+    user_id: str = Query(default=settings.default_user_id),
+):
     filename = (file.filename or "").lower()
     if not filename.endswith((".txt", ".md", ".csv")):
         raise HTTPException(status_code=400, detail="Only .txt, .md, and .csv files are supported")
@@ -95,12 +99,32 @@ async def upload_rag_material(language: Literal["EN", "JP"], file: UploadFile = 
     if decoded_text is None:
         decoded_text = raw.decode("utf-8", errors="replace")
 
-    rag_manager.add_material(decoded_text, metadata={"language": language, "source": file.filename or "unknown"})
+    doc_id = rag_manager.add_material(
+        decoded_text,
+        metadata={"language": language, "source": file.filename or "unknown"},
+        user_id=user_id,
+    )
+    return {"success": True, "doc_id": doc_id}
+
+
+@router.get("/rag/materials")
+async def list_rag_materials(
+    language: Literal["EN", "JP"] | None = None,
+    user_id: str = Query(default=settings.default_user_id),
+):
+    return {"success": True, "items": rag_manager.list_materials(user_id=user_id, language=language)}
+
+
+@router.delete("/rag/materials/{doc_id}")
+async def delete_rag_material(doc_id: str, user_id: str = Query(default=settings.default_user_id)):
+    ok = rag_manager.delete_material(user_id=user_id, doc_id=doc_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Material not found")
     return {"success": True}
 
 
 @router.get("/export/pdf/{lesson_id}")
-async def export_lesson_pdf(lesson_id: str):
-    lesson_data = load_lesson_payload(lesson_id)
+async def export_lesson_pdf(lesson_id: str, user_id: str = Query(default=settings.default_user_id)):
+    lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     pdf_path = pdf_exporter.export_lesson(lesson_data)
     return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")

@@ -58,46 +58,63 @@ class RAGManager:
             self.enabled = False
             self.init_error = str(err)
 
-    def add_material(self, text: str, metadata: Dict[str, Any], doc_id: Optional[str] = None) -> None:
-        """Add material to the vector store with automatic chunking."""
+    def add_material(
+        self,
+        text: str,
+        metadata: Dict[str, Any],
+        *,
+        doc_id: Optional[str] = None,
+        user_id: str,
+    ) -> str:
+        """Add material to the vector store with automatic chunking.
+
+        Returns the material doc_id (stable identifier across chunks).
+        """
         if not self.enabled:
-            return
+            raise RuntimeError(self.init_error or "RAG is disabled")
         if not text.strip():
             raise ValueError("Material content is empty")
-        
+
         # Split into chunks
         chunks = split_into_chunks(text, size=500, overlap=50)
         if not chunks:
-            return
-        
+            raise ValueError("Material content produced no chunks")
+
         # Create metadata for each chunk
         timestamp = datetime.utcnow().isoformat()
-        source = metadata.get("source", "unknown")
-        language = metadata.get("language", "unknown")
-        
+        source = str(metadata.get("source", "unknown"))
+        language = str(metadata.get("language", "unknown"))
+        material_id = doc_id or str(uuid4())
+
         chunk_ids = []
         metadatas = []
-        
+
         for i, chunk in enumerate(chunks):
-            chunk_id = f"{doc_id or str(uuid4())}_chunk_{i}"
+            chunk_id = f"{material_id}_chunk_{i}"
             chunk_ids.append(chunk_id)
             metadatas.append({
+                "doc_id": material_id,
+                "user_id": user_id,
                 "source": source,
                 "chunk_index": i,
                 "language": language,
                 "uploaded_at": timestamp,
                 "total_chunks": len(chunks),
             })
-        
+
         self.collection.add(
             documents=chunks,
             metadatas=metadatas,
             ids=chunk_ids,
         )
+        return material_id
 
     def query_materials(
         self,
         query_text: str,
+        *,
+        user_id: str,
+        language: str,
         n_results: int = 3,
         filter_criteria: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -109,10 +126,13 @@ class RAGManager:
         if not self.enabled:
             return []
         try:
+            where: Dict[str, Any] = {"user_id": user_id, "language": language}
+            if filter_criteria:
+                where.update(filter_criteria)
             results = self.collection.query(
                 query_texts=[query_text],
                 n_results=n_results,
-                where=filter_criteria,
+                where=where,
                 include=["documents", "metadatas"],
             )
             
@@ -131,11 +151,51 @@ class RAGManager:
                         "text": str(doc),
                         "source": metadata.get("source", "unknown"),
                         "chunk_index": metadata.get("chunk_index", 0),
+                        "doc_id": metadata.get("doc_id"),
                     })
-            
+
             return evidence_list
         except Exception:
             return []
+
+    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
+        if not self.enabled:
+            return []
+        where: Dict[str, Any] = {"user_id": user_id}
+        if language:
+            where["language"] = language
+        try:
+            results = self.collection.get(where=where, include=["metadatas"])
+            metas = results.get("metadatas") or []
+            by_doc: Dict[str, Dict[str, Any]] = {}
+            for meta in metas:
+                if not isinstance(meta, dict):
+                    continue
+                doc_id = str(meta.get("doc_id") or "")
+                if not doc_id:
+                    continue
+                existing = by_doc.get(doc_id)
+                if existing is None:
+                    by_doc[doc_id] = {
+                        "doc_id": doc_id,
+                        "source": meta.get("source", "unknown"),
+                        "language": meta.get("language", "unknown"),
+                        "uploaded_at": meta.get("uploaded_at"),
+                        "total_chunks": meta.get("total_chunks"),
+                    }
+            # Sort newest first if timestamps exist
+            return sorted(by_doc.values(), key=lambda x: str(x.get("uploaded_at") or ""), reverse=True)
+        except Exception:
+            return []
+
+    def delete_material(self, *, user_id: str, doc_id: str) -> bool:
+        if not self.enabled:
+            return False
+        try:
+            self.collection.delete(where={"user_id": user_id, "doc_id": doc_id})
+            return True
+        except Exception:
+            return False
 
 
 rag_manager = RAGManager()

@@ -2,88 +2,64 @@
   <section class="grid" style="margin-top: 1rem">
     <div class="panel">
       <h2>Learning Analytics</h2>
-      <p style="color: #64748b; margin-bottom: 1.5rem">Track your progress and identify areas for improvement</p>
+      <p style="color: #64748b; margin-bottom: 1.5rem">Computed by backend (single source of truth).</p>
 
       <div v-if="loading" style="text-align: center; padding: 2rem">Loading analytics...</div>
-      
+
       <div v-else-if="error" class="error-panel">
         <p>{{ error }}</p>
         <button @click="loadAnalytics" class="secondary">Retry</button>
       </div>
 
-      <div v-else class="analytics-grid">
-        <!-- Stats Overview -->
+      <div v-else-if="analytics" class="analytics-grid">
         <div class="stat-card">
           <h3>Total XP</h3>
-          <p class="stat-value">{{ stats.totalXp }}</p>
+          <p class="stat-value">{{ analytics.total_xp }}</p>
         </div>
         <div class="stat-card">
           <h3>Level</h3>
-          <p class="stat-value">{{ stats.level }}</p>
+          <p class="stat-value">{{ analytics.level }}</p>
         </div>
         <div class="stat-card">
           <h3>Current Streak</h3>
-          <p class="stat-value">{{ stats.streak }} days</p>
+          <p class="stat-value">{{ analytics.streak }} days</p>
         </div>
         <div class="stat-card">
           <h3>Lessons Completed</h3>
-          <p class="stat-value">{{ stats.lessonsCompleted }}</p>
+          <p class="stat-value">{{ analytics.lessons_completed }}</p>
         </div>
 
-        <!-- Hardest Words -->
         <div class="panel-section">
-          <h3>Hardest Words</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Words you've struggled with most</p>
-          <ul v-if="hardestWords.length > 0" class="word-list">
-            <li v-for="(word, idx) in hardestWords" :key="idx" class="word-item">
+          <h3>Hardest Items</h3>
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">From active wrong-answer notebook.</p>
+          <ul v-if="analytics.hardest_words.length > 0" class="word-list">
+            <li v-for="(word, idx) in analytics.hardest_words" :key="idx" class="word-item">
               <span class="word">{{ word.word }}</span>
               <span class="mistakes">{{ word.mistakes }} mistakes</span>
             </li>
           </ul>
-          <p v-else style="color: #94a3b8">No wrong answers recorded yet</p>
+          <p v-else style="color: #94a3b8">No wrong answers recorded yet.</p>
         </div>
 
-        <!-- Weakest Category -->
         <div class="panel-section">
           <h3>Weakest Category</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Focus area for improvement</p>
-          <div v-if="weakestCategory" class="category-badge">
-            {{ weakestCategory.category }} ({{ weakestCategory.accuracy }}% accuracy)
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Based on active items count.</p>
+          <div v-if="analytics.weakest_category" class="category-badge">
+            {{ analytics.weakest_category.category }} ({{ analytics.weakest_category.active_items }} active items)
           </div>
-          <p v-else style="color: #94a3b8">Not enough data yet</p>
+          <p v-else style="color: #94a3b8">Not enough data yet.</p>
         </div>
 
-        <!-- Accuracy Trend -->
         <div class="panel-section">
           <h3>Accuracy Trend</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Last 5 lessons</p>
-          <div class="trend-bar">
-            <div
-              v-for="(acc, idx) in accuracyTrend"
-              :key="idx"
-              class="trend-segment"
-              :style="{ width: `${(acc / maxAccuracy) * 100}%`, background: getAccuracyColor(acc) }"
-              :title="`Lesson ${idx + 1}: ${acc}%`"
-            ></div>
-          </div>
-          <p v-if="accuracyTrend.length === 0" style="color: #94a3b8">Complete lessons to see trends</p>
-        </div>
-
-        <!-- Streak Trend -->
-        <div class="panel-section">
-          <h3>Streak History</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Recent activity</p>
-          <div class="streak-grid">
-            <div
-              v-for="(day, idx) in streakHistory"
-              :key="idx"
-              class="streak-day"
-              :class="{ active: day.active }"
-              :title="day.label"
-            >
-              {{ day.label.charAt(0) }}
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Last 5 review submissions.</p>
+          <div v-if="analytics.accuracy_trend.length > 0" class="trend-grid">
+            <div v-for="(p, idx) in analytics.accuracy_trend" :key="idx" class="trend-point">
+              <div class="trend-value">{{ Number(p.accuracy_rate).toFixed(1) }}%</div>
+              <div class="trend-meta">{{ new Date(p.submitted_at).toLocaleDateString('zh-TW') }}</div>
             </div>
           </div>
+          <p v-else style="color: #94a3b8">No review history yet.</p>
         </div>
       </div>
     </div>
@@ -91,138 +67,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { progressApi, wrongAnswerApi, streakApi } from '@/services/api'
-
-interface HardWord {
-  word: string
-  mistakes: number
-}
-
-interface CategoryStats {
-  category: string
-  accuracy: number
-  total: number
-}
-
-interface LessonHistoryItem {
-  lesson_id: string
-  accuracy_rate: number
-  completed_at: string
-}
+import { onMounted, ref } from 'vue'
+import { analyticsApi } from '@/services/api'
+import type { AnalyticsPayload } from '@/types'
 
 const loading = ref(true)
 const error = ref<string | null>(null)
-
-const stats = ref({
-  totalXp: 0,
-  level: 1,
-  streak: 0,
-  lessonsCompleted: 0,
-})
-
-const hardestWords = ref<HardWord[]>([])
-const weakestCategory = ref<CategoryStats | null>(null)
-const accuracyTrend = ref<number[]>([])
-const streakHistory = ref<{ label: string; active: boolean }[]>([])
-
-const maxAccuracy = computed(() => Math.max(...accuracyTrend.value, 100))
-
-const getAccuracyColor = (acc: number): string => {
-  if (acc >= 80) return '#22c55e'
-  if (acc >= 60) return '#eab308'
-  return '#ef4444'
-}
+const analytics = ref<AnalyticsPayload | null>(null)
 
 const loadAnalytics = async () => {
   loading.value = true
   error.value = null
-
   try {
-    // Load streak from dedicated endpoint (single source of truth)
-    const streakRes = await streakApi.getStreak()
-    const currentStreak = streakRes.current_streak || 0
-    
-    // Load progress stats
-    const progressRes = await progressApi.getProgress()
-    const rpgStats = progressRes.progress.rpg_stats
-    stats.value = {
-      totalXp: rpgStats.total_xp,
-      level: rpgStats.level,
-      streak: currentStreak,  // Use authoritative streak from /api/streak
-      lessonsCompleted:
-        (progressRes.progress.english_progress?.completed_lessons ?? 0) +
-        (progressRes.progress.japanese_progress?.completed_lessons ?? 0),
-    }
-
-    // Load wrong answers for hardest words and category analysis
-    try {
-      const wrongRes = await wrongAnswerApi.listWrongAnswers()
-      const wrongAnswers = wrongRes.items || []
-      
-      // Count mistakes per word
-      const wordCounts = new Map<string, number>()
-      wrongAnswers.forEach((ans: any) => {
-        const word = ans.question || 'Unknown'
-        wordCounts.set(word, (wordCounts.get(word) || 0) + 1)
-      })
-
-      // Sort by mistake count and take top 5
-      hardestWords.value = Array.from(wordCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([word, mistakes]) => ({ word, mistakes }))
-
-      // Calculate weakest category based on actual wrong answer distribution
-      const categoryStats = new Map<string, { count: number }>()
-      wrongAnswers.forEach((ans: any) => {
-        const category = ans.question_type || 'general'
-        if (!categoryStats.has(category)) {
-          categoryStats.set(category, { count: 0 })
-        }
-        categoryStats.get(category)!.count++
-      })
-
-      // Find category with most wrong answers (weakest area)
-      if (categoryStats.size > 0) {
-        let maxCount = 0
-        let weakestCat = ''
-        categoryStats.forEach((catStats, cat) => {
-          if (catStats.count > maxCount) {
-            maxCount = catStats.count
-            weakestCat = cat
-          }
-        })
-        if (weakestCat && maxCount > 0) {
-          weakestCategory.value = {
-            category: weakestCat,
-            accuracy: Math.round(100 * (1 - maxCount / wrongAnswers.length)),
-            total: maxCount,
-          }
-        }
-      }
-    } catch {
-      // Wrong answers API might not be available
-    }
-
-    // Accuracy trend - use real data from exercise_results if available
-    // For now, show empty state rather than fake data
-    accuracyTrend.value = []
-
-    // Generate streak history (last 7 days) based on actual streak count
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const today = new Date().getDay()
-    streakHistory.value = Array.from({ length: 7 }, (_, i) => {
-      const dayIndex = (today - i + 7) % 7
-      return {
-        label: days[dayIndex],
-        active: i < currentStreak,
-      }
-    }).reverse()
-
+    const res = await analyticsApi.getAnalytics()
+    analytics.value = res.analytics
   } catch (err) {
-    error.value = 'Failed to load analytics data'
-    console.error(err)
+    error.value = err instanceof Error ? err.message : 'Failed to load analytics.'
   } finally {
     loading.value = false
   }
@@ -268,11 +128,6 @@ onMounted(loadAnalytics)
   padding: 1rem;
 }
 
-.panel-section h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
 @media (max-width: 768px) {
   .panel-section {
     grid-column: span 1;
@@ -314,40 +169,28 @@ onMounted(loadAnalytics)
   font-weight: 500;
 }
 
-.trend-bar {
-  display: flex;
-  gap: 4px;
-  height: 40px;
-  align-items: flex-end;
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
 }
 
-.trend-segment {
-  flex: 1;
-  border-radius: 4px 4px 0 0;
-  transition: all 0.2s;
+.trend-point {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: white;
 }
 
-.streak-grid {
-  display: flex;
-  gap: 0.5rem;
+.trend-value {
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
-.streak-day {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #e2e8f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
+.trend-meta {
+  margin-top: 0.25rem;
   color: #64748b;
-}
-
-.streak-day.active {
-  background: #22c55e;
-  color: white;
-  font-weight: bold;
+  font-size: 0.85rem;
 }
 
 .error-panel {
@@ -356,3 +199,4 @@ onMounted(loadAnalytics)
   color: #b91c1c;
 }
 </style>
+

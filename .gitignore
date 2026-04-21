@@ -1,24 +1,38 @@
-```
 *.pyc
 __pycache__/
 *.log
 *.tmp
 *.swp
+
+# Env / secrets
 .env
 .env.local
 *.env.*
+
+# IDE
 .vscode/
 .idea/
+
+# Python caches / coverage
 .mypy_cache/
 .pytest_cache/
 .coverage
 coverage/
 htmlcov/
+
+# Node
+node_modules/
 dist/
 build/
-target/
-.gradle/
-node_modules/
+
+# Virtualenvs
 venv/
 .venv/
-```
+
+# Runtime data (do not version)
+data/*.db
+data/*.sqlite*
+data/chroma_db/
+backend/data/
+backend/*.db
+

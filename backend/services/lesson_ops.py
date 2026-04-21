@@ -11,8 +11,8 @@ from models import ReviewAnswer
 from srs import srs_engine
 
 
-def load_lesson_payload(lesson_id: str) -> Dict[str, Any]:
-    lesson_meta = db.get_lesson(lesson_id)
+def load_lesson_payload(lesson_id: str, *, user_id: str | None = None) -> Dict[str, Any]:
+    lesson_meta = db.get_lesson(lesson_id, user_id=user_id)
     if not lesson_meta:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
