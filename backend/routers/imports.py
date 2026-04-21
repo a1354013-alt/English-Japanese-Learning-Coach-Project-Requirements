@@ -3,7 +3,7 @@ import io
 from typing import Literal
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from config import settings
 from fastapi.responses import FileResponse
@@ -11,6 +11,7 @@ from database import db
 from export_service import pdf_exporter
 from gamification_engine import gamification_engine
 from rag_manager import rag_manager
+from routers.deps import require_demo_user_id
 from srs import srs_engine
 from services.lesson_ops import load_lesson_payload
 
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/api", tags=["imports"])
 async def import_excel(
     language: Literal["EN", "JP"] = "EN",
     file: UploadFile = File(...),
-    user_id: str = Query(default=settings.default_user_id),
+    user_id: str = Depends(require_demo_user_id),
 ):
     contents = await file.read()
     try:
@@ -78,8 +79,10 @@ async def import_excel(
 async def upload_rag_material(
     language: Literal["EN", "JP"],
     file: UploadFile = File(...),
-    user_id: str = Query(default=settings.default_user_id),
+    user_id: str = Depends(require_demo_user_id),
 ):
+    if not rag_manager.enabled:
+        raise HTTPException(status_code=503, detail=rag_manager.init_error or "RAG is disabled")
     filename = (file.filename or "").lower()
     if not filename.endswith((".txt", ".md", ".csv")):
         raise HTTPException(status_code=400, detail="Only .txt, .md, and .csv files are supported")
@@ -110,21 +113,43 @@ async def upload_rag_material(
 @router.get("/rag/materials")
 async def list_rag_materials(
     language: Literal["EN", "JP"] | None = None,
-    user_id: str = Query(default=settings.default_user_id),
+    user_id: str = Depends(require_demo_user_id),
 ):
     return {"success": True, "items": rag_manager.list_materials(user_id=user_id, language=language)}
 
 
 @router.delete("/rag/materials/{doc_id}")
-async def delete_rag_material(doc_id: str, user_id: str = Query(default=settings.default_user_id)):
+async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_user_id)):
+    if not rag_manager.enabled:
+        raise HTTPException(status_code=503, detail=rag_manager.init_error or "RAG is disabled")
     ok = rag_manager.delete_material(user_id=user_id, doc_id=doc_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Material not found")
     return {"success": True}
 
 
+@router.get("/imported-vocabulary")
+async def list_imported_vocabulary(
+    language: Literal["EN", "JP"] | None = None,
+    q: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user_id: str = Depends(require_demo_user_id),
+):
+    items, count = db.list_imported_vocabulary(user_id=user_id, language=language, q=q, limit=limit, offset=offset)
+    return {"success": True, "count": count, "items": items}
+
+
+@router.delete("/imported-vocabulary/{item_id}")
+async def delete_imported_vocabulary(item_id: int, user_id: str = Depends(require_demo_user_id)):
+    ok = db.delete_imported_vocabulary(user_id=user_id, item_id=item_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Imported vocabulary item not found")
+    return {"success": True}
+
+
 @router.get("/export/pdf/{lesson_id}")
-async def export_lesson_pdf(lesson_id: str, user_id: str = Query(default=settings.default_user_id)):
+async def export_lesson_pdf(lesson_id: str, user_id: str = Depends(require_demo_user_id)):
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     pdf_path = pdf_exporter.export_lesson(lesson_data)
     return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")

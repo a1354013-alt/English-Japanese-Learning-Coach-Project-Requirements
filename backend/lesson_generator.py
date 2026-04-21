@@ -1,4 +1,4 @@
-﻿"""Lesson generator using Ollama AI."""
+"""Lesson generator using Ollama AI."""
 import json
 import random
 import time
@@ -111,17 +111,29 @@ class LessonGenerator:
             })
             return lesson
         except Exception as err:
-            fallback = self._safe_lesson(language, level, topic, user_id=uid)
-            db.save_generation_task({
-                "task_id": task_id,
-                "user_id": uid,
-                "status": "failed",
-                "model_used": model,
-                "error_message": str(err),
-                "duration_ms": int((time.time() - start_time) * 1000),
-                "created_at": datetime.now().isoformat(),
-            })
-            return fallback
+            try:
+                fallback = self._safe_lesson(language, level, topic, user_id=uid)
+                db.save_generation_task({
+                    "task_id": task_id,
+                    "user_id": uid,
+                    "status": "fallback_success",
+                    "model_used": model,
+                    "error_message": str(err),
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                    "created_at": datetime.now().isoformat(),
+                })
+                return fallback
+            except Exception as fallback_err:
+                db.save_generation_task({
+                    "task_id": task_id,
+                    "user_id": uid,
+                    "status": "failed",
+                    "model_used": model,
+                    "error_message": f"{err} | fallback_failed: {fallback_err}",
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                    "created_at": datetime.now().isoformat(),
+                })
+                raise
 
     async def _generate_with_model(
         self,

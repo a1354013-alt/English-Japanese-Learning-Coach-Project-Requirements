@@ -1,4 +1,4 @@
-﻿"""FastAPI application entrypoint: lifespan, middleware, and router mounting."""
+"""FastAPI application entrypoint: lifespan, middleware, and router mounting."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket

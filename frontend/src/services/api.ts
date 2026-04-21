@@ -1,4 +1,4 @@
-﻿import axios from 'axios'
+import axios from 'axios'
 import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { showApiError } from '@/services/apiNotifications'
 import type {
@@ -18,6 +18,10 @@ import type {
   WrongAnswerStatus,
   StreakResponse,
   AnalyticsResponse,
+  RagMaterialsResponse,
+  ImportedVocabularyListResponse,
+  TtsResponse,
+  SrsDueResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -78,7 +82,7 @@ export const lessonApi = {
   },
 
   async getTts(text: string, language: Language) {
-    const response = await api.post<{ success: boolean; audio_url: string | null }>('/tts', null, {
+    const response = await api.post<TtsResponse>('/tts', null, {
       params: { text, language },
     })
     return response.data
@@ -108,6 +112,18 @@ export const reviewApi = {
     })
     return response.data
   },
+
+  async getDueSrs(language?: Language) {
+    const response = await api.get<SrsDueResponse>('/srs/due', { params: { language } })
+    return response.data
+  },
+
+  async submitSrsReview(word: string, language: Language, quality: number) {
+    const response = await api.post<{ success: boolean }>('/srs/review', null, {
+      params: { word, language, quality },
+    })
+    return response.data
+  },
 }
 
 export const importApi = {
@@ -128,6 +144,26 @@ export const importApi = {
       params: { language },
       headers: { 'Content-Type': 'multipart/form-data' },
     })
+    return response.data
+  },
+
+  async listRagMaterials(language?: Language) {
+    const response = await api.get<RagMaterialsResponse>('/rag/materials', { params: { language } })
+    return response.data
+  },
+
+  async deleteRagMaterial(docId: string) {
+    const response = await api.delete<{ success: boolean }>(`/rag/materials/${docId}`)
+    return response.data
+  },
+
+  async listImportedVocabulary(params: { language?: Language; q?: string; limit?: number; offset?: number } = {}) {
+    const response = await api.get<ImportedVocabularyListResponse>('/imported-vocabulary', { params })
+    return response.data
+  },
+
+  async deleteImportedVocabulary(itemId: number) {
+    const response = await api.delete<{ success: boolean }>(`/imported-vocabulary/${itemId}`)
     return response.data
   },
 }

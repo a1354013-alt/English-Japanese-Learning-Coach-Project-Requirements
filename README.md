@@ -3,18 +3,22 @@
 **Version:** 1.2.0  
 Portfolio-grade demo of an AI-assisted language learning workflow (FastAPI + Vue 3).
 
-## What’s included (current release)
+## What's included (current release)
 
 - AI lesson generation (EN/JP) with a strict JSON lesson schema persisted to SQLite
-- Review flow: scoring + progress updates + SRS updates + wrong-answer notebook
+- Review flow: scoring + progress updates + SRS updates + wrong-answer notebook (idempotent per lesson)
 - Daily streak derived from an activity log (single source of truth)
 - RAG materials upload to ChromaDB with metadata isolation (`user_id` + `language`)
 - PDF export of a lesson (safe degradation on missing fields)
-- Minimal WebSocket “Chat Tutor” (ephemeral memory; explicit fallback)
+- Minimal WebSocket chat tutor (ephemeral memory; depends on the configured AI provider)
 
 ## Scope / tenant model
 
-This repository is **single-tenant demo by default** (`default_user`). Most endpoints accept `user_id` as a query parameter for future multi-user support, but this build does **not** ship authentication/authorization.
+This repository is a **single-tenant demo** (`default_user`). Some endpoints still include a `user_id` query parameter for future expansion, but the backend enforces demo scoping and rejects arbitrary `user_id` values (no auth shipped in this build).
+
+## Preview / not fully enabled features
+
+- TTS: API returns `available=false` unless you wire a real provider (see `backend/tts_service.py`).
 
 ## Quick start (local)
 

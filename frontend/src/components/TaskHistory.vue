@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section>
     <h3>Generation Tasks</h3>
     <button class="secondary" @click="loadTasks" style="margin-bottom: 0.75rem">Refresh</button>
@@ -9,14 +9,19 @@
           <th align="left">Status</th>
           <th align="left">Model</th>
           <th align="left">Duration</th>
+          <th align="left">Note</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="task in tasks" :key="task.task_id">
           <td>{{ new Date(task.created_at).toLocaleString('zh-TW') }}</td>
-          <td>{{ task.status }}</td>
+          <td>
+            <span v-if="task.status === 'fallback_success'">fallback_success</span>
+            <span v-else>{{ task.status }}</span>
+          </td>
           <td>{{ task.model_used }}</td>
           <td>{{ task.duration_ms }} ms</td>
+          <td style="color:#666; font-size:0.85rem">{{ task.error_message ?? '' }}</td>
         </tr>
       </tbody>
     </table>

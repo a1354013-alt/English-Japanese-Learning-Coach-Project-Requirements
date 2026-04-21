@@ -1,4 +1,4 @@
-﻿"""Application settings for the backend."""
+"""Application settings for the backend."""
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

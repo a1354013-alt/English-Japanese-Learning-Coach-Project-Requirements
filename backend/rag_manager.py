@@ -1,4 +1,4 @@
-﻿"""RAG manager using ChromaDB with proper chunking."""
+"""RAG manager using ChromaDB with proper chunking."""
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4

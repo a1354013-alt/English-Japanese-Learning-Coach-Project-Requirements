@@ -2,13 +2,14 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket
+from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from fastapi.responses import FileResponse
 
 from chat_handler import chat_manager
 from config import settings
 from database import db
 from models import WritingSubmission
+from routers.deps import require_demo_user_id
 from study_planner import study_planner
 from tts_service import tts_service
 from writing_assistant import writing_assistant
@@ -20,7 +21,11 @@ chat_ws_router = APIRouter(tags=["ai-tools"])
 
 
 @router.post("/study-plan/generate", response_model=dict)
-async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"], user_id: str = Query(default=settings.default_user_id)):
+async def generate_study_plan(
+    target_goal: str,
+    language: Literal["EN", "JP"],
+    user_id: str = Depends(require_demo_user_id),
+):
     progress = db.get_progress(user_id)
     current_progress = progress["english_progress"] if language == "EN" else progress["japanese_progress"]
     plan = await study_planner.generate_plan(user_id, target_goal, language, current_progress)
@@ -29,16 +34,24 @@ async def generate_study_plan(target_goal: str, language: Literal["EN", "JP"], u
 
 
 @router.post("/writing/analyze", response_model=dict)
-async def analyze_writing(submission: WritingSubmission, user_id: str = Query(default=settings.default_user_id)):
+async def analyze_writing(submission: WritingSubmission, user_id: str = Depends(require_demo_user_id)):
     analysis = await writing_assistant.analyze_writing(submission, user_id)
     db.record_learning_activity(user_id=user_id, activity_type="writing_analyze")
     return {"success": True, "analysis": analysis.model_dump(mode="json")}
 
 
 @router.post("/tts")
-async def generate_tts(text: str, language: str, user_id: str = Query(default=settings.default_user_id)):
+async def generate_tts(text: str, language: str, user_id: str = Depends(require_demo_user_id)):
     audio_path = await tts_service.generate_audio(text, language)
-    return {"success": True, "audio_url": f"/api/audio/{audio_path.name}" if audio_path else None}
+    if not audio_path:
+        return {
+            "success": True,
+            "available": False,
+            "audio_url": None,
+            "mode": "preview",
+            "message": "TTS is not enabled in this demo build",
+        }
+    return {"success": True, "available": True, "audio_url": f"/api/audio/{audio_path.name}", "mode": "live"}
 
 
 @router.get("/audio/{filename}")

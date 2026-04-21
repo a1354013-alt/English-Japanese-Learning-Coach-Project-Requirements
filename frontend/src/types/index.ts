@@ -1,4 +1,4 @@
-﻿export type Language = 'EN' | 'JP'
+export type Language = 'EN' | 'JP'
 
 export interface VocabularyItem {
   word: string
@@ -221,7 +221,7 @@ export interface GenerateLessonRequest {
 export interface GenerationTask {
   task_id: string
   user_id: string
-  status: 'pending' | 'running' | 'success' | 'failed' | 'retried'
+  status: 'pending' | 'running' | 'success' | 'fallback_success' | 'failed' | 'retried'
   model_used: string
   duration_ms: number
   error_message?: string
@@ -302,4 +302,58 @@ export interface AnalyticsPayload {
 export interface AnalyticsResponse {
   success: boolean
   analytics: AnalyticsPayload
+}
+
+export interface TtsResponse {
+  success: boolean
+  available: boolean
+  audio_url: string | null
+  mode: 'live' | 'preview'
+  message?: string
+}
+
+export interface RagMaterial {
+  doc_id: string
+  source: string
+  language: string
+  uploaded_at?: string
+  total_chunks?: number
+}
+
+export interface RagMaterialsResponse {
+  success: boolean
+  items: RagMaterial[]
+}
+
+export interface ImportedVocabularyItem {
+  id: number
+  user_id: string
+  language: Language
+  word: string
+  reading: string | null
+  definition_zh: string
+  example_sentence: string | null
+  example_translation: string | null
+  created_at: string
+}
+
+export interface ImportedVocabularyListResponse {
+  success: boolean
+  count: number
+  items: ImportedVocabularyItem[]
+}
+
+export interface SrsItem {
+  word: string
+  language: Language
+  definition_zh?: string
+  next_review: string
+  interval: number
+  ease_factor: number
+  srs_level: number
+}
+
+export interface SrsDueResponse {
+  success: boolean
+  items: SrsItem[]
 }

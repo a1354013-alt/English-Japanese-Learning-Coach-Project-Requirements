@@ -1,4 +1,4 @@
-﻿"""TTS service - placeholder implementation."""
+"""TTS service - placeholder implementation."""
 import hashlib
 from pathlib import Path
 from typing import Optional

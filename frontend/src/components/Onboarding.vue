@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="overlay">
     <div class="dialog panel">
       <h2>Welcome</h2>

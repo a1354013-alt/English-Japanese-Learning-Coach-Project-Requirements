@@ -1,4 +1,4 @@
-﻿"""WebSocket handler for AI role-play chat."""
+"""WebSocket handler for AI role-play chat."""
 import json
 from typing import Any, Dict, List
 

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="panel">
     <h3>RPG Summary</h3>
     <p>Level {{ stats.level }} - {{ stats.title }}</p>

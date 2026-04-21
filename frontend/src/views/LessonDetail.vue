@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
       <h2 style="margin: 0">Lesson Detail</h2>

@@ -2,12 +2,13 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends
 
 from config import settings
 from database import db
 from ollama_client import ollama_client
 from rag_manager import rag_manager
+from routers.deps import require_demo_user_id
 
 APP_VERSION = "1.2.0"
 
@@ -57,12 +58,12 @@ async def health_check():
 
 
 @api_router.get("/progress", response_model=dict)
-async def get_progress(user_id: str = Query(default=settings.default_user_id)):
+async def get_progress(user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "progress": db.get_progress(user_id)}
 
 
 @api_router.get("/analytics", response_model=dict)
-async def get_analytics(user_id: str = Query(default=settings.default_user_id)):
+async def get_analytics(user_id: str = Depends(require_demo_user_id)):
     """Get real analytics data based on actual user activity.
     
     Returns actual computed metrics, not placeholder data.

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="app-shell">
     <div v-if="apiErrorMessage" class="api-error-banner row between center" role="alert">
       <span>{{ apiErrorMessage }}</span>
@@ -10,7 +10,10 @@
         <h1 class="brand" @click="$router.push('/')">English-Japanese Learning Coach</h1>
         <nav class="row gap-sm">
           <RouterLink to="/">Today</RouterLink>
+          <RouterLink to="/review">Review</RouterLink>
           <RouterLink to="/archive">Archive</RouterLink>
+          <RouterLink to="/materials">Materials</RouterLink>
+          <RouterLink to="/vocabulary">Vocabulary</RouterLink>
           <RouterLink to="/mistakes">Mistakes</RouterLink>
           <RouterLink to="/progress">Progress</RouterLink>
           <RouterLink to="/writing">Writing</RouterLink>

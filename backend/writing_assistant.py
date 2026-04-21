@@ -1,4 +1,4 @@
-﻿"""Writing assistant service."""
+"""Writing assistant service."""
 from typing import Any, Dict, List
 
 from config import settings

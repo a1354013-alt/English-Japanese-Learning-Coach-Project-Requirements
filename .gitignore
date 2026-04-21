@@ -33,6 +33,8 @@ venv/
 data/*.db
 data/*.sqlite*
 data/chroma_db/
+data/lessons/
+data/audio/
+data/exports/
 backend/data/
 backend/*.db
-

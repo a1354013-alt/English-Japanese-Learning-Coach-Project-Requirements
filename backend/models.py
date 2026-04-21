@@ -1,6 +1,4 @@
-"""
-Data models for Language Coach application
-"""
+"""Data models for Language Coach application."""
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Any, Dict
 from datetime import datetime
@@ -120,6 +118,7 @@ class TaskStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
+    FALLBACK_SUCCESS = "fallback_success"
     FAILED = "failed"
     RETRIED = "retried"
 

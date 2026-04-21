@@ -1,4 +1,4 @@
-﻿"""PDF export service with full lesson support."""
+"""PDF export service with full lesson support."""
 from pathlib import Path
 from typing import Any, Dict, List
 

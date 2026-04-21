@@ -113,6 +113,7 @@ def update_progress_after_review(
     correct: int,
     *,
     increment_completed_lessons: bool,
+    increment_exercise_totals: bool,
 ) -> Dict[str, Any]:
     progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
@@ -120,8 +121,9 @@ def update_progress_after_review(
     target = progress[key]
     if increment_completed_lessons:
         target["completed_lessons"] += 1
-    target["total_exercises"] += total
-    target["correct_exercises"] += correct
+    if increment_exercise_totals:
+        target["total_exercises"] += total
+        target["correct_exercises"] += correct
     target["last_study_date"] = datetime.now().isoformat()
     target["accuracy_rate"] = (
         (target["correct_exercises"] / target["total_exercises"] * 100) if target["total_exercises"] else 0.0

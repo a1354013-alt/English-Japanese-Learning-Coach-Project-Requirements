@@ -1,19 +1,21 @@
 """Exercise review, SRS due items, and generation task history."""
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from config import settings
 
 from database import db
 from gamification_engine import gamification_engine
 from models import ReviewAnswer, UserRPGStats
+from routers.deps import require_demo_user_id
 from services.lesson_ops import (
     load_lesson_payload,
     score_answers,
     update_progress_after_review,
     update_srs_after_review,
 )
+from srs import srs_engine
 
 router = APIRouter(prefix="/api", tags=["review"])
 
@@ -21,14 +23,14 @@ router = APIRouter(prefix="/api", tags=["review"])
 @router.post("/review", response_model=dict)
 async def submit_review(
     answers: List[ReviewAnswer],
-    user_id: str = Query(default=settings.default_user_id),
+    user_id: str = Depends(require_demo_user_id),
     error_type: Optional[str] = None,
 ):
     if not answers:
         raise HTTPException(status_code=400, detail="No answers provided")
 
     lesson_id = answers[0].lesson_id
-    lesson_data = load_lesson_payload(lesson_id)
+    lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     review_data = score_answers(lesson_data, answers)
     was_completed = db.has_exercise_result(user_id=user_id, lesson_id=lesson_id)
 
@@ -44,11 +46,16 @@ async def submit_review(
         accuracy_rate=review_data["accuracy_rate"],
     )
 
-    xp_amount = (review_data["correct_count"] * 10) + (
-        (review_data["total_questions"] - review_data["correct_count"]) * 2
-    )
-    # Apply XP first so DB holds updated level/XP, then merge error_distribution on a fresh snapshot.
-    xp_result = gamification_engine.add_xp(user_id, xp_amount)
+    # Demo rule: XP/progress/SRS side-effects are awarded only once per lesson.
+    # Re-submitting a review updates the latest exercise_result but must not allow point farming.
+    xp_amount = 0
+    xp_result = {"leveled_up": False}
+    if not was_completed:
+        xp_amount = (review_data["correct_count"] * 10) + (
+            (review_data["total_questions"] - review_data["correct_count"]) * 2
+        )
+        # Apply XP first so DB holds updated level/XP, then merge error_distribution on a fresh snapshot.
+        xp_result = gamification_engine.add_xp(user_id, xp_amount)
     stats = UserRPGStats(**db.get_rpg_stats(user_id))
     if error_type and review_data["correct_count"] < review_data["total_questions"]:
         stats.error_distribution[error_type] = stats.error_distribution.get(error_type, 0) + (
@@ -63,8 +70,10 @@ async def submit_review(
         review_data["total_questions"],
         review_data["correct_count"],
         increment_completed_lessons=not was_completed,
+        increment_exercise_totals=not was_completed,
     )
-    update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
+    if not was_completed:
+        update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
 
     # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
     answer_map = {(a.exercise_type, a.question_index): a for a in answers}
@@ -116,11 +125,52 @@ async def submit_review(
 @router.get("/srs/due")
 async def get_due_items(
     language: Optional[str] = None,
-    user_id: str = Query(default=settings.default_user_id),
+    user_id: str = Depends(require_demo_user_id),
 ):
-    return {"success": True, "items": db.get_due_srs_items(user_id, language=language)}
+    raw = db.get_due_srs_items(user_id, language=language)
+    items = []
+    for r in raw:
+        data = r.get("data") if isinstance(r.get("data"), dict) else {}
+        items.append(
+            {
+                "word": r.get("word"),
+                "language": r.get("language"),
+                "definition_zh": data.get("definition_zh"),
+                "next_review": r.get("next_review"),
+                "interval": r.get("interval"),
+                "ease_factor": r.get("ease_factor"),
+                "srs_level": r.get("srs_level"),
+            }
+        )
+    return {"success": True, "items": items}
+
+
+@router.post("/srs/review", response_model=dict)
+async def submit_srs_review(
+    word: str,
+    language: str,
+    quality: int = Query(ge=0, le=5),
+    user_id: str = Depends(require_demo_user_id),
+):
+    word = str(word).strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="Missing word")
+    prev = db.get_srs_item(user_id, word, language)
+    if not prev:
+        raise HTTPException(status_code=404, detail="SRS item not found")
+
+    srs_data = srs_engine.calculate(
+        quality=quality,
+        prev_interval=int(prev["interval"]) if prev else 0,
+        prev_ease_factor=float(prev["ease_factor"]) if prev else 2.5,
+        repetition=int(prev["srs_level"]) if prev else 0,
+    )
+    vocab_info = prev.get("data") or {}
+    db.update_srs_item(user_id, word, language, srs_data, vocab_info)
+    db.record_learning_activity(user_id=user_id, activity_type="srs_review")
+    return {"success": True}
 
 
 @router.get("/tasks")
-async def get_tasks(limit: int = 10, user_id: str = Query(default=settings.default_user_id)):
+async def get_tasks(limit: int = 10, user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "tasks": db.get_generation_tasks(user_id, limit)}

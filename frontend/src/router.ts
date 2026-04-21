@@ -1,4 +1,4 @@
-﻿import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import Archive from '@/views/Archive.vue'
 import LessonDetail from '@/views/LessonDetail.vue'
 import Progress from '@/views/Progress.vue'
@@ -7,6 +7,9 @@ import WritingCenter from '@/views/WritingCenter.vue'
 import WrongAnswers from '@/views/WrongAnswers.vue'
 import ChatTutor from '@/views/ChatTutor.vue'
 import Analytics from '@/views/Analytics.vue'
+import SrsReview from '@/views/SrsReview.vue'
+import Materials from '@/views/Materials.vue'
+import Vocabulary from '@/views/Vocabulary.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,6 +22,9 @@ const router = createRouter({
     { path: '/writing', name: 'WritingCenter', component: WritingCenter },
     { path: '/chat', name: 'ChatTutor', component: ChatTutor },
     { path: '/analytics', name: 'Analytics', component: Analytics },
+    { path: '/review', name: 'SrsReview', component: SrsReview },
+    { path: '/materials', name: 'Materials', component: Materials },
+    { path: '/vocabulary', name: 'Vocabulary', component: Vocabulary },
   ],
 })
 

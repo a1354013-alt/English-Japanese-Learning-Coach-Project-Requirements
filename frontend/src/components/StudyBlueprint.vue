@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section>
     <div class="row between center">
       <h3>Study Plan</h3>

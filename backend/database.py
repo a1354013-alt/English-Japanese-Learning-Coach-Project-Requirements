@@ -1,4 +1,4 @@
-﻿"""Database operations for Language Coach."""
+"""Database operations for Language Coach."""
 import json
 import sqlite3
 import threading
@@ -119,6 +119,7 @@ class Database:
                 correct_count INTEGER NOT NULL,
                 accuracy_rate REAL NOT NULL,
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, lesson_id, exercise_type),
                 FOREIGN KEY (lesson_id) REFERENCES lessons(lesson_id)
             )
             """
@@ -364,6 +365,11 @@ class Database:
                 INSERT INTO exercise_results (
                     user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate
                 ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, lesson_id, exercise_type) DO UPDATE SET
+                    total_questions=excluded.total_questions,
+                    correct_count=excluded.correct_count,
+                    accuracy_rate=excluded.accuracy_rate,
+                    submitted_at=CURRENT_TIMESTAMP
                 """,
                 (user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate),
             )
@@ -543,6 +549,48 @@ class Database:
                     item.get("example_translation", ""),
                 ),
             )
+
+    def list_imported_vocabulary(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        q: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        where = ["user_id = ?"]
+        params: List[Any] = [user_id]
+        if language:
+            where.append("language = ?")
+            params.append(language)
+        if q:
+            where.append("(word LIKE ? OR definition_zh LIKE ?)")
+            like = f"%{q}%"
+            params.extend([like, like])
+
+        where_sql = " AND ".join(where)
+        with self.get_connection() as conn:
+            count_row = conn.execute(f"SELECT COUNT(1) AS c FROM imported_vocabulary WHERE {where_sql}", params).fetchone()
+            rows = conn.execute(
+                f"""
+                SELECT id, user_id, language, word, reading, definition_zh, example_sentence, example_translation, created_at
+                FROM imported_vocabulary
+                WHERE {where_sql}
+                ORDER BY created_at DESC, id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*params, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows], int(count_row["c"]) if count_row else 0
+
+    def delete_imported_vocabulary(self, *, user_id: str, item_id: int) -> bool:
+        with self.get_connection() as conn:
+            cur = conn.execute(
+                "DELETE FROM imported_vocabulary WHERE id = ? AND user_id = ?",
+                (item_id, user_id),
+            )
+            return cur.rowcount > 0
 
     # ================= Wrong Answer Notebook =================
     def list_wrong_answers(

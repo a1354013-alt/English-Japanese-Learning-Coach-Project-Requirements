@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
       <div>

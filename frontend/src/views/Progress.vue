@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section class="grid" style="margin-top: 1rem">
     <div v-if="loading" class="panel">Loading progress…</div>
     <div v-else-if="error" class="panel">

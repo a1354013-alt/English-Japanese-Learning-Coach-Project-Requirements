@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="panel">
     <strong>{{ card.word }}</strong>
     <div>{{ card.definition_zh || 'No definition' }}</div>
