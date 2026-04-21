@@ -49,14 +49,15 @@ async def list_lessons(
     topic: Optional[str] = None,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    user_id: str = Query(default=settings.default_user_id),
 ):
-    lessons = db.query_lessons(language, start_date, end_date, level, topic, limit, offset)
+    lessons = db.query_lessons(user_id, language, start_date, end_date, level, topic, limit, offset)
     return {"success": True, "count": len(lessons), "lessons": lessons}
 
 
 @router.get("/lessons/today/{language}", response_model=dict)
-async def get_today_lesson(language: Literal["EN", "JP"]):
-    lesson_meta = db.get_today_lesson(language)
+async def get_today_lesson(language: Literal["EN", "JP"], user_id: str = Query(default=settings.default_user_id)):
+    lesson_meta = db.get_today_lesson(user_id, language)
     if not lesson_meta:
         return {"success": True, "lesson": None}
     return {"success": True, "lesson": load_lesson_payload(lesson_meta["lesson_id"])}

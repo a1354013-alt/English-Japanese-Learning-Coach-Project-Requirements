@@ -71,6 +71,7 @@ class Database:
             """
             CREATE TABLE IF NOT EXISTS lessons (
                 lesson_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'default_user',
                 language TEXT NOT NULL,
                 level TEXT NOT NULL,
                 topic TEXT NOT NULL,
@@ -189,18 +190,20 @@ class Database:
         now = dt.astimezone(tz) if dt else datetime.now(tz)
         return now.date().isoformat()
 
-    def save_lesson(self, lesson_data: Dict[str, Any], file_path: str) -> str:
+    def save_lesson(self, lesson_data: Dict[str, Any], file_path: str, user_id: Optional[str] = None) -> str:
         metadata = lesson_data["metadata"]
+        uid = user_id or settings.default_user_id
         conn = self._connection
         conn.execute(
             """
             INSERT INTO lessons (
-                lesson_id, language, level, topic, generated_at,
+                lesson_id, user_id, language, level, topic, generated_at,
                 estimated_duration_minutes, key_points, file_path
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 metadata["lesson_id"],
+                uid,
                 metadata["language"],
                 metadata["level"],
                 metadata["topic"],
@@ -219,6 +222,7 @@ class Database:
 
     def query_lessons(
         self,
+        user_id: str,
         language: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -227,8 +231,8 @@ class Database:
         limit: int = 20,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        query = "SELECT * FROM lessons WHERE 1=1"
-        params: List[Any] = []
+        query = "SELECT * FROM lessons WHERE user_id = ?"
+        params: List[Any] = [user_id]
 
         if language:
             query += " AND language = ?"
@@ -397,18 +401,18 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def get_today_lesson(self, language: str) -> Optional[Dict[str, Any]]:
+    def get_today_lesson(self, user_id: str, language: str) -> Optional[Dict[str, Any]]:
         tz = ZoneInfo(settings.timezone)
         today = datetime.now(tz).date().isoformat()
         with self.get_connection() as conn:
             row = conn.execute(
                 """
                 SELECT * FROM lessons
-                WHERE language = ? AND DATE(generated_at) = ?
+                WHERE user_id = ? AND language = ? AND DATE(generated_at) = ?
                 ORDER BY generated_at DESC
                 LIMIT 1
                 """,
-                (language, today),
+                (user_id, language, today),
             ).fetchone()
             return dict(row) if row else None
 
