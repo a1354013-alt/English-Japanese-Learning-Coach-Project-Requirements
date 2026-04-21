@@ -92,7 +92,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { progressApi, wrongAnswerApi } from '@/services/api'
+import { progressApi, wrongAnswerApi, streakApi } from '@/services/api'
 
 interface HardWord {
   word: string
@@ -102,6 +102,13 @@ interface HardWord {
 interface CategoryStats {
   category: string
   accuracy: number
+  total: number
+}
+
+interface LessonHistoryItem {
+  lesson_id: string
+  accuracy_rate: number
+  completed_at: string
 }
 
 const loading = ref(true)
@@ -132,19 +139,23 @@ const loadAnalytics = async () => {
   error.value = null
 
   try {
+    // Load streak from dedicated endpoint (single source of truth)
+    const streakRes = await streakApi.getStreak()
+    const currentStreak = streakRes.current_streak || 0
+    
     // Load progress stats
     const progressRes = await progressApi.getProgress()
     const rpgStats = progressRes.progress.rpg_stats
     stats.value = {
       totalXp: rpgStats.total_xp,
       level: rpgStats.level,
-      streak: rpgStats.streak_days,
+      streak: currentStreak,  // Use authoritative streak from /api/streak
       lessonsCompleted:
         (progressRes.progress.english_progress?.completed_lessons ?? 0) +
         (progressRes.progress.japanese_progress?.completed_lessons ?? 0),
     }
 
-    // Load wrong answers for hardest words
+    // Load wrong answers for hardest words and category analysis
     try {
       const wrongRes = await wrongAnswerApi.listWrongAnswers()
       const wrongAnswers = wrongRes.items || []
@@ -152,7 +163,7 @@ const loadAnalytics = async () => {
       // Count mistakes per word
       const wordCounts = new Map<string, number>()
       wrongAnswers.forEach((ans: any) => {
-        const word = ans.word || ans.question || 'Unknown'
+        const word = ans.question || 'Unknown'
         wordCounts.set(word, (wordCounts.get(word) || 0) + 1)
       })
 
@@ -162,31 +173,31 @@ const loadAnalytics = async () => {
         .slice(0, 5)
         .map(([word, mistakes]) => ({ word, mistakes }))
 
-      // Calculate weakest category based on question type
-      const categoryStats = new Map<string, { correct: number; total: number }>()
+      // Calculate weakest category based on actual wrong answer distribution
+      const categoryStats = new Map<string, { count: number }>()
       wrongAnswers.forEach((ans: any) => {
         const category = ans.question_type || 'general'
         if (!categoryStats.has(category)) {
-          categoryStats.set(category, { correct: 0, total: 0 })
+          categoryStats.set(category, { count: 0 })
         }
-        categoryStats.get(category)!.total++
+        categoryStats.get(category)!.count++
       })
 
-      // Find category with lowest accuracy (most wrong answers relative to attempts)
+      // Find category with most wrong answers (weakest area)
       if (categoryStats.size > 0) {
-        let minAccuracy = 100
+        let maxCount = 0
         let weakestCat = ''
-        categoryStats.forEach((stats, cat) => {
-          // For simplicity, assume wrong answers represent weak areas
-          if (stats.total > minAccuracy) {
-            minAccuracy = stats.total
+        categoryStats.forEach((catStats, cat) => {
+          if (catStats.count > maxCount) {
+            maxCount = catStats.count
             weakestCat = cat
           }
         })
-        if (weakestCat) {
+        if (weakestCat && maxCount > 0) {
           weakestCategory.value = {
             category: weakestCat,
-            accuracy: Math.max(0, 100 - weakestCat.length * 5), // Placeholder calculation
+            accuracy: Math.round(100 * (1 - maxCount / wrongAnswers.length)),
+            total: maxCount,
           }
         }
       }
@@ -194,17 +205,18 @@ const loadAnalytics = async () => {
       // Wrong answers API might not be available
     }
 
-    // Simulate accuracy trend (placeholder - would need lesson history API)
-    accuracyTrend.value = [65, 72, 68, 85, 78]
+    // Accuracy trend - use real data from exercise_results if available
+    // For now, show empty state rather than fake data
+    accuracyTrend.value = []
 
-    // Generate streak history (last 7 days)
+    // Generate streak history (last 7 days) based on actual streak count
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const today = new Date().getDay()
     streakHistory.value = Array.from({ length: 7 }, (_, i) => {
       const dayIndex = (today - i + 7) % 7
       return {
         label: days[dayIndex],
-        active: i < stats.value.streak,
+        active: i < currentStreak,
       }
     }).reverse()
 

@@ -128,14 +128,20 @@ class LessonGenerator:
         if interest_context:
             prompt += f" Context from user: {interest_context}"
 
-        snippets = rag_manager.query_materials(
+        # Query RAG for relevant materials
+        rag_evidence = rag_manager.query_materials(
             f"{topic} {level}",
             n_results=3,
             filter_criteria={"language": language},
         )
-        if snippets:
-            prompt += "\n\nLearner-uploaded reference excerpts (optional; use only if relevant, do not invent facts):\n"
-            prompt += "\n---\n".join(snippets[:3])
+        
+        # Properly extract text from evidence objects and add to prompt
+        if rag_evidence:
+            # Extract text field from each evidence object (not the whole dict)
+            context_texts = [item.get("text", "") for item in rag_evidence if isinstance(item, dict) and item.get("text")]
+            if context_texts:
+                prompt += "\n\nLearner-uploaded reference excerpts (optional; use only if relevant, do not invent facts):\n"
+                prompt += "\n---\n".join(context_texts)
 
         response = await self.ollama.generate(
             prompt=prompt,
@@ -167,6 +173,11 @@ class LessonGenerator:
             "metadata": metadata.model_dump(mode="json"),
             **content,
         }
+        
+        # Attach RAG evidence to lesson for frontend display
+        if rag_evidence:
+            full_lesson["evidence"] = rag_evidence
+        
         lesson = Lesson(**full_lesson)
 
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))

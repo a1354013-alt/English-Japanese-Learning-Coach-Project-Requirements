@@ -15,11 +15,13 @@ router = APIRouter(prefix="/api", tags=["lessons"])
 
 @router.post("/generate/lesson", response_model=dict)
 async def generate_lesson(request: GenerateLessonRequest, user_id: str = Query(default=settings.default_user_id)):
+    # Pass user_id to lesson generator for proper user scoping
     lesson = await lesson_generator.generate_lesson(
         language=request.language,
         topic=request.topic,
         level=request.difficulty,
         interest_context=request.interest_context,
+        user_id=user_id,  # Properly pass user_id through
     )
 
     xp_result = gamification_engine.add_xp(user_id, 50)

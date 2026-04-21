@@ -67,18 +67,20 @@ This project demonstrates **full-stack engineering discipline** with:
 | Spaced Repetition (SRS) | ✅ Stable | SM-2 algorithm, vocabulary tracking |
 | Gamification Engine | ✅ Stable | XP, levels, achievements, word cards |
 | Wrong Answer Notebook | ✅ Stable | CRUD + retry practice |
-| Daily Streak Tracking | ✅ Stable | Derived from learning activity log |
-| RAG Document Upload | ✅ Stable | .txt/.md/.csv with metadata |
+| Daily Streak Tracking | ✅ Stable | Activity-based, derived from learning log |
+| RAG Document Upload | ✅ Stable | .txt/.md/.csv with chunking and metadata |
+| RAG-Enhanced Lessons | ✅ Stable | Evidence properly integrated into lesson generation |
 | Writing Analysis | ✅ Stable | Grammar, vocabulary, style scoring |
 | Study Plan Generation | ✅ Stable | Milestone-based planning |
 | PDF Export | ✅ Stable | Cross-platform with CJK font support |
 | Excel Vocabulary Import | ✅ Stable | Requires explicit language selection |
-| TTS Audio Generation | ⚠️ Placeholder | Returns `null` audio_url; ready for integration |
-| WebSocket AI Chat | ⚠️ Beta | Ephemeral session memory; no persistence |
+| Real Analytics API | ✅ Stable | Data-driven metrics, no fake data |
+| TTS Audio Generation | ⚠️ Experimental | Returns `null` audio_url; placeholder only |
+| WebSocket AI Chat | ⚠️ Experimental | Ephemeral session memory; no persistence |
 | User Authentication | ⚠️ Demo Only | Single `default_user` ID; add real auth before production |
 | Persistent Chat Memory | 📋 Planned | User profile memory under roadmap |
 | OAuth2/JWT Auth | 📋 Planned | Production authentication roadmap |
-| E2E Testing | 📋 Planned | Playwright integration planned |
+| E2E Testing | ⚠️ Experimental | Playwright files exist but not stable; manual QA recommended |
 
 ---
 
@@ -247,8 +249,9 @@ Follow this flow to experience the full platform capabilities:
 | Demo authentication only | All data scoped to `default_user` | Add OAuth2/JWT before multi-user deployment |
 | TTS returns placeholder | No audio playback in lessons | Integrate Azure TTS / Google Cloud TTS / Edge TTS |
 | Chat uses ephemeral memory | Conversation history lost on disconnect | Implement persistent user memory store |
-| No E2E tests | Manual QA required for full flows | Add Playwright test suite |
+| E2E tests unstable | Manual QA recommended for full flows | Stabilize Playwright suite with deterministic fixtures |
 | Single-file RAG uploads only | Bulk upload not supported | Add ZIP/folder upload with batch processing |
+| Analytics accuracy trend | Empty until exercise history tracked | Implement lesson result history tracking |
 
 ---
 

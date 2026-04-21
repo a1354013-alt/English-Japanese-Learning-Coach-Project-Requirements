@@ -90,6 +90,7 @@ export interface Lesson {
   reading: ReadingSection
   dialogue: DialogueSection
   evidence?: Array<{
+    text: string
     source: string
     chunk_index: number
   }>
