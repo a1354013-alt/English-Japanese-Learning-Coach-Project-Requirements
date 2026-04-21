@@ -112,6 +112,7 @@ class Lesson(BaseModel):
     reading: ReadingSection
     dialogue: DialogueSection
     tts_scripts: Optional[List[dict]] = None  # For future TTS integration
+    evidence: Optional[List[Dict[str, Any]]] = None  # RAG evidence sources
 
 
 # ============ Stability & Tracking Models ============
