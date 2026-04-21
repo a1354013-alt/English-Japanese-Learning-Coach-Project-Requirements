@@ -181,6 +181,14 @@ class Database:
             version = file_path.name
             if version in existing:
                 continue
+
+            # Some migrations are "upgrade-only" for older schemas. When creating a brand-new DB,
+            # the tables already include the latest columns and re-applying ALTERs would fail.
+            if version == "0002_lessons_user_id.sql":
+                cols = [r["name"] for r in conn.execute("PRAGMA table_info(lessons)").fetchall()]
+                if "user_id" in cols:
+                    conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+                    continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))

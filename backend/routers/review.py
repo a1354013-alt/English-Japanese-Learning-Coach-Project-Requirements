@@ -67,27 +67,42 @@ async def submit_review(
     update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
 
     # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
-    for answer in answers:
-        exercises = (
-            lesson_data["grammar"]["exercises"]
-            if answer.exercise_type == "grammar"
-            else lesson_data["reading"]["questions"]
-        )
-        if answer.question_index < 0 or answer.question_index >= len(exercises):
-            continue
-        exercise = exercises[answer.question_index]
-        user_text = str(answer.user_answer).strip().lower()
-        correct_text = str(exercise.get("correct_answer", "")).strip().lower()
+    answer_map = {(a.exercise_type, a.question_index): a for a in answers}
+    grammar_exercises = lesson_data.get("grammar", {}).get("exercises", [])
+    for idx, exercise in enumerate(grammar_exercises):
+        submitted = answer_map.get(("grammar", idx))
+        user_answer = str(submitted.user_answer) if submitted is not None else "(no answer)"
+        user_text = user_answer.strip().lower()
+        correct_answer = str(exercise.get("correct_answer", ""))
+        correct_text = correct_answer.strip().lower()
         if user_text == correct_text:
             continue
-
         db.upsert_wrong_answer(
             user_id=user_id,
             language=language,
-            question_type=answer.exercise_type,
+            question_type="grammar",
             question=str(exercise.get("question", "")),
-            user_answer=str(answer.user_answer),
-            correct_answer=str(exercise.get("correct_answer", "")),
+            user_answer=user_answer,
+            correct_answer=correct_answer,
+            source_lesson_id=lesson_id,
+        )
+
+    reading_questions = lesson_data.get("reading", {}).get("questions", [])
+    for idx, question in enumerate(reading_questions):
+        submitted = answer_map.get(("reading", idx))
+        user_answer = str(submitted.user_answer) if submitted is not None else "(no answer)"
+        user_text = user_answer.strip().lower()
+        correct_answer = str(question.get("correct_answer", ""))
+        correct_text = correct_answer.strip().lower()
+        if user_text == correct_text:
+            continue
+        db.upsert_wrong_answer(
+            user_id=user_id,
+            language=language,
+            question_type="reading",
+            question=str(question.get("question", "")),
+            user_answer=user_answer,
+            correct_answer=correct_answer,
             source_lesson_id=lesson_id,
         )
 
