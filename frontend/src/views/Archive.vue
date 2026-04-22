@@ -40,7 +40,7 @@
       <div class="panel" v-for="lesson in lessons" :key="lesson.lesson_id">
         <h3 style="margin: 0">{{ lesson.topic }}</h3>
         <p>{{ lesson.language }} / {{ lesson.level }}</p>
-        <p>{{ new Date(lesson.generated_at).toLocaleString('zh-TW') }}</p>
+        <p>{{ new Date(lesson.generated_at).toLocaleString() }}</p>
         <button class="secondary" @click="viewLesson(lesson.lesson_id)">View Lesson</button>
       </div>
     </div>
@@ -119,7 +119,7 @@ const viewLesson = (id: string) => {
 
 const resolveImportLanguage = (): Language | null => {
   if (!filters.language) {
-    window.alert('請先選擇語言（English 或 Japanese），不可使用「All」。')
+    window.alert('Please select a specific language (English or Japanese). "All" cannot be used for imports.')
     return null
   }
   return filters.language

@@ -56,7 +56,7 @@
           <div v-if="analytics.accuracy_trend.length > 0" class="trend-grid">
             <div v-for="(p, idx) in analytics.accuracy_trend" :key="idx" class="trend-point">
               <div class="trend-value">{{ Number(p.accuracy_rate).toFixed(1) }}%</div>
-              <div class="trend-meta">{{ new Date(p.submitted_at).toLocaleDateString('zh-TW') }}</div>
+              <div class="trend-meta">{{ new Date(p.submitted_at).toLocaleDateString() }}</div>
             </div>
           </div>
           <p v-else style="color: #94a3b8">No review history yet.</p>

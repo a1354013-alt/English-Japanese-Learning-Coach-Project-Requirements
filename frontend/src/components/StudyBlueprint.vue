@@ -33,7 +33,7 @@ const loading = ref(false)
 const targetGoal = ref('')
 const plan = ref<StudyPlan | null>(null)
 
-const formatDate = (date: string): string => new Date(date).toLocaleDateString('zh-TW')
+const formatDate = (date: string): string => new Date(date).toLocaleDateString()
 
 const generatePlan = async () => {
   loading.value = true

@@ -5,7 +5,7 @@
         <h2 style="margin: 0" data-testid="today-lesson-title">Today's Lesson</h2>
         <p style="margin: 0.2rem 0 0">{{ lesson?.metadata.topic || 'No lesson generated yet' }}</p>
         <p v-if="streak" style="margin: 0.2rem 0 0; color: #475569">
-          🔥 連續學習 {{ streak.current_streak }} 天（最長 {{ streak.longest_streak }} 天） · 今日已完成學習：{{ streak.today_completed ? '是' : '否' }}
+          🔥 Study streak: {{ streak.current_streak }} days (best {{ streak.longest_streak }}) · Completed today: {{ streak.today_completed ? 'Yes' : 'No' }}
         </p>
       </div>
       <div class="row gap-sm">

@@ -14,7 +14,7 @@
       </thead>
       <tbody>
         <tr v-for="task in tasks" :key="task.task_id">
-          <td>{{ new Date(task.created_at).toLocaleString('zh-TW') }}</td>
+          <td>{{ new Date(task.created_at).toLocaleString() }}</td>
           <td>
             {{ getTaskStatusLabel(task.status) }}
           </td>

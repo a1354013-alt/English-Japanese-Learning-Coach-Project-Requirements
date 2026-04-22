@@ -132,7 +132,7 @@ const retryAnswer = ref('')
 const submittingRetry = ref(false)
 const retryFeedback = ref<{ ok: boolean } | null>(null)
 
-const formatDate = (iso: string) => new Date(iso).toLocaleString('zh-TW')
+const formatDate = (iso: string) => new Date(iso).toLocaleString()
 
 const loadItems = async () => {
   loading.value = true

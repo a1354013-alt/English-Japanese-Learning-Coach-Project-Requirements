@@ -47,7 +47,7 @@
           <tr v-for="m in materials" :key="m.doc_id">
             <td>{{ m.source }}</td>
             <td>{{ m.language }}</td>
-            <td>{{ m.uploaded_at ? new Date(m.uploaded_at).toLocaleString('zh-TW') : '' }}</td>
+            <td>{{ m.uploaded_at ? new Date(m.uploaded_at).toLocaleString() : '' }}</td>
             <td>{{ m.total_chunks ?? '' }}</td>
             <td>
               <button class="secondary" @click="remove(m.doc_id)" :disabled="deletingId === m.doc_id">Delete</button>
@@ -90,7 +90,7 @@ const handleUpload = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (!language.value) {
-    window.alert('請先選擇語言（English 或 Japanese），不可使用「All」。')
+    window.alert('Please select a specific language (English or Japanese). "All" cannot be used for uploads.')
     ;(event.target as HTMLInputElement).value = ''
     return
   }

@@ -16,7 +16,7 @@
       <section>
         <h3>{{ lesson.metadata.topic }}</h3>
         <p>{{ lesson.metadata.language }} / {{ lesson.metadata.level }}</p>
-        <p>{{ new Date(lesson.metadata.generated_at).toLocaleString('zh-TW') }}</p>
+        <p>{{ new Date(lesson.metadata.generated_at).toLocaleString() }}</p>
       </section>
 
       <section>

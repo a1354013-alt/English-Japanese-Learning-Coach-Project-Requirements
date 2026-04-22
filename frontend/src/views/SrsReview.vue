@@ -38,7 +38,7 @@
           <tr v-for="item in items" :key="item.language + ':' + item.word">
             <td style="font-weight: 600">{{ item.word }}</td>
             <td>{{ item.definition_zh ?? '' }}</td>
-            <td>{{ new Date(item.next_review).toLocaleString('zh-TW') }}</td>
+            <td>{{ new Date(item.next_review).toLocaleString() }}</td>
             <td class="row gap-sm">
               <button class="secondary" @click="review(item.word, 5)" :disabled="submitting">Easy</button>
               <button class="secondary" @click="review(item.word, 3)" :disabled="submitting">Hard</button>
