@@ -48,4 +48,12 @@ describe('api client', () => {
     await importApi.deleteRagMaterial('doc1')
     expect(mocks.deleteMock).toHaveBeenCalledWith('/rag/materials/doc1')
   })
+
+  it('does not send demo user_id query params from the frontend client', async () => {
+    const answers = [{ lesson_id: 'l1', exercise_type: 'grammar', question_index: 0, user_answer: 'A', correct_answer: 'A' }] as any
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
+    await reviewApi.submitReview(answers)
+    expect(mocks.postMock).toHaveBeenCalledWith('/review', answers, undefined)
+  })
 })

@@ -191,11 +191,24 @@ class RAGManager:
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
         if not self.enabled:
             return False
+
+        # Chroma's delete(where=...) is idempotent and may not error when nothing matches.
+        # For API correctness we must distinguish "not found" vs "deleted".
+        try:
+            existing = self.collection.get(where={"user_id": user_id, "doc_id": doc_id})
+        except Exception as err:  # pragma: no cover - defensive: chroma query failure
+            raise RuntimeError(f"RAG lookup failed: {err}") from err
+
+        ids = existing.get("ids") or []
+        if not ids:
+            return False
+
         try:
             self.collection.delete(where={"user_id": user_id, "doc_id": doc_id})
-            return True
-        except Exception:
-            return False
+        except Exception as err:
+            raise RuntimeError(f"RAG delete failed: {err}") from err
+
+        return True
 
 
 rag_manager = RAGManager()

@@ -122,7 +122,10 @@ async def list_rag_materials(
 async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_user_id)):
     if not rag_manager.enabled:
         raise HTTPException(status_code=503, detail=rag_manager.init_error or "RAG is disabled")
-    ok = rag_manager.delete_material(user_id=user_id, doc_id=doc_id)
+    try:
+        ok = rag_manager.delete_material(user_id=user_id, doc_id=doc_id)
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Failed to delete material: {err}") from err
     if not ok:
         raise HTTPException(status_code=404, detail="Material not found")
     return {"success": True}

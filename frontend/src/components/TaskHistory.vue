@@ -16,8 +16,7 @@
         <tr v-for="task in tasks" :key="task.task_id">
           <td>{{ new Date(task.created_at).toLocaleString('zh-TW') }}</td>
           <td>
-            <span v-if="task.status === 'fallback_success'">fallback_success</span>
-            <span v-else>{{ task.status }}</span>
+            {{ getTaskStatusLabel(task.status) }}
           </td>
           <td>{{ task.model_used }}</td>
           <td>{{ task.duration_ms }} ms</td>
@@ -33,6 +32,7 @@
 import { onMounted, ref } from 'vue'
 import { lessonApi } from '@/services/api'
 import type { GenerationTask } from '@/types'
+import { getTaskStatusLabel } from '@/utils/taskStatusLabel'
 
 const tasks = ref<GenerationTask[]>([])
 

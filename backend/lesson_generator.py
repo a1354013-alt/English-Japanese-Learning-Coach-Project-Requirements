@@ -259,8 +259,36 @@ class LessonGenerator:
                     example_translation="持續練習會建立韌性。",
                 )
             ],
-            grammar=GrammarSection(title="Simple Present", explanation="Use it for habits.", examples=[], exercises=[]),
-            reading=ReadingSection(title="Short Reading", content="Study a little every day.", word_count=6, questions=[]),
+            grammar=GrammarSection(
+                title="Simple Present",
+                explanation="Use it for habits and routines.",
+                examples=[],
+                exercises=[
+                    {
+                        "question": "Choose the correct sentence (simple present):",
+                        "options": [
+                            "I study a little every day.",
+                            "I am study a little every day.",
+                            "I studied a little every day yesterday.",
+                        ],
+                        "correct_answer": "I study a little every day.",
+                        "explanation": "Use the base verb for habits: 'I study ... every day.'",
+                    }
+                ],
+            ),
+            reading=ReadingSection(
+                title="Short Reading",
+                content="Study a little every day to build confidence.",
+                word_count=8,
+                questions=[
+                    {
+                        "question": "What is the main idea of the reading?",
+                        "options": ["Study daily", "Never study", "Study only once a week"],
+                        "correct_answer": "Study daily",
+                        "explanation": "It says to study a little every day.",
+                    }
+                ],
+            ),
             dialogue=DialogueSection(scenario="Practice", context="Daily study", dialogue=[], alternatives=[]),
         )
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))

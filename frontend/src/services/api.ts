@@ -90,10 +90,8 @@ export const lessonApi = {
 }
 
 export const progressApi = {
-  async getProgress(userId = 'default_user') {
-    const response = await api.get<{ success: boolean; progress: UserProgress }>('/progress', {
-      params: { user_id: userId },
-    })
+  async getProgress() {
+    const response = await api.get<{ success: boolean; progress: UserProgress }>('/progress')
     return response.data
   },
 
@@ -106,10 +104,10 @@ export const progressApi = {
 }
 
 export const reviewApi = {
-  async submitReview(answers: ReviewAnswer[], userId = 'default_user', errorType?: string) {
-    const response = await api.post<ReviewResult>('/review', answers, {
-      params: { user_id: userId, error_type: errorType },
-    })
+  async submitReview(answers: ReviewAnswer[], errorType?: string) {
+    const params: Record<string, string> = {}
+    if (errorType) params.error_type = errorType
+    const response = await api.post<ReviewResult>('/review', answers, Object.keys(params).length ? { params } : undefined)
     return response.data
   },
 
@@ -183,10 +181,9 @@ export const aiTutorApi = {
 }
 
 export const wrongAnswerApi = {
-  async listWrongAnswers(params: { status?: WrongAnswerStatus; userId?: string; limit?: number; offset?: number } = {}) {
+  async listWrongAnswers(params: { status?: WrongAnswerStatus; limit?: number; offset?: number } = {}) {
     const response = await api.get<WrongAnswerListResponse>('/wrong-answers', {
       params: {
-        user_id: params.userId ?? 'default_user',
         status: params.status,
         limit: params.limit,
         offset: params.offset,
@@ -202,37 +199,37 @@ export const wrongAnswerApi = {
     user_answer: string
     correct_answer: string
     source_lesson_id?: string | null
-  }, userId = 'default_user') {
-    const response = await api.post<WrongAnswerItemResponse>('/wrong-answers', payload, { params: { user_id: userId } })
+  }) {
+    const response = await api.post<WrongAnswerItemResponse>('/wrong-answers', payload)
     return response.data
   },
 
-  async updateStatus(id: number, status: WrongAnswerStatus, userId = 'default_user') {
-    const response = await api.patch<WrongAnswerItemResponse>(`/wrong-answers/${id}`, { status }, { params: { user_id: userId } })
+  async updateStatus(id: number, status: WrongAnswerStatus) {
+    const response = await api.patch<WrongAnswerItemResponse>(`/wrong-answers/${id}`, { status })
     return response.data
   },
 
-  async deleteWrongAnswer(id: number, userId = 'default_user') {
-    const response = await api.delete<{ success: boolean }>(`/wrong-answers/${id}`, { params: { user_id: userId } })
+  async deleteWrongAnswer(id: number) {
+    const response = await api.delete<{ success: boolean }>(`/wrong-answers/${id}`)
     return response.data
   },
 
-  async retry(id: number, userAnswer: string, userId = 'default_user') {
-    const response = await api.post<WrongAnswerRetryResponse>(`/wrong-answers/${id}/retry`, { user_answer: userAnswer }, { params: { user_id: userId } })
+  async retry(id: number, userAnswer: string) {
+    const response = await api.post<WrongAnswerRetryResponse>(`/wrong-answers/${id}/retry`, { user_answer: userAnswer })
     return response.data
   },
 }
 
 export const streakApi = {
-  async getStreak(userId = 'default_user') {
-    const response = await api.get<StreakResponse>('/streak', { params: { user_id: userId } })
+  async getStreak() {
+    const response = await api.get<StreakResponse>('/streak')
     return response.data
   },
 }
 
 export const analyticsApi = {
-  async getAnalytics(userId = 'default_user') {
-    const response = await api.get<AnalyticsResponse>('/analytics', { params: { user_id: userId } })
+  async getAnalytics() {
+    const response = await api.get<AnalyticsResponse>('/analytics')
     return response.data
   },
 }

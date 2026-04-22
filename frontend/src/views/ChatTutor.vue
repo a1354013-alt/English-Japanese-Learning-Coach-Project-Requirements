@@ -1,7 +1,12 @@
 <template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
-      <h2 style="margin: 0">Chat Tutor</h2>
+      <div>
+        <h2 style="margin: 0">Chat Tutor (Preview)</h2>
+        <p style="margin: 0.2rem 0 0; color: #475569; font-size: 0.9rem">
+          Requires a configured AI provider (default: local Ollama). Messages are not persisted in this demo build.
+        </p>
+      </div>
       <select v-model="selectedLanguage" @change="reconnect">
         <option value="EN">English</option>
         <option value="JP">Japanese</option>

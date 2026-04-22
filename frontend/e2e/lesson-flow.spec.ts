@@ -1,53 +1,50 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test'
 
-test('lesson flow - generate and complete lesson', async ({ page }) => {
-  // Open homepage
-  await page.goto('/');
-  
-  // Wait for app to load
-  await expect(page.getByText('English-Japanese Learning Coach')).toBeVisible();
-  
-  // Navigate to Today tab (already on homepage)
-  await expect(page.getByRole('heading', { name: /generate/i })).toBeVisible({ timeout: 5000 });
-  
-  // Generate a lesson by clicking the generate button
-  const generateButton = page.getByRole('button', { name: /generate/i });
-  if (await generateButton.isVisible()) {
-    await generateButton.click();
-    
-    // Wait for lesson to be generated
-    await page.waitForTimeout(3000);
+test('lesson flow - generate, review, and see progress update', async ({ page }) => {
+  await page.goto('/')
+
+  // App shell loads
+  await expect(page.getByText('English-Japanese Learning Coach')).toBeVisible()
+
+  // Handle onboarding modal on fresh DBs.
+  const welcome = page.getByRole('heading', { name: 'Welcome' })
+  if (await welcome.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Start' }).click()
+    await expect(welcome).toBeHidden()
   }
-  
-  // Check if we can see lesson content or navigate to archive
-  const archiveLink = page.getByRole('link', { name: 'Archive' });
-  if (await archiveLink.isVisible()) {
-    await archiveLink.click();
-    
-    // Wait for archive page
-    await expect(page.getByText(/archive/i)).toBeVisible();
-    
-    // Look for any lesson in the archive
-    const lessonLinks = page.getByRole('link', { name: /lesson/i });
-    const count = await lessonLinks.count();
-    
-    if (count > 0) {
-      // Click first lesson
-      await lessonLinks.first().click();
-      
-      // Wait for lesson detail page
-      await expect(page.getByText(/vocabulary/i)).toBeVisible({ timeout: 5000 });
-      
-      // Verify lesson sections exist
-      await expect(page.getByText(/grammar/i)).toBeVisible();
-      await expect(page.getByText(/reading/i)).toBeVisible();
-    }
+
+  await expect(page.getByRole('heading', { name: "Today's Lesson" })).toBeVisible()
+
+  // Generate a lesson (must exist for review/progress flow).
+  const generatePanel = page.getByRole('heading', { name: 'Generate lesson' })
+  if (await generatePanel.isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: /^Generate$/ }).click()
+    // Generation may fall back if no AI provider is available; wait for the generate panel to disappear.
+    await expect(page.getByRole('button', { name: 'Generating...' })).toBeHidden({ timeout: 30_000 })
   }
-  
-  // Navigate to Progress page to verify progress tracking
-  const progressLink = page.getByRole('link', { name: 'Progress' });
-  if (await progressLink.isVisible()) {
-    await progressLink.click();
-    await expect(page.getByText(/progress|level|xp/i)).toBeVisible({ timeout: 5000 });
-  }
-});
+
+  // Lesson content appears.
+  await expect(page.getByRole('heading', { name: 'Vocabulary' })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('heading', { name: 'Grammar Exercises' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Reading' })).toBeVisible()
+
+  // Answer at least one grammar and one reading question (critical to review submission).
+  const g0 = page.locator('input[name="g-0"]')
+  await expect(g0.first()).toBeVisible()
+  await g0.first().check()
+
+  const r0 = page.locator('input[name="r-0"]')
+  await expect(r0.first()).toBeVisible()
+  await r0.first().check()
+
+  await page.getByRole('button', { name: 'Submit Review' }).click()
+
+  // Review result must be shown.
+  await expect(page.getByRole('heading', { name: 'Review Result' })).toBeVisible()
+  await expect(page.getByText(/^Score:/)).toBeVisible()
+
+  // Progress page reflects the completed lesson.
+  await page.getByRole('link', { name: 'Progress' }).click()
+  await expect(page.getByRole('heading', { name: 'English' })).toBeVisible()
+  await expect(page.getByText(/Completed lessons: [1-9]\d*/)).toBeVisible()
+})

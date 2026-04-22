@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 HEALTH_CHECK_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 CHAT_TIMEOUT = httpx.Timeout(120.0, connect=10.0, read=120.0)
 STRUCTURED_JSON_TIMEOUT = httpx.Timeout(240.0, connect=15.0, read=240.0)
-LESSON_GENERATION_TIMEOUT = httpx.Timeout(600.0, connect=30.0, read=600.0)
+# Lesson generation can be slow once connected, but in demo/CI we must fail fast when Ollama isn't running.
+LESSON_GENERATION_TIMEOUT = httpx.Timeout(600.0, connect=5.0, read=600.0)
 
 GenerateTimeoutProfile = Literal["chat", "structured_json", "lesson"]
 

@@ -45,3 +45,83 @@ jobs:
         run: npm run test
       - name: Build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright (Chromium only)
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run minimal e2e acceptance (frontend + API)
+        shell: bash
+        env:
+          DATA_DIR: ${{ runner.temp }}/language_coach_data
+          DB_PATH: ${{ runner.temp }}/language_coach_data/language_coach.db
+          CHROMA_DB_PATH: ${{ runner.temp }}/language_coach_data/chroma_db
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$DATA_DIR"
+
+          # Start backend
+          (cd backend && python -m uvicorn main:app --host 127.0.0.1 --port 8000 >/tmp/backend.log 2>&1 & echo $! > /tmp/backend.pid)
+
+          # Start frontend dev server (Playwright hits Vite + proxy to API)
+          (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 --strictPort >/tmp/frontend.log 2>&1 & echo $! > /tmp/frontend.pid)
+
+          cleanup() {
+            if [ -f /tmp/frontend.pid ]; then kill "$(cat /tmp/frontend.pid)" || true; fi
+            if [ -f /tmp/backend.pid ]; then kill "$(cat /tmp/backend.pid)" || true; fi
+          }
+          trap cleanup EXIT
+
+          # Wait for servers
+          backend_ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ >/dev/null; then backend_ok=1; break; fi
+            sleep 1
+          done
+          if [ "$backend_ok" -ne 1 ]; then
+            echo "Backend failed to start. Logs:"
+            tail -n 200 /tmp/backend.log || true
+            exit 1
+          fi
+
+          frontend_ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then frontend_ok=1; break; fi
+            sleep 1
+          done
+          if [ "$frontend_ok" -ne 1 ]; then
+            echo "Frontend failed to start. Logs:"
+            tail -n 200 /tmp/frontend.log || true
+            exit 1
+          fi
+
+          # Run e2e
+          (cd frontend && npm run e2e -- --project=chromium)

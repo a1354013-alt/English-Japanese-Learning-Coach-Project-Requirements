@@ -14,11 +14,12 @@ Portfolio-grade demo of an AI-assisted language learning workflow (FastAPI + Vue
 
 ## Scope / tenant model
 
-This repository is a **single-tenant demo** (`default_user`). Some endpoints still include a `user_id` query parameter for future expansion, but the backend enforces demo scoping and rejects arbitrary `user_id` values (no auth shipped in this build).
+This repository is a **single-tenant demo** (`default_user`). The backend enforces demo scoping and rejects arbitrary `user_id` values (no auth shipped in this build). The frontend does not send `user_id`; the API defaults to the demo user internally.
 
 ## Preview / not fully enabled features
 
 - TTS: API returns `available=false` unless you wire a real provider (see `backend/tts_service.py`).
+- Chat Tutor: WebSocket UI is a preview and requires a configured AI provider (default: local Ollama). Messages are ephemeral (no persisted memory).
 
 ## Quick start (local)
 
@@ -65,6 +66,9 @@ pytest tests/ -v
 cd frontend
 npm install
 npm run test
+npm run build
+# With backend running on http://localhost:8000
+npm run e2e
 ```
 
 ## Repository hygiene

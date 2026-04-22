@@ -62,3 +62,33 @@ def test_rag_list_delete_smoke(monkeypatch):
     assert r_del.status_code == 200
     assert r_del.json()["success"] is True
 
+    # deleting again should be a 404 (not "fake success")
+    r_del_missing = client.delete(f"/api/rag/materials/{doc_id}")
+    assert r_del_missing.status_code == 404
+    assert r_del_missing.json()["detail"] == "Material not found"
+
+
+def test_rag_delete_surface_underlying_failure(monkeypatch):
+    class _FailingDeleteStub(_StubRag):
+        def delete_material(self, *, user_id: str, doc_id: str) -> bool:  # type: ignore[override]
+            item = self._items.get(doc_id)
+            if not item or item["user_id"] != user_id:
+                return False
+            raise RuntimeError("storage down")
+
+    stub = _FailingDeleteStub()
+    monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
+
+    app = FastAPI()
+    app.include_router(imports_router.router)
+    client = TestClient(app)
+
+    files = {"file": ("a.txt", b"hello world", "text/plain")}
+    r_up = client.post("/api/rag/upload?language=EN", files=files)
+    assert r_up.status_code == 200
+    doc_id = r_up.json()["doc_id"]
+
+    r_del = client.delete(f"/api/rag/materials/{doc_id}")
+    assert r_del.status_code == 500
+    assert "Failed to delete material" in r_del.json()["detail"]
+

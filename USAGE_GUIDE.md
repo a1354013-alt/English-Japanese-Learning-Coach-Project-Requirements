@@ -59,7 +59,7 @@ npm run dev
 
 9. Excel import (vocabulary)
 - Archive page → Excel Import
-- Select English or Japanese in the language filter (imports are disabled while filter is “All”)
+- Select English or Japanese in the language filter (imports are disabled while filter is `all`)
 - Upload `.xlsx` with at least:
   - `word`
   - `definition` or `definition_zh`
@@ -75,14 +75,18 @@ npm run dev
 11. RAG upload + management
 - Archive page → RAG Upload (select a language)
 - Open Materials page
-- Verify materials list and deletion works
+- Verify materials list and deletion works (non-existent `doc_id` returns 404)
 
 12. PDF export
 - Today page → Export PDF
 
+13. Chat Tutor (Preview)
+- Open Chat (Preview) page
+- If the AI provider is not configured/available, expect the UI to show an unavailable message (intentional for the demo build)
+
 ## Notes on Current Build
 
-- Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped).
+- Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped). The frontend does not send `user_id`; the API defaults to the demo user internally.
 - TTS: endpoint exists, but returns `available=false` unless a real provider is integrated (`backend/tts_service.py`).
 - RAG: uploads go to Chroma when available; when RAG is disabled on the backend, upload/delete returns an error.
 
@@ -99,5 +103,25 @@ cd frontend
 npm install
 npm run test
 npm run build
+```
+
+## Playwright e2e (minimal acceptance)
+
+Run backend and frontend locally, then execute Playwright:
+
+```bash
+# Terminal 1
+cd backend
+python -m pip install -r requirements.txt
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+
+# Terminal 2
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+
+# Terminal 3
+cd frontend
+npm run e2e -- --project=chromium
 ```
 

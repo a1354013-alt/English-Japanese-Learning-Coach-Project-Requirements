@@ -17,7 +17,7 @@
           <RouterLink to="/mistakes">Mistakes</RouterLink>
           <RouterLink to="/progress">Progress</RouterLink>
           <RouterLink to="/writing">Writing</RouterLink>
-          <RouterLink to="/chat">Chat</RouterLink>
+          <RouterLink to="/chat">Chat (Preview)</RouterLink>
           <RouterLink to="/analytics">Analytics</RouterLink>
         </nav>
       </div>

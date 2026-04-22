@@ -31,10 +31,16 @@ venv/
 
 # Runtime data (do not version)
 data/*.db
+data/**/*.db
 data/*.sqlite*
 data/chroma_db/
+data/**/chroma_db/
 data/lessons/
 data/audio/
 data/exports/
 backend/data/
 backend/*.db
+
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/
