@@ -1,5 +1,5 @@
 <template>
-  <section class="grid" style="margin-top: 1rem">
+  <section class="grid" style="margin-top: 1rem" data-testid="today-lesson">
     <div class="panel row between center">
       <div>
         <h2 style="margin: 0">Today's Lesson</h2>
@@ -29,13 +29,13 @@
     </div>
 
     <!-- Empty State - Generate Lesson -->
-    <div class="panel grid" v-if="!lesson && !loading && !error">
+    <div class="panel grid" v-if="!lesson && !loading && !error" data-testid="generate-panel">
       <h3>Generate lesson</h3>
-      <input v-model="request.topic" placeholder="Optional topic" />
+      <input v-model="request.topic" placeholder="Optional topic" data-testid="generate-topic" />
       <select v-model="request.difficulty">
         <option v-for="level in currentLevels" :key="level" :value="level">{{ level }}</option>
       </select>
-      <button :disabled="loadingGenerate" @click="generateLesson">{{ loadingGenerate ? 'Generating...' : 'Generate' }}</button>
+      <button data-testid="generate-button" :disabled="loadingGenerate" @click="generateLesson">{{ loadingGenerate ? 'Generating...' : 'Generate' }}</button>
     </div>
 
     <!-- Lesson Content -->
@@ -55,26 +55,50 @@
 
       <div class="panel">
         <h3>Grammar Exercises</h3>
-        <div v-for="(exercise, index) in lesson?.grammar.exercises" :key="`g-${index}`" class="panel" style="margin-top: 0.75rem">
+        <div
+          v-for="(exercise, index) in lesson?.grammar.exercises"
+          :key="`g-${index}`"
+          class="panel"
+          style="margin-top: 0.75rem"
+          :data-testid="`grammar-exercise-${index}`"
+        >
           <p><strong>{{ index + 1 }}. {{ exercise.question }}</strong></p>
           <div class="grid" v-if="exercise.options?.length">
-            <label v-for="option in exercise.options" :key="option" class="row gap-sm center">
-              <input type="radio" :name="`g-${index}`" :value="option" v-model="answers.grammar[index]" />
+            <label v-for="(option, optionIndex) in exercise.options" :key="option" class="row gap-sm center">
+              <input
+                type="radio"
+                :name="`g-${index}`"
+                :value="option"
+                v-model="answers.grammar[index]"
+                :data-testid="`grammar-option-${index}-${optionIndex}`"
+              />
               <span>{{ option }}</span>
             </label>
           </div>
-          <input v-else v-model="answers.grammar[index]" placeholder="Your answer" />
+          <input v-else v-model="answers.grammar[index]" placeholder="Your answer" :data-testid="`grammar-input-${index}`" />
         </div>
       </div>
 
       <div class="panel">
         <h3>Reading</h3>
         <p style="white-space: pre-wrap">{{ lesson?.reading.content }}</p>
-        <div v-for="(question, index) in lesson?.reading.questions" :key="`r-${index}`" class="panel" style="margin-top: 0.75rem">
+        <div
+          v-for="(question, index) in lesson?.reading.questions"
+          :key="`r-${index}`"
+          class="panel"
+          style="margin-top: 0.75rem"
+          :data-testid="`reading-question-${index}`"
+        >
           <p><strong>{{ index + 1 }}. {{ question.question }}</strong></p>
           <div class="grid">
-            <label v-for="option in question.options" :key="option" class="row gap-sm center">
-              <input type="radio" :name="`r-${index}`" :value="option" v-model="answers.reading[index]" />
+            <label v-for="(option, optionIndex) in question.options" :key="option" class="row gap-sm center">
+              <input
+                type="radio"
+                :name="`r-${index}`"
+                :value="option"
+                v-model="answers.reading[index]"
+                :data-testid="`reading-option-${index}-${optionIndex}`"
+              />
               <span>{{ option }}</span>
             </label>
           </div>
@@ -82,14 +106,14 @@
       </div>
 
       <div class="panel row gap-sm center">
-        <button :disabled="submitting" @click="submitReview">{{ submitting ? 'Submitting...' : 'Submit Review' }}</button>
+        <button data-testid="submit-review" :disabled="submitting" @click="submitReview">{{ submitting ? 'Submitting...' : 'Submit Review' }}</button>
         <button class="secondary" @click="exportPdf">Export PDF</button>
       </div>
 
       <!-- Success State - Review Result -->
-      <div class="panel" v-if="reviewResult">
+      <div class="panel" v-if="reviewResult" data-testid="review-result">
         <h3>Review Result</h3>
-        <p>Score: {{ reviewResult.correct_count }} / {{ reviewResult.total_questions }} ({{ reviewResult.accuracy_rate.toFixed(1) }}%)</p>
+        <p data-testid="review-score">Score: {{ reviewResult.correct_count }} / {{ reviewResult.total_questions }} ({{ reviewResult.accuracy_rate.toFixed(1) }}%)</p>
         <ul v-if="reviewResult.incorrect_items.length">
           <li v-for="(item, idx) in reviewResult.incorrect_items" :key="idx">
             {{ item.question }} - Correct: {{ item.correct_answer }}
@@ -103,7 +127,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { lessonApi, reviewApi, streakApi } from '@/services/api'
-import type { Language, Lesson, ReviewAnswer, ReviewResult, StreakResponse } from '@/types'
+import type { Language, Lesson, ReviewResult, StreakResponse } from '@/types'
+import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
 const request = reactive<{ language: Language; topic: string; difficulty: string }>({
   language: 'EN',
@@ -173,43 +198,11 @@ const generateLesson = async () => {
   }
 }
 
-const collectAnswers = (): ReviewAnswer[] => {
-  if (!lesson.value) {
-    return []
-  }
-
-  const payload: ReviewAnswer[] = []
-  lesson.value.grammar.exercises.forEach((exercise, index) => {
-    const userAnswer = answers.grammar[index]
-    if (typeof userAnswer === 'string' && userAnswer.trim().length > 0) {
-      payload.push({
-        lesson_id: lesson.value!.metadata.lesson_id,
-        exercise_type: 'grammar',
-        question_index: index,
-        user_answer: userAnswer,
-        correct_answer: exercise.correct_answer,
-      })
-    }
-  })
-
-  lesson.value.reading.questions.forEach((question, index) => {
-    const userAnswer = answers.reading[index]
-    if (typeof userAnswer === 'string' && userAnswer.trim().length > 0) {
-      payload.push({
-        lesson_id: lesson.value!.metadata.lesson_id,
-        exercise_type: 'reading',
-        question_index: index,
-        user_answer: userAnswer,
-        correct_answer: question.correct_answer,
-      })
-    }
-  })
-
-  return payload
-}
-
 const submitReview = async () => {
-  const payload = collectAnswers()
+  if (!lesson.value) {
+    return
+  }
+  const payload = buildReviewPayload(lesson.value, answers)
   if (payload.length === 0) {
     return
   }

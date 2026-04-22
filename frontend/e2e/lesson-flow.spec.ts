@@ -4,23 +4,25 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await page.goto('/')
 
   // App shell loads
-  await expect(page.getByText('English-Japanese Learning Coach')).toBeVisible()
+  await expect(page.getByTestId('app-title')).toBeVisible()
 
   // Handle onboarding modal on fresh DBs.
-  const welcome = page.getByRole('heading', { name: 'Welcome' })
-  if (await welcome.isVisible().catch(() => false)) {
-    await page.getByRole('button', { name: 'Start' }).click()
-    await expect(welcome).toBeHidden()
+  const onboarding = page.getByTestId('onboarding-dialog')
+  if (await onboarding.isVisible().catch(() => false)) {
+    await page.getByTestId('onboarding-start').click()
+    await expect(onboarding).toBeHidden()
   }
 
   await expect(page.getByRole('heading', { name: "Today's Lesson" })).toBeVisible()
 
   // Generate a lesson (must exist for review/progress flow).
-  const generatePanel = page.getByRole('heading', { name: 'Generate lesson' })
+  const generatePanel = page.getByTestId('generate-panel')
   if (await generatePanel.isVisible().catch(() => false)) {
-    await page.getByRole('button', { name: /^Generate$/ }).click()
-    // Generation may fall back if no AI provider is available; wait for the generate panel to disappear.
-    await expect(page.getByRole('button', { name: 'Generating...' })).toBeHidden({ timeout: 30_000 })
+    // Use a unique topic to avoid accidental dedup/idempotency collisions in local runs.
+    await page.getByTestId('generate-topic').fill(`PW ${Date.now()}`)
+    await page.getByTestId('generate-button').click()
+    // Generation may fall back if no AI provider is available; wait for the panel to disappear.
+    await expect(generatePanel).toBeHidden({ timeout: 30_000 })
   }
 
   // Lesson content appears.
@@ -29,22 +31,25 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await expect(page.getByRole('heading', { name: 'Reading' })).toBeVisible()
 
   // Answer at least one grammar and one reading question (critical to review submission).
-  const g0 = page.locator('input[name="g-0"]')
-  await expect(g0.first()).toBeVisible()
-  await g0.first().check()
+  const g00 = page.getByTestId('grammar-option-0-0')
+  if (await g00.isVisible().catch(() => false)) {
+    await g00.check()
+  } else {
+    await page.getByTestId('grammar-input-0').fill('A')
+  }
 
-  const r0 = page.locator('input[name="r-0"]')
-  await expect(r0.first()).toBeVisible()
-  await r0.first().check()
+  const r00 = page.getByTestId('reading-option-0-0')
+  await expect(r00).toBeVisible()
+  await r00.check()
 
-  await page.getByRole('button', { name: 'Submit Review' }).click()
+  await page.getByTestId('submit-review').click()
 
   // Review result must be shown.
-  await expect(page.getByRole('heading', { name: 'Review Result' })).toBeVisible()
-  await expect(page.getByText(/^Score:/)).toBeVisible()
+  await expect(page.getByTestId('review-result')).toBeVisible()
+  await expect(page.getByTestId('review-score')).toHaveText(/^Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)$/)
 
   // Progress page reflects the completed lesson.
-  await page.getByRole('link', { name: 'Progress' }).click()
-  await expect(page.getByRole('heading', { name: 'English' })).toBeVisible()
-  await expect(page.getByText(/Completed lessons: [1-9]\d*/)).toBeVisible()
+  await page.getByTestId('nav-progress').click()
+  await expect(page.getByRole('heading', { name: 'English', level: 3 })).toBeVisible()
+  await expect(page.getByTestId('progress-en-completed')).toHaveText(/[1-9]\d*/)
 })

@@ -7,7 +7,7 @@
 
     <header class="topbar">
       <div class="container row between center">
-        <h1 class="brand" @click="$router.push('/')">English-Japanese Learning Coach</h1>
+        <h1 class="brand" data-testid="app-title" @click="$router.push('/')">English-Japanese Learning Coach</h1>
         <nav class="row gap-sm">
           <RouterLink to="/">Today</RouterLink>
           <RouterLink to="/review">Review</RouterLink>
@@ -15,7 +15,7 @@
           <RouterLink to="/materials">Materials</RouterLink>
           <RouterLink to="/vocabulary">Vocabulary</RouterLink>
           <RouterLink to="/mistakes">Mistakes</RouterLink>
-          <RouterLink to="/progress">Progress</RouterLink>
+          <RouterLink to="/progress" data-testid="nav-progress">Progress</RouterLink>
           <RouterLink to="/writing">Writing</RouterLink>
           <RouterLink to="/chat">Chat (Preview)</RouterLink>
           <RouterLink to="/analytics">Analytics</RouterLink>

@@ -4,7 +4,7 @@
       <div>
         <h2 style="margin: 0">Chat Tutor (Preview)</h2>
         <p style="margin: 0.2rem 0 0; color: #475569; font-size: 0.9rem">
-          Requires a configured AI provider (default: local Ollama). Messages are not persisted in this demo build.
+          Preview feature for the demo build. Requires a configured AI provider; chat history is not persisted.
         </p>
       </div>
       <select v-model="selectedLanguage" @change="reconnect">
@@ -23,7 +23,7 @@
             Reconnecting...
           </div>
           <div v-else-if="connectionStatus === 'error'" class="system-message error">
-            Connection failed. Click reconnect to try again.
+            Connection failed. This preview may be unavailable unless an AI provider is configured.
             <button @click="reconnect" class="secondary" style="margin-left: 0.5rem">Reconnect</button>
           </div>
 

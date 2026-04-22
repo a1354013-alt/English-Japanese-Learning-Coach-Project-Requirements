@@ -82,12 +82,12 @@ npm run dev
 
 13. Chat Tutor (Preview)
 - Open Chat (Preview) page
-- If the AI provider is not configured/available, expect the UI to show an unavailable message (intentional for the demo build)
+- If the AI provider is not configured/available, expect the UI to show a connection failure message (intentional for the demo build)
 
 ## Notes on Current Build
 
 - Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped). The frontend does not send `user_id`; the API defaults to the demo user internally.
-- TTS: endpoint exists, but returns `available=false` unless a real provider is integrated (`backend/tts_service.py`).
+- TTS (API only): endpoint returns `available=false` unless a real provider is integrated (`backend/tts_service.py`). No TTS UI in this build.
 - RAG: uploads go to Chroma when available; when RAG is disabled on the backend, upload/delete returns an error.
 
 ## Tests

@@ -92,3 +92,18 @@ def test_rag_delete_surface_underlying_failure(monkeypatch):
     assert r_del.status_code == 500
     assert "Failed to delete material" in r_del.json()["detail"]
 
+
+def test_rag_delete_returns_503_when_rag_disabled(monkeypatch):
+    stub = _StubRag()
+    stub.enabled = False
+    stub.init_error = "RAG init failed"
+    monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
+
+    app = FastAPI()
+    app.include_router(imports_router.router)
+    client = TestClient(app)
+
+    r_del = client.delete("/api/rag/materials/does-not-matter")
+    assert r_del.status_code == 503
+    assert r_del.json()["detail"] == "RAG init failed"
+

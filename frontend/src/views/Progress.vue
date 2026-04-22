@@ -12,7 +12,10 @@
         <div class="panel">
           <h3>English</h3>
           <p>Current level: {{ progress.english_progress.current_level }}</p>
-          <p>Completed lessons: {{ progress.english_progress.completed_lessons }}</p>
+          <p>
+            Completed lessons:
+            <span data-testid="progress-en-completed">{{ progress.english_progress.completed_lessons }}</span>
+          </p>
           <p>Accuracy: {{ progress.english_progress.accuracy_rate.toFixed(1) }}%</p>
         </div>
         <div class="panel">

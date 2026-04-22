@@ -47,6 +47,21 @@ def split_into_chunks(text: str, size: int = 500, overlap: int = 50) -> List[str
     return [c for c in chunks if c]  # Remove empty chunks
 
 
+def _and_where(clauses: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Build a Chroma 'where' filter that is compatible with versions requiring a single top-level operator.
+
+    Chroma's validation expects 'where' to be either:
+      - a single field equality dict: {"user_id": "u1"}, OR
+      - a single operator dict: {"$and": [{"user_id": "u1"}, {"language": "EN"}]}
+    """
+    clauses = [c for c in clauses if c]
+    if not clauses:
+        return {}
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"$and": clauses}
+
+
 class RAGManager:
     def __init__(self) -> None:
         self.enabled = True
@@ -126,9 +141,12 @@ class RAGManager:
         if not self.enabled:
             return []
         try:
-            where: Dict[str, Any] = {"user_id": user_id, "language": language}
+            clauses: List[Dict[str, Any]] = [{"user_id": user_id}, {"language": language}]
             if filter_criteria:
-                where.update(filter_criteria)
+                # Support simple multi-field dicts by splitting into equality clauses.
+                for k, v in filter_criteria.items():
+                    clauses.append({str(k): v})
+            where = _and_where(clauses)
             results = self.collection.query(
                 query_texts=[query_text],
                 n_results=n_results,
@@ -161,9 +179,10 @@ class RAGManager:
     def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
         if not self.enabled:
             return []
-        where: Dict[str, Any] = {"user_id": user_id}
+        clauses: List[Dict[str, Any]] = [{"user_id": user_id}]
         if language:
-            where["language"] = language
+            clauses.append({"language": language})
+        where = _and_where(clauses)
         try:
             results = self.collection.get(where=where, include=["metadatas"])
             metas = results.get("metadatas") or []
@@ -194,8 +213,9 @@ class RAGManager:
 
         # Chroma's delete(where=...) is idempotent and may not error when nothing matches.
         # For API correctness we must distinguish "not found" vs "deleted".
+        where = _and_where([{"user_id": user_id}, {"doc_id": doc_id}])
         try:
-            existing = self.collection.get(where={"user_id": user_id, "doc_id": doc_id})
+            existing = self.collection.get(where=where, include=["metadatas"])
         except Exception as err:  # pragma: no cover - defensive: chroma query failure
             raise RuntimeError(f"RAG lookup failed: {err}") from err
 
@@ -204,7 +224,7 @@ class RAGManager:
             return False
 
         try:
-            self.collection.delete(where={"user_id": user_id, "doc_id": doc_id})
+            self.collection.delete(where=where)
         except Exception as err:
             raise RuntimeError(f"RAG delete failed: {err}") from err
 

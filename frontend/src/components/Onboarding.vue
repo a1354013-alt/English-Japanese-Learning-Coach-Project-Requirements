@@ -1,6 +1,6 @@
 <template>
   <div class="overlay">
-    <div class="dialog panel">
+    <div class="dialog panel" data-testid="onboarding-dialog">
       <h2>Welcome</h2>
       <p>Set your initial language and level.</p>
 
@@ -25,7 +25,7 @@
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
       <div class="row gap-sm" style="margin-top: 1rem">
-        <button :disabled="saving" @click="submit">{{ saving ? 'Saving...' : 'Start' }}</button>
+        <button data-testid="onboarding-start" :disabled="saving" @click="submit">{{ saving ? 'Saving...' : 'Start' }}</button>
         <button v-if="error" class="secondary" :disabled="saving" @click="submit">Retry</button>
       </div>
     </div>
