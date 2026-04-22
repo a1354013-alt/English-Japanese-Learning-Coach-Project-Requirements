@@ -2,7 +2,7 @@
   <section class="grid" style="margin-top: 1rem" data-testid="today-lesson">
     <div class="panel row between center">
       <div>
-        <h2 style="margin: 0">Today's Lesson</h2>
+        <h2 style="margin: 0" data-testid="today-lesson-title">Today's Lesson</h2>
         <p style="margin: 0.2rem 0 0">{{ lesson?.metadata.topic || 'No lesson generated yet' }}</p>
         <p v-if="streak" style="margin: 0.2rem 0 0; color: #475569">
           🔥 連續學習 {{ streak.current_streak }} 天（最長 {{ streak.longest_streak }} 天） · 今日已完成學習：{{ streak.today_completed ? '是' : '否' }}
@@ -40,7 +40,7 @@
 
     <!-- Lesson Content -->
     <div v-else class="grid">
-      <div class="panel">
+      <div class="panel" data-testid="lesson-vocabulary">
         <h3>Vocabulary</h3>
         <ul>
           <li v-for="(item, idx) in lesson?.vocabulary" :key="`${item.word}-${idx}`">
@@ -53,7 +53,7 @@
         </ul>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-testid="lesson-grammar">
         <h3>Grammar Exercises</h3>
         <div
           v-for="(exercise, index) in lesson?.grammar.exercises"
@@ -79,7 +79,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-testid="lesson-reading">
         <h3>Reading</h3>
         <p style="white-space: pre-wrap">{{ lesson?.reading.content }}</p>
         <div

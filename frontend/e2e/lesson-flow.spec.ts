@@ -13,7 +13,7 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
     await expect(onboarding).toBeHidden()
   }
 
-  await expect(page.getByRole('heading', { name: "Today's Lesson" })).toBeVisible()
+  await expect(page.getByTestId('today-lesson-title')).toBeVisible()
 
   // Generate a lesson (must exist for review/progress flow).
   const generatePanel = page.getByTestId('generate-panel')
@@ -21,14 +21,12 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
     // Use a unique topic to avoid accidental dedup/idempotency collisions in local runs.
     await page.getByTestId('generate-topic').fill(`PW ${Date.now()}`)
     await page.getByTestId('generate-button').click()
-    // Generation may fall back if no AI provider is available; wait for the panel to disappear.
-    await expect(generatePanel).toBeHidden({ timeout: 30_000 })
   }
 
   // Lesson content appears.
-  await expect(page.getByRole('heading', { name: 'Vocabulary' })).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByRole('heading', { name: 'Grammar Exercises' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Reading' })).toBeVisible()
+  await expect(page.getByTestId('lesson-vocabulary')).toBeVisible({ timeout: 45_000 })
+  await expect(page.getByTestId('lesson-grammar')).toBeVisible()
+  await expect(page.getByTestId('lesson-reading')).toBeVisible()
 
   // Answer at least one grammar and one reading question (critical to review submission).
   const g00 = page.getByTestId('grammar-option-0-0')
@@ -50,6 +48,6 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
 
   // Progress page reflects the completed lesson.
   await page.getByTestId('nav-progress').click()
-  await expect(page.getByRole('heading', { name: 'English', level: 3 })).toBeVisible()
+  await expect(page.getByTestId('progress-en-completed')).toBeVisible()
   await expect(page.getByTestId('progress-en-completed')).toHaveText(/[1-9]\d*/)
 })

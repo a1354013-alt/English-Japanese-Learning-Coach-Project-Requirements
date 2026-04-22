@@ -2,11 +2,11 @@ import type { GenerationTask } from '@/types'
 
 export const TASK_STATUS_LABELS: Record<GenerationTask['status'], string> = {
   pending: 'Queued',
-  running: 'In progress',
-  success: 'Completed',
-  fallback_success: 'Completed (basic lesson)',
-  failed: 'Failed',
-  retried: 'Retried',
+  running: 'Generating',
+  success: 'Ready',
+  fallback_success: 'Ready (Simplified)',
+  failed: 'Generation failed',
+  retried: 'Retry scheduled',
 }
 
 export function getTaskStatusLabel(status: GenerationTask['status']): string {

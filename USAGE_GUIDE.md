@@ -82,6 +82,7 @@ npm run dev
 
 13. Chat Tutor (Preview)
 - Open Chat (Preview) page
+- This is a preview UI and requires a configured AI provider
 - If the AI provider is not configured/available, expect the UI to show a connection failure message (intentional for the demo build)
 
 ## Notes on Current Build
@@ -124,4 +125,3 @@ npm run dev -- --host 127.0.0.1 --port 5173
 cd frontend
 npm run e2e -- --project=chromium
 ```
-

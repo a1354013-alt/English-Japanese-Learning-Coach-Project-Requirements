@@ -4,7 +4,7 @@
       <div>
         <h2 style="margin: 0">Chat Tutor (Preview)</h2>
         <p style="margin: 0.2rem 0 0; color: #475569; font-size: 0.9rem">
-          Preview feature for the demo build. Requires a configured AI provider; chat history is not persisted.
+          Preview UI for the demo build. Requires a configured AI provider; messages are not persisted.
         </p>
       </div>
       <select v-model="selectedLanguage" @change="reconnect">
@@ -23,7 +23,7 @@
             Reconnecting...
           </div>
           <div v-else-if="connectionStatus === 'error'" class="system-message error">
-            Connection failed. This preview may be unavailable unless an AI provider is configured.
+            Connection failed. This is a preview UI and requires a configured AI provider.
             <button @click="reconnect" class="secondary" style="margin-left: 0.5rem">Reconnect</button>
           </div>
 

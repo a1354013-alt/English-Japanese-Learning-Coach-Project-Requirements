@@ -49,7 +49,7 @@ async def generate_tts(text: str, language: str, user_id: str = Depends(require_
             "available": False,
             "audio_url": None,
             "mode": "preview",
-            "message": "TTS is not enabled in this demo build",
+            "message": "TTS is a preview stub in this demo build (available=false)",
         }
     return {"success": True, "available": True, "audio_url": f"/api/audio/{audio_path.name}", "mode": "live"}
 

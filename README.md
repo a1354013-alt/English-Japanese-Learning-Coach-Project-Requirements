@@ -10,7 +10,7 @@ Portfolio-grade demo of an AI-assisted language learning workflow (FastAPI + Vue
 - Daily streak derived from an activity log (single source of truth)
 - RAG materials upload to ChromaDB with metadata isolation (`user_id` + `language`)
 - PDF export of a lesson (safe degradation on missing fields)
-- Chat Tutor (Preview): WebSocket UI demo (requires a configured AI provider; chat history is not persisted)
+- Chat Tutor (Preview UI): WebSocket chat demo (requires a configured AI provider; messages are not persisted)
 
 ## Scope / tenant model
 
@@ -19,7 +19,7 @@ This repository is a **single-tenant demo** (`default_user`). The backend enforc
 ## Preview features (demo-only)
 
 - TTS (API only): endpoint returns `available=false` unless a real provider is integrated (see `backend/tts_service.py`). No TTS UI in this build.
-- Chat Tutor: preview UI that may be unavailable unless an AI provider is configured; messages are ephemeral (no persisted memory).
+- Chat Tutor (Preview UI): requires a configured AI provider; messages are not persisted.
 
 ## Quick start (local)
 
