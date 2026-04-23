@@ -5,7 +5,7 @@
       <button class="secondary" @click="$router.push('/archive')">Back to Archive</button>
     </div>
 
-    <div class="panel" v-if="loading">Loading lesson…</div>
+    <div class="panel" v-if="loading">Loading lesson...</div>
     <div class="panel" v-else-if="error">
       <p class="error-text">{{ error }}</p>
       <button type="button" @click="loadLesson">Retry</button>
@@ -37,7 +37,7 @@
           <ul>
             <li v-for="(ex, idx) in lesson.grammar.exercises" :key="idx">
               {{ ex.question }}
-              <br/>
+              <br />
               <small>Answer: {{ ex.correct_answer }}</small>
             </li>
           </ul>
@@ -62,11 +62,7 @@
         <h3>Dialogue</h3>
         <p v-if="lesson.dialogue.scenario">{{ lesson.dialogue.scenario }}</p>
         <p v-if="lesson.dialogue.context" style="color: #64748b">{{ lesson.dialogue.context }}</p>
-        <div
-          v-for="(line, idx) in lesson.dialogue.dialogue"
-          :key="idx"
-          style="margin-bottom: 0.5rem"
-        >
+        <div v-for="(line, idx) in lesson.dialogue.dialogue" :key="idx" style="margin-bottom: 0.5rem">
           <strong>{{ line.speaker }}:</strong> {{ line.text }}
         </div>
       </section>
@@ -118,3 +114,4 @@ watch(
   margin: 0 0 0.75rem;
 }
 </style>
+

@@ -1,5 +1,7 @@
 export type Language = 'EN' | 'JP'
 
+export type ErrorType = 'spelling' | 'grammar' | 'vocabulary' | 'comprehension'
+
 export interface VocabularyItem {
   word: string
   reading?: string | null
@@ -134,7 +136,7 @@ export interface UserRPGStats {
   streak_days: number
   difficulty_mode: string
   is_onboarded: boolean
-  error_distribution: Record<string, number>
+  error_distribution: Record<ErrorType, number> | Record<string, number>
 }
 
 export interface UserProgress {

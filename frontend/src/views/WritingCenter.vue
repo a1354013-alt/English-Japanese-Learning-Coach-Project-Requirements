@@ -9,8 +9,12 @@
         </select>
         <input v-model="submission.topic" placeholder="Optional topic" />
         <textarea v-model="submission.text" rows="10" placeholder="Enter your writing"></textarea>
-        <button :disabled="loading || !submission.text" @click="analyze">{{ loading ? 'Analyzing...' : 'Analyze' }}</button>
+        <button :disabled="loading || !submission.text.trim()" @click="analyze">{{ loading ? 'Analyzing...' : 'Analyze' }}</button>
       </div>
+    </div>
+
+    <div class="panel" v-if="error">
+      <p style="color: #b91c1c; margin: 0">{{ error }}</p>
     </div>
 
     <div class="panel" v-if="analysis">
@@ -39,6 +43,7 @@ import type { WritingAnalysis, WritingSubmission } from '@/types'
 
 const loading = ref(false)
 const analysis = ref<WritingAnalysis | null>(null)
+const error = ref<string | null>(null)
 
 const submission = reactive<WritingSubmission>({
   language: 'EN',
@@ -49,9 +54,13 @@ const submission = reactive<WritingSubmission>({
 
 const analyze = async () => {
   loading.value = true
+  error.value = null
+  analysis.value = null
   try {
     const res = await aiTutorApi.analyzeWriting(submission)
     analysis.value = res.analysis
+  } catch {
+    error.value = 'Failed to analyze writing. Check that the API is running and try again.'
   } finally {
     loading.value = false
   }

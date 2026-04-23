@@ -36,6 +36,7 @@ npm run dev
 - Answer grammar and reading questions
 - Click Submit Review
 - Re-submitting the same lesson is allowed, but **XP/progress/SRS side-effects are only awarded once per lesson**
+- If you submit with unanswered questions, they are counted as incorrect (by design)
 
 4. SRS Review (due items)
 - Open Review page
@@ -59,7 +60,7 @@ npm run dev
 
 9. Excel import (vocabulary)
 - Archive page → Excel Import
-- Select English or Japanese in the language filter (imports are disabled while filter is `all`)
+- Select English or Japanese in the language filter (imports are disabled while filter is `All`)
 - Upload `.xlsx` with at least:
   - `word`
   - `definition` or `definition_zh`
@@ -83,7 +84,7 @@ npm run dev
 13. Chat Tutor (Preview)
 - Open Chat (Preview) page
 - This is a preview UI and requires a configured AI provider
-- If the AI provider is not configured/available, expect the UI to show a connection failure message (intentional for the demo build)
+- If the AI provider is not configured/available, expect the UI to show a connection failure message
 
 ## Notes on Current Build
 
@@ -119,9 +120,10 @@ python -m uvicorn main:app --host 127.0.0.1 --port 8000
 # Terminal 2
 cd frontend
 npm install
-npm run dev -- --host 127.0.0.1 --port 5173
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 # Terminal 3
 cd frontend
 npm run e2e -- --project=chromium
 ```
+

@@ -1,6 +1,6 @@
 <template>
   <section class="grid" style="margin-top: 1rem">
-    <div v-if="loading" class="panel">Loading progress…</div>
+    <div v-if="loading" class="panel">Loading progress...</div>
     <div v-else-if="error" class="panel">
       <p class="error-text">{{ error }}</p>
       <button type="button" @click="loadProgress">Retry</button>
@@ -78,3 +78,4 @@ onMounted(loadProgress)
   margin: 0 0 0.75rem;
 }
 </style>
+

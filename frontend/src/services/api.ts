@@ -22,6 +22,7 @@ import type {
   ImportedVocabularyListResponse,
   TtsResponse,
   SrsDueResponse,
+  ErrorType,
 } from '@/types'
 
 const api = axios.create({
@@ -104,7 +105,7 @@ export const progressApi = {
 }
 
 export const reviewApi = {
-  async submitReview(answers: ReviewAnswer[], errorType?: string) {
+  async submitReview(answers: ReviewAnswer[], errorType?: ErrorType) {
     const params: Record<string, string> = {}
     if (errorType) params.error_type = errorType
     const response = await api.post<ReviewResult>('/review', answers, Object.keys(params).length ? { params } : undefined)

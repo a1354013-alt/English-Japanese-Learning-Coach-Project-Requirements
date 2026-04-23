@@ -33,7 +33,10 @@
     </div>
 
     <div class="panel" v-else-if="items.length === 0">
-      <p>No imported vocabulary yet. Use “Archive → Excel Import” to add items.</p>
+      <p>No imported vocabulary yet.</p>
+      <p style="margin: 0.35rem 0 0; color: #475569; font-size: 0.9rem">
+        Use the Archive page → Excel Import to add items.
+      </p>
     </div>
 
     <div class="panel" v-else>
@@ -58,7 +61,9 @@
               <div style="color: #666; font-size: 0.85rem">{{ v.example_translation ?? '' }}</div>
             </td>
             <td>
-              <button class="secondary" @click="remove(v.id)" :disabled="deletingId === v.id">Delete</button>
+              <button class="secondary" @click="remove(v.id)" :disabled="deletingId === v.id">
+                {{ deletingId === v.id ? 'Deleting...' : 'Delete' }}
+              </button>
             </td>
           </tr>
         </tbody>
@@ -100,6 +105,9 @@ const load = async () => {
 }
 
 const remove = async (id: number) => {
+  if (!window.confirm('Delete this imported vocabulary item? This also removes its derived SRS entry and any matching word card.')) {
+    return
+  }
   deletingId.value = id
   try {
     await importApi.deleteImportedVocabulary(id)

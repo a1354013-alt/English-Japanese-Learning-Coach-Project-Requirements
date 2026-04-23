@@ -1,5 +1,5 @@
 """Data models for Language Coach application."""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt, StrictStr
 from typing import List, Optional, Literal, Any, Dict
 from datetime import datetime
 from uuid import uuid4
@@ -201,11 +201,11 @@ class UserProgress(BaseModel):
 # ============ Review Models ============
 class ReviewAnswer(BaseModel):
     """User's answer to an exercise"""
-    lesson_id: str
+    lesson_id: StrictStr
     exercise_type: Literal["grammar", "reading"]  # Restricted to valid exercise types
-    question_index: int
-    user_answer: str
-    correct_answer: str
+    question_index: StrictInt
+    user_answer: StrictStr
+    correct_answer: StrictStr
 
 
 class IncorrectItem(BaseModel):

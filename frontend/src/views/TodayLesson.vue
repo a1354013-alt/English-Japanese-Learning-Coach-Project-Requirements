@@ -5,7 +5,8 @@
         <h2 style="margin: 0" data-testid="today-lesson-title">Today's Lesson</h2>
         <p style="margin: 0.2rem 0 0">{{ lesson?.metadata.topic || 'No lesson generated yet' }}</p>
         <p v-if="streak" style="margin: 0.2rem 0 0; color: #475569">
-          🔥 Study streak: {{ streak.current_streak }} days (best {{ streak.longest_streak }}) · Completed today: {{ streak.today_completed ? 'Yes' : 'No' }}
+          Study streak: {{ streak.current_streak }} days (best {{ streak.longest_streak }}) · Completed today:
+          {{ streak.today_completed ? 'Yes' : 'No' }}
         </p>
       </div>
       <div class="row gap-sm">
@@ -35,11 +36,17 @@
       <select v-model="request.difficulty">
         <option v-for="level in currentLevels" :key="level" :value="level">{{ level }}</option>
       </select>
-      <button data-testid="generate-button" :disabled="loadingGenerate" @click="generateLesson">{{ loadingGenerate ? 'Generating...' : 'Generate' }}</button>
+      <button data-testid="generate-button" :disabled="loadingGenerate" @click="generateLesson">
+        {{ loadingGenerate ? 'Generating...' : 'Generate' }}
+      </button>
     </div>
 
     <!-- Lesson Content -->
     <div v-else class="grid">
+      <div class="panel" v-if="error && lesson" style="border: 1px solid #fecaca; background: #fef2f2">
+        <p style="color: #b91c1c; margin: 0">{{ error }}</p>
+      </div>
+
       <div class="panel" data-testid="lesson-vocabulary">
         <h3>Vocabulary</h3>
         <ul>
@@ -106,14 +113,18 @@
       </div>
 
       <div class="panel row gap-sm center">
-        <button data-testid="submit-review" :disabled="submitting" @click="submitReview">{{ submitting ? 'Submitting...' : 'Submit Review' }}</button>
+        <button data-testid="submit-review" :disabled="submitting" @click="submitReview">
+          {{ submitting ? 'Submitting...' : 'Submit Review' }}
+        </button>
         <button class="secondary" @click="exportPdf">Export PDF</button>
       </div>
 
       <!-- Success State - Review Result -->
       <div class="panel" v-if="reviewResult" data-testid="review-result">
         <h3>Review Result</h3>
-        <p data-testid="review-score">Score: {{ reviewResult.correct_count }} / {{ reviewResult.total_questions }} ({{ reviewResult.accuracy_rate.toFixed(1) }}%)</p>
+        <p data-testid="review-score">
+          Score: {{ reviewResult.correct_count }} / {{ reviewResult.total_questions }} ({{ reviewResult.accuracy_rate.toFixed(1) }}%)
+        </p>
         <ul v-if="reviewResult.incorrect_items.length">
           <li v-for="(item, idx) in reviewResult.incorrect_items" :key="idx">
             {{ item.question }} - Correct: {{ item.correct_answer }}
@@ -149,7 +160,28 @@ const answers = reactive<{ grammar: Record<number, string>; reading: Record<numb
   reading: {},
 })
 
-const currentLevels = computed(() => (request.language === 'EN' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : ['N5', 'N4', 'N3', 'N2', 'N1']))
+const currentLevels = computed(() =>
+  request.language === 'EN' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : ['N5', 'N4', 'N3', 'N2', 'N1'],
+)
+
+const totalQuestions = computed(() => {
+  if (!lesson.value) return 0
+  return (lesson.value.grammar.exercises?.length || 0) + (lesson.value.reading.questions?.length || 0)
+})
+
+const answeredQuestions = computed(() => {
+  if (!lesson.value) return 0
+  let count = 0
+  for (let i = 0; i < (lesson.value.grammar.exercises?.length || 0); i++) {
+    const a = answers.grammar[i]
+    if (typeof a === 'string' && a.trim().length > 0) count++
+  }
+  for (let i = 0; i < (lesson.value.reading.questions?.length || 0); i++) {
+    const a = answers.reading[i]
+    if (typeof a === 'string' && a.trim().length > 0) count++
+  }
+  return count
+})
 
 const resetAnswers = () => {
   answers.grammar = {}
@@ -165,7 +197,7 @@ const loadTodayLesson = async () => {
     lesson.value = res.lesson
     resetAnswers()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load today\'s lesson'
+    error.value = err instanceof Error ? err.message : "Failed to load today's lesson"
   } finally {
     loading.value = false
   }
@@ -199,18 +231,27 @@ const generateLesson = async () => {
 }
 
 const submitReview = async () => {
-  if (!lesson.value) {
-    return
-  }
+  if (!lesson.value) return
+
   const payload = buildReviewPayload(lesson.value, answers)
   if (payload.length === 0) {
+    window.alert('Please answer at least one question before submitting.')
     return
+  }
+
+  if (answeredQuestions.value < totalQuestions.value) {
+    const ok = window.confirm(
+      `You answered ${answeredQuestions.value} of ${totalQuestions.value} questions. Unanswered questions will be counted as incorrect. Submit anyway?`,
+    )
+    if (!ok) return
   }
 
   submitting.value = true
   try {
     reviewResult.value = await reviewApi.submitReview(payload)
     await loadStreak()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to submit review'
   } finally {
     submitting.value = false
   }

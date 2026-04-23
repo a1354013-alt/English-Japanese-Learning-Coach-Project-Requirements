@@ -52,8 +52,8 @@ async def list_lessons(
     offset: int = Query(0, ge=0),
     user_id: str = Depends(require_demo_user_id),
 ):
-    lessons = db.query_lessons(user_id, language, start_date, end_date, level, topic, limit, offset)
-    return {"success": True, "count": len(lessons), "lessons": lessons}
+    lessons, total = db.query_lessons(user_id, language, start_date, end_date, level, topic, limit, offset)
+    return {"success": True, "count": total, "lessons": lessons}
 
 
 @router.get("/lessons/today/{language}", response_model=dict)

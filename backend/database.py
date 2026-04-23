@@ -202,6 +202,19 @@ class Database:
     def save_lesson(self, lesson_data: Dict[str, Any], file_path: str, user_id: Optional[str] = None) -> str:
         metadata = lesson_data["metadata"]
         uid = user_id or settings.default_user_id
+        # Store a portable key instead of an absolute path when possible.
+        # Preferred format: "lessons/YYYY-MM-DD/lesson_<id>.json" (POSIX separators).
+        p = Path(str(file_path))
+        normalized_path: str
+        if p.is_absolute():
+            try:
+                normalized_path = p.resolve().relative_to(settings.data_path).as_posix()
+            except Exception:
+                # If the file lives outside DATA_DIR, fall back to an absolute path.
+                normalized_path = str(p.resolve())
+        else:
+            normalized_path = p.as_posix()
+
         conn = self._connection
         conn.execute(
             """
@@ -219,7 +232,7 @@ class Database:
                 metadata["generated_at"],
                 metadata.get("estimated_duration_minutes"),
                 json.dumps(metadata.get("key_points", []), ensure_ascii=False),
-                str(Path(file_path).resolve()),
+                normalized_path,
             ),
         )
         return metadata["lesson_id"]
@@ -245,32 +258,35 @@ class Database:
         topic: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
-    ) -> List[Dict[str, Any]]:
-        query = "SELECT * FROM lessons WHERE user_id = ?"
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        base = "FROM lessons WHERE user_id = ?"
         params: List[Any] = [user_id]
 
         if language:
-            query += " AND language = ?"
+            base += " AND language = ?"
             params.append(language)
         if start_date:
-            query += " AND DATE(generated_at) >= ?"
+            base += " AND DATE(generated_at) >= ?"
             params.append(start_date)
         if end_date:
-            query += " AND DATE(generated_at) <= ?"
+            base += " AND DATE(generated_at) <= ?"
             params.append(end_date)
         if level:
-            query += " AND level = ?"
+            base += " AND level = ?"
             params.append(level)
         if topic:
-            query += " AND topic LIKE ?"
+            base += " AND topic LIKE ?"
             params.append(f"%{topic}%")
 
-        query += " ORDER BY generated_at DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-
         conn = self._connection
-        rows = conn.execute(query, params).fetchall()
-        return [dict(row) for row in rows]
+        count_row = conn.execute(f"SELECT COUNT(1) AS c {base}", params).fetchone()
+        total = int(count_row["c"]) if count_row else 0
+
+        rows = conn.execute(
+            f"SELECT * {base} ORDER BY generated_at DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset),
+        ).fetchall()
+        return [dict(row) for row in rows], total
 
     def create_default_progress(self, user_id: str) -> Dict[str, Any]:
         return {
@@ -585,12 +601,76 @@ class Database:
             return [dict(r) for r in rows], int(count_row["c"]) if count_row else 0
 
     def delete_imported_vocabulary(self, *, user_id: str, item_id: int) -> bool:
+        """Delete an imported vocabulary item and all derived/related data.
+
+        Consistency contract:
+        - Removes the imported_vocabulary row (source record)
+        - Removes any derived SRS entry for (user_id, word, language)
+        - Removes any collected word cards for the same (word, language) from rpg_stats
+
+        Returns True if the imported_vocabulary row existed and was deleted, otherwise False.
+        """
+        # Ensure progress row exists so rpg_stats cleanup is always well-defined.
+        self.get_progress(user_id)
+
         with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT id, word, language FROM imported_vocabulary WHERE id = ? AND user_id = ?",
+                (item_id, user_id),
+            ).fetchone()
+            if not row:
+                return False
+
+            word = str(row["word"])
+            language = str(row["language"])
+
+            # Source record deletion.
             cur = conn.execute(
                 "DELETE FROM imported_vocabulary WHERE id = ? AND user_id = ?",
                 (item_id, user_id),
             )
-            return cur.rowcount > 0
+            if cur.rowcount <= 0:
+                return False
+
+            # Derived SRS cleanup (idempotent).
+            conn.execute(
+                "DELETE FROM srs_vocabulary WHERE user_id = ? AND word = ? AND language = ?",
+                (user_id, word, language),
+            )
+
+            # RPG word card cleanup: remove any card entries matching (word, language).
+            p = conn.execute("SELECT rpg_stats FROM progress WHERE user_id = ?", (user_id,)).fetchone()
+            raw_stats = p["rpg_stats"] if p and "rpg_stats" in p.keys() else None
+            if raw_stats:
+                try:
+                    stats = json.loads(raw_stats)
+                except Exception:
+                    stats = {}
+            else:
+                stats = {}
+
+            removed_cards = 0
+            cards = stats.get("word_cards")
+            if isinstance(cards, list) and cards:
+                before = len(cards)
+                stats["word_cards"] = [
+                    c
+                    for c in cards
+                    if not (
+                        isinstance(c, dict)
+                        and str(c.get("word", "")) == word
+                        and str(c.get("language", "")) == language
+                    )
+                ]
+                removed_cards = before - len(stats["word_cards"])
+
+            if removed_cards:
+                conn.execute(
+                    "UPDATE progress SET rpg_stats = ?, updated_at = ? WHERE user_id = ?",
+                    (json.dumps(stats, ensure_ascii=False, default=str), datetime.now().isoformat(), user_id),
+                )
+
+            return True
 
     # ================= Wrong Answer Notebook =================
     def list_wrong_answers(
@@ -613,6 +693,16 @@ class Database:
         with self.get_connection() as conn:
             rows = conn.execute(query, params).fetchall()
             return [dict(row) for row in rows]
+
+    def count_wrong_answers(self, *, user_id: str, status: Optional[str] = None) -> int:
+        query = "SELECT COUNT(1) AS c FROM wrong_answers WHERE user_id = ?"
+        params: List[Any] = [user_id]
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        with self.get_connection() as conn:
+            row = conn.execute(query, params).fetchone()
+            return int(row["c"]) if row else 0
 
     def upsert_wrong_answer(
         self,

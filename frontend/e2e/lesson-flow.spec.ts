@@ -50,4 +50,19 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await page.getByTestId('nav-progress').click()
   await expect(page.getByTestId('progress-en-completed')).toBeVisible()
   await expect(page.getByTestId('progress-en-completed')).toHaveText(/[1-9]\d*/)
+
+  // PDF export should return a PDF response (opens in a new tab/window).
+  await page.getByRole('link', { name: 'Today' }).click()
+  const [pdfPopup] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.getByRole('button', { name: 'Export PDF' }).click(),
+  ])
+  const pdfResponse = await pdfPopup.waitForResponse((r) => r.url().includes('/api/export/pdf/') && r.status() === 200)
+  expect(pdfResponse.headers()['content-type']).toContain('application/pdf')
+  await pdfPopup.close()
+
+  // Analytics page renders (computed by backend).
+  await page.getByRole('link', { name: 'Analytics' }).click()
+  await expect(page.getByText('Learning Analytics')).toBeVisible()
+  await expect(page.getByText('Total XP')).toBeVisible()
 })

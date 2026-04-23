@@ -3,11 +3,9 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from config import settings
-
 from database import db
 from gamification_engine import gamification_engine
-from models import ReviewAnswer, UserRPGStats
+from models import ErrorType, ReviewAnswer, UserRPGStats
 from routers.deps import require_demo_user_id
 from services.lesson_ops import (
     load_lesson_payload,
@@ -19,18 +17,56 @@ from srs import srs_engine
 
 router = APIRouter(prefix="/api", tags=["review"])
 
+def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) -> None:
+    lesson_id = answers[0].lesson_id
+    if any(a.lesson_id != lesson_id for a in answers):
+        raise HTTPException(status_code=400, detail="Invalid review payload: mixed lesson_id")
+
+    grammar_exercises = lesson_data.get("grammar", {}).get("exercises", []) or []
+    reading_questions = lesson_data.get("reading", {}).get("questions", []) or []
+
+    seen: set[tuple[str, int]] = set()
+    for a in answers:
+        # Disallow blank answers (avoid polluted wrong-answer notebook/analytics).
+        if str(a.user_answer).strip() == "":
+            raise HTTPException(status_code=400, detail="Invalid review payload: user_answer must be non-empty")
+
+        key = (a.exercise_type, a.question_index)
+        if key in seen:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid review payload: duplicate answer for {a.exercise_type}[{a.question_index}]",
+            )
+        seen.add(key)
+
+        if a.question_index < 0:
+            raise HTTPException(status_code=400, detail="Invalid review payload: question_index must be >= 0")
+
+        if a.exercise_type == "grammar":
+            if a.question_index >= len(grammar_exercises):
+                raise HTTPException(status_code=400, detail="Invalid review payload: grammar question_index out of range")
+            expected = str((grammar_exercises[a.question_index] or {}).get("correct_answer", ""))
+        else:
+            if a.question_index >= len(reading_questions):
+                raise HTTPException(status_code=400, detail="Invalid review payload: reading question_index out of range")
+            expected = str((reading_questions[a.question_index] or {}).get("correct_answer", ""))
+
+        if str(a.correct_answer).strip() != expected.strip():
+            raise HTTPException(status_code=400, detail="Invalid review payload: correct_answer mismatch")
+
 
 @router.post("/review", response_model=dict)
 async def submit_review(
     answers: List[ReviewAnswer],
     user_id: str = Depends(require_demo_user_id),
-    error_type: Optional[str] = None,
+    error_type: ErrorType | None = Query(default=None),
 ):
     if not answers:
         raise HTTPException(status_code=400, detail="No answers provided")
 
     lesson_id = answers[0].lesson_id
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
+    _validate_review_submission(lesson_data, answers)
     review_data = score_answers(lesson_data, answers)
     was_completed = db.has_exercise_result(user_id=user_id, lesson_id=lesson_id)
 
@@ -58,7 +94,8 @@ async def submit_review(
         xp_result = gamification_engine.add_xp(user_id, xp_amount)
     stats = UserRPGStats(**db.get_rpg_stats(user_id))
     if error_type and review_data["correct_count"] < review_data["total_questions"]:
-        stats.error_distribution[error_type] = stats.error_distribution.get(error_type, 0) + (
+        key = str(error_type.value)
+        stats.error_distribution[key] = stats.error_distribution.get(key, 0) + (
             review_data["total_questions"] - review_data["correct_count"]
         )
     db.save_rpg_stats(user_id, stats.model_dump(mode="json"))

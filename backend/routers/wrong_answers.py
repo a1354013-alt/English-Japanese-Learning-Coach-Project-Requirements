@@ -24,7 +24,8 @@ async def list_wrong_answers(
     offset: int = Query(default=0, ge=0),
 ):
     items = db.list_wrong_answers(user_id=user_id, status=status, limit=limit, offset=offset)
-    return {"success": True, "count": len(items), "items": [WrongAnswer(**item).model_dump(mode="json") for item in items]}
+    total = db.count_wrong_answers(user_id=user_id, status=status)
+    return {"success": True, "count": total, "items": [WrongAnswer(**item).model_dump(mode="json") for item in items]}
 
 
 @router.post("/wrong-answers", response_model=dict)
@@ -78,4 +79,3 @@ async def retry_wrong_answer(
     if not item:
         raise HTTPException(status_code=404, detail="Wrong answer not found")
     return {"success": True, "correct": correct, "item": WrongAnswer(**item).model_dump(mode="json")}
-

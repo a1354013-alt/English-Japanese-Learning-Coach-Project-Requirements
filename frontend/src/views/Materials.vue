@@ -16,7 +16,9 @@
       <h3 style="margin-top: 0">Upload</h3>
       <p style="font-size: 0.85rem; color: #666">Supported: .txt, .md, .csv (choose language)</p>
       <input type="file" accept=".txt,.md,.csv" @change="handleUpload" :disabled="!language" />
-      <p v-if="!language" style="font-size: 0.75rem; color: #d32f2f">Please select a language (not “All”) before uploading.</p>
+      <p v-if="!language" style="font-size: 0.75rem; color: #d32f2f">
+        Please select a language (not "All") before uploading.
+      </p>
     </div>
 
     <div class="panel" v-if="loading && materials.length === 0">
