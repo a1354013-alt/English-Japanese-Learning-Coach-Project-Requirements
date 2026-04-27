@@ -1,5 +1,6 @@
 """Application settings for the backend."""
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     data_dir: str = str(DEFAULT_DATA_DIR)
     db_path: str = str(DEFAULT_DATA_DIR / "language_coach.db")
     chroma_db_path: str = str(DEFAULT_DATA_DIR / "chroma_db")
+    enable_rag: bool = True
 
     # Cache
     redis_url: str = "redis://localhost:6379/0"
@@ -30,6 +32,7 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Taipei"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    log_level: str = "INFO"
 
     # CORS: comma-separated origins (no spaces required). Used by FastAPI CORSMiddleware.
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

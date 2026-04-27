@@ -14,6 +14,9 @@
           <option value="EN">English</option>
           <option value="JP">Japanese</option>
         </select>
+        <button @click="resetDemo" class="secondary" :disabled="resettingDemo">
+          {{ resettingDemo ? 'Resetting...' : 'Reset Demo' }}
+        </button>
         <button @click="loadTodayLesson" class="secondary">Refresh</button>
       </div>
     </div>
@@ -137,7 +140,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { lessonApi, reviewApi, streakApi } from '@/services/api'
+import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
 import type { Language, Lesson, ReviewResult, StreakResponse } from '@/types'
 import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
@@ -154,6 +157,7 @@ const error = ref<string | null>(null)
 const submitting = ref(false)
 const reviewResult = ref<ReviewResult | null>(null)
 const streak = ref<StreakResponse | null>(null)
+const resettingDemo = ref(false)
 
 const answers = reactive<{ grammar: Record<number, string>; reading: Record<number, string> }>({
   grammar: {},
@@ -260,6 +264,19 @@ const submitReview = async () => {
 const exportPdf = () => {
   if (lesson.value) {
     lessonApi.exportPdf(lesson.value.metadata.lesson_id)
+  }
+}
+
+const resetDemo = async () => {
+  resettingDemo.value = true
+  error.value = null
+  try {
+    await systemApi.resetDemo()
+    await Promise.all([loadTodayLesson(), loadStreak()])
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to reset demo dataset'
+  } finally {
+    resettingDemo.value = false
   }
 }
 

@@ -11,6 +11,7 @@ services:
       DATA_DIR: /data
       DB_PATH: /data/language_coach.db
       CHROMA_DB_PATH: /data/chroma_db
+      ENABLE_RAG: "false"
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
     volumes:
       - language_coach_data:/data

@@ -1,120 +1,106 @@
-"""
-Scheduler for automatic lesson generation
-"""
+"""Scheduler for automatic lesson generation."""
+
+from __future__ import annotations
+
+import asyncio
 import logging
+from datetime import datetime
+from typing import Awaitable
+
+import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from datetime import datetime
-import pytz
-import asyncio
 
 from config import settings
-from lesson_generator import lesson_generator
 from database import db
+from lesson_generator import lesson_generator
 
 logger = logging.getLogger(__name__)
 
 
 class LessonScheduler:
-    """Scheduler for automatic daily lesson generation"""
-    
-    def __init__(self):
+    """Scheduler for automatic daily lesson generation."""
+
+    def __init__(self) -> None:
         self.scheduler = BackgroundScheduler()
         self.timezone = pytz.timezone(settings.timezone)
-    
-    def _run_async_task(self, coro):
-        """Helper to run async coroutine in a synchronous scheduler (P1 Fix)"""
+
+    def _run_async_task(self, coro: Awaitable[None]) -> None:
         try:
-            # In FastAPI context, get the running loop
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            # No running loop, create a new one (for standalone usage)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
-        if loop.is_running():
-            # If the loop is already running (e.g. in FastAPI), use run_coroutine_threadsafe
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            # Wait for completion with timeout to avoid blocking indefinitely
-            try:
-                future.result(timeout=300)  # 5 minute timeout
-            except Exception as e:
-                logger.error(f"Async task failed in scheduler: {e}")
-        else:
-            loop.run_until_complete(coro)
 
-    async def _generate_daily_lessons_async(self):
-        """Internal async implementation of daily lesson generation"""
-        print(f"\n[{datetime.now()}] Starting daily lesson generation...")
-        
-        # Check if lessons already generated today (single-tenant demo user)
+        if loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            try:
+                future.result(timeout=300)
+            except Exception as err:
+                logger.exception("scheduler_async_task_failed", extra={"error": str(err)})
+            return
+
+        loop.run_until_complete(coro)
+
+    async def _generate_daily_lessons_async(self) -> None:
+        logger.info("daily_lesson_generation_started", extra={"started_at": datetime.now().isoformat()})
+
         user_id = settings.default_user_id
         today_en = db.get_today_lesson(user_id, "EN")
         today_jp = db.get_today_lesson(user_id, "JP")
-        
-        # Generate English lesson if not exists
+
         if not today_en:
-            print("Generating English lesson...")
+            logger.info("daily_lesson_generation_language_started", extra={"language": "EN"})
             try:
                 await lesson_generator.generate_lesson(language="EN", user_id=user_id)
-                print("✓ English lesson generated successfully")
-            except Exception as e:
-                print(f"✗ Failed to generate English lesson: {e}")
+                logger.info("daily_lesson_generation_language_succeeded", extra={"language": "EN"})
+            except Exception as err:
+                logger.exception("daily_lesson_generation_language_failed", extra={"language": "EN", "error": str(err)})
         else:
-            print("English lesson already exists for today")
-        
-        # Generate Japanese lesson if not exists
+            logger.info("daily_lesson_already_exists", extra={"language": "EN"})
+
         if not today_jp:
-            print("Generating Japanese lesson...")
+            logger.info("daily_lesson_generation_language_started", extra={"language": "JP"})
             try:
                 await lesson_generator.generate_lesson(language="JP", user_id=user_id)
-                print("✓ Japanese lesson generated successfully")
-            except Exception as e:
-                print(f"✗ Failed to generate Japanese lesson: {e}")
+                logger.info("daily_lesson_generation_language_succeeded", extra={"language": "JP"})
+            except Exception as err:
+                logger.exception("daily_lesson_generation_language_failed", extra={"language": "JP", "error": str(err)})
         else:
-            print("Japanese lesson already exists for today")
-        
-        print(f"[{datetime.now()}] Daily lesson generation completed\n")
+            logger.info("daily_lesson_already_exists", extra={"language": "JP"})
 
-    def generate_daily_lessons(self):
-        """Synchronous wrapper for the scheduler"""
+        logger.info("daily_lesson_generation_completed", extra={"finished_at": datetime.now().isoformat()})
+
+    def generate_daily_lessons(self) -> None:
         self._run_async_task(self._generate_daily_lessons_async())
-    
-    def start(self):
-        """Start the scheduler"""
-        # Parse time from settings (format: "HH:MM")
+
+    def start(self) -> None:
         try:
-            hour, minute = map(int, settings.auto_generate_time.split(':'))
+            hour, minute = map(int, settings.auto_generate_time.split(":"))
         except ValueError:
-            print(f"Invalid auto_generate_time format: {settings.auto_generate_time}. Using default 07:30.")
+            logger.warning("scheduler_invalid_auto_generate_time", extra={"value": settings.auto_generate_time})
             hour, minute = 7, 30
-        
-        # Add daily job
+
         self.scheduler.add_job(
             self.generate_daily_lessons,
-            trigger=CronTrigger(
-                hour=hour,
-                minute=minute,
-                timezone=self.timezone
-            ),
-            id='daily_lesson_generation',
-            name='Generate daily lessons',
-            replace_existing=True
+            trigger=CronTrigger(hour=hour, minute=minute, timezone=self.timezone),
+            id="daily_lesson_generation",
+            name="Generate daily lessons",
+            replace_existing=True,
         )
-        
         self.scheduler.start()
-        print(f"Scheduler started: Daily lessons will be generated at {settings.auto_generate_time} {settings.timezone}")
-    
-    def stop(self):
-        """Stop the scheduler"""
+        logger.info(
+            "scheduler_started",
+            extra={"auto_generate_time": settings.auto_generate_time, "timezone": settings.timezone},
+        )
+
+    def stop(self) -> None:
         if self.scheduler.running:
             self.scheduler.shutdown()
-            print("Scheduler stopped")
-    
-    def trigger_now(self):
-        """Manually trigger lesson generation"""
+            logger.info("scheduler_stopped")
+
+    def trigger_now(self) -> None:
         self.generate_daily_lessons()
 
 
-# Global scheduler instance
 lesson_scheduler = LessonScheduler()

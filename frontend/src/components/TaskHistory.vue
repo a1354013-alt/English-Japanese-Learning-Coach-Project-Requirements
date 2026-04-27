@@ -1,8 +1,12 @@
 <template>
   <section>
-    <h3>Generation Tasks</h3>
-    <button class="secondary" @click="loadTasks" style="margin-bottom: 0.75rem">Refresh</button>
-    <table v-if="tasks.length" style="width: 100%; border-collapse: collapse">
+    <div class="row between center" style="margin-bottom: 0.75rem">
+      <h3 style="margin: 0">Generation Tasks</h3>
+      <button class="secondary" @click="loadTasks" :disabled="loading">{{ loading ? 'Loading...' : 'Refresh' }}</button>
+    </div>
+    <p v-if="error" style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
+    <p v-if="loading && tasks.length === 0">Loading task history...</p>
+    <table v-else-if="tasks.length" style="width: 100%; border-collapse: collapse">
       <thead>
         <tr>
           <th align="left">Time</th>
@@ -35,10 +39,20 @@ import type { GenerationTask } from '@/types'
 import { getTaskStatusLabel } from '@/utils/taskStatusLabel'
 
 const tasks = ref<GenerationTask[]>([])
+const loading = ref(false)
+const error = ref<string | null>(null)
 
 const loadTasks = async () => {
-  const res = await lessonApi.getTasks()
-  tasks.value = res.tasks
+  loading.value = true
+  error.value = null
+  try {
+    const res = await lessonApi.getTasks()
+    tasks.value = res.tasks
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to load generation tasks'
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(loadTasks)

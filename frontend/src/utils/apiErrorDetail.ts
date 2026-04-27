@@ -4,6 +4,9 @@ export function formatApiErrorDetail(data: unknown): string {
     return 'Request failed'
   }
   const d = data as Record<string, unknown>
+  if (typeof d.message === 'string' && typeof d.code === 'string') {
+    return d.message
+  }
   const det = d.detail
   if (typeof det === 'string') {
     return det

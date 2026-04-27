@@ -1,8 +1,8 @@
 """Wrong Answer Notebook CRUD + retry API."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
-from config import settings
+from api_errors import api_error
 from database import db
 from models import (
     WrongAnswer,
@@ -53,7 +53,7 @@ async def update_wrong_answer(
 ):
     item = db.update_wrong_answer_status(user_id=user_id, wrong_answer_id=wrong_answer_id, status=payload.status)
     if not item:
-        raise HTTPException(status_code=404, detail="Wrong answer not found")
+        raise api_error(404, "Wrong answer not found", "wrong_answer_not_found")
     return {"success": True, "item": WrongAnswer(**item).model_dump(mode="json")}
 
 
@@ -64,7 +64,7 @@ async def delete_wrong_answer(
 ):
     ok = db.delete_wrong_answer(user_id=user_id, wrong_answer_id=wrong_answer_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Wrong answer not found")
+        raise api_error(404, "Wrong answer not found", "wrong_answer_not_found")
     return {"success": True}
 
 
@@ -77,5 +77,5 @@ async def retry_wrong_answer(
     db.record_learning_activity(user_id=user_id, activity_type="retry_wrong_answer")
     correct, item = db.retry_wrong_answer(user_id=user_id, wrong_answer_id=wrong_answer_id, user_answer=payload.user_answer)
     if not item:
-        raise HTTPException(status_code=404, detail="Wrong answer not found")
+        raise api_error(404, "Wrong answer not found", "wrong_answer_not_found")
     return {"success": True, "correct": correct, "item": WrongAnswer(**item).model_dump(mode="json")}

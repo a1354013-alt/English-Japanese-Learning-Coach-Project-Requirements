@@ -162,6 +162,7 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
 
         self.run_migrations()
+        self.ensure_runtime_indexes()
 
     def run_migrations(self) -> None:
         """Apply SQL migrations from backend/migrations (idempotent, tracked in schema_migrations)."""
@@ -193,6 +194,16 @@ class Database:
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+
+    def ensure_runtime_indexes(self) -> None:
+        """Backfill critical indexes even on partially migrated databases."""
+        conn = self._connection
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user ON lessons(user_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user_date ON lessons(user_id, generated_at DESC)")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
+            "ON exercise_results(user_id, lesson_id, exercise_type)"
+        )
 
     def _local_date_str(self, dt: Optional[datetime] = None) -> str:
         tz = ZoneInfo(settings.timezone)

@@ -15,9 +15,12 @@
 
     <div class="panel" v-if="error">
       <p style="color: #b91c1c; margin: 0">{{ error }}</p>
+      <button style="margin-top: 0.75rem" class="secondary" :disabled="loading || !submission.text.trim()" @click="analyze">
+        Retry
+      </button>
     </div>
 
-    <div class="panel" v-if="analysis">
+    <div class="panel" v-else-if="analysis">
       <h3>Result</h3>
       <p>Estimated level: {{ analysis.estimated_level }}</p>
       <p>Overall score: {{ analysis.overall_score }}</p>
@@ -32,6 +35,10 @@
       <ul>
         <li v-for="(item, idx) in analysis.suggestions" :key="idx">{{ item }}</li>
       </ul>
+    </div>
+
+    <div class="panel" v-else>
+      <p style="margin: 0; color: #475569">No analysis yet. Paste a short paragraph and run analysis to populate this panel.</p>
     </div>
   </section>
 </template>

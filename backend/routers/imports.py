@@ -5,7 +5,7 @@ from typing import Literal
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
-from config import settings
+from api_errors import api_error
 from fastapi.responses import FileResponse
 from database import db
 from export_service import pdf_exporter
@@ -28,15 +28,15 @@ async def import_excel(
     try:
         df = pd.read_excel(io.BytesIO(contents))
     except Exception as err:
-        raise HTTPException(status_code=400, detail=f"Invalid Excel file: {err}") from err
+        raise api_error(400, f"Invalid Excel file: {err}", "invalid_excel_file") from err
 
     column_map = {str(c).strip().lower(): c for c in df.columns}
     if "word" not in column_map:
-        raise HTTPException(status_code=400, detail="Excel must include a 'word' column")
+        raise api_error(400, "Excel must include a 'word' column", "excel_word_column_required")
 
     definition_col = column_map.get("definition_zh") or column_map.get("definition")
     if not definition_col:
-        raise HTTPException(status_code=400, detail="Excel must include 'definition' or 'definition_zh' column")
+        raise api_error(400, "Excel must include 'definition' or 'definition_zh' column", "excel_definition_column_required")
 
     reading_col = column_map.get("reading")
     example_col = column_map.get("example_sentence") or column_map.get("example")
@@ -82,14 +82,14 @@ async def upload_rag_material(
     user_id: str = Depends(require_demo_user_id),
 ):
     if not rag_manager.enabled:
-        raise HTTPException(status_code=503, detail=rag_manager.init_error or "RAG is disabled")
+        raise api_error(503, rag_manager.init_error or "RAG is disabled", "rag_unavailable")
     filename = (file.filename or "").lower()
     if not filename.endswith((".txt", ".md", ".csv")):
-        raise HTTPException(status_code=400, detail="Only .txt, .md, and .csv files are supported")
+        raise api_error(400, "Only .txt, .md, and .csv files are supported", "rag_unsupported_file_type")
 
     raw = await file.read()
     if not raw:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        raise api_error(400, "Uploaded file is empty", "rag_file_empty")
 
     decoded_text = None
     for encoding in ("utf-8", "utf-8-sig", "cp932", "big5"):
@@ -121,13 +121,13 @@ async def list_rag_materials(
 @router.delete("/rag/materials/{doc_id}")
 async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_user_id)):
     if not rag_manager.enabled:
-        raise HTTPException(status_code=503, detail=rag_manager.init_error or "RAG is disabled")
+        raise api_error(503, rag_manager.init_error or "RAG is disabled", "rag_unavailable")
     try:
         ok = rag_manager.delete_material(user_id=user_id, doc_id=doc_id)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Failed to delete material: {err}") from err
+        raise api_error(500, f"Failed to delete material: {err}", "rag_delete_failed") from err
     if not ok:
-        raise HTTPException(status_code=404, detail="Material not found")
+        raise api_error(404, "Material not found", "rag_material_not_found")
     return {"success": True}
 
 
@@ -147,7 +147,7 @@ async def list_imported_vocabulary(
 async def delete_imported_vocabulary(item_id: int, user_id: str = Depends(require_demo_user_id)):
     ok = db.delete_imported_vocabulary(user_id=user_id, item_id=item_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Imported vocabulary item not found")
+        raise api_error(404, "Imported vocabulary item not found", "imported_vocabulary_not_found")
     return {"success": True}
 
 

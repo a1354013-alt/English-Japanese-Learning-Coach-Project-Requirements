@@ -141,8 +141,8 @@ const loadItems = async () => {
     const status: WrongAnswerStatus | undefined = statusFilter.value === 'all' ? undefined : statusFilter.value
     const res = await wrongAnswerApi.listWrongAnswers({ status })
     items.value = res.items
-  } catch {
-    error.value = 'Could not load your wrong answers. Check that the API is running and try again.'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Could not load your wrong answers. Check that the API is running and try again.'
   } finally {
     loading.value = false
   }
@@ -219,4 +219,3 @@ watch(statusFilter, () => {
 
 onMounted(loadItems)
 </script>
-

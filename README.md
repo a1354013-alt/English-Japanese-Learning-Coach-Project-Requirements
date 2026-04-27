@@ -1,39 +1,87 @@
 # English-Japanese Learning Coach
 
-**Version:** 1.2.0  
-Portfolio-grade demo of an AI-assisted language learning workflow (FastAPI + Vue 3).
+Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **RAG**, **spaced repetition**, and **WebSocket chat**.
 
-## What's included
+In under 30 seconds: this app generates daily EN/JP lessons, scores reviews, updates progress and SRS schedules, tracks mistakes, and exposes a resettable demo dataset so the product is always ready for presentation.
 
-- AI lesson generation (EN/JP) with a strict JSON lesson schema persisted to SQLite
-- Review flow: scoring + progress updates + SRS updates + wrong-answer notebook (idempotent per lesson)
-- Daily streak derived from an activity log (single source of truth)
-- RAG materials upload to ChromaDB with metadata isolation (`user_id` + `language`)
-- PDF export of a lesson
-- Chat Tutor (Preview UI): WebSocket chat demo (requires a configured AI provider; messages are not persisted)
+## Technical Highlights
 
-## Scope / tenant model
+- FastAPI backend with typed lesson, review, analytics, and demo-reset APIs
+- Vue 3 frontend with loading, empty, error, and retry states across core flows
+- Lazy RAG initialization with `ENABLE_RAG=true|false` for CI-safe startup
+- SQLite persistence with idempotent migrations and critical index backfills
+- Spaced repetition review flow and wrong-answer notebook
+- WebSocket chat preview for tutor-style conversation
+- Dockerized backend with writable `/data` volume and non-root runtime
 
-This repository is a **single-tenant demo** (`default_user`). The backend enforces demo scoping and rejects arbitrary `user_id` values (no auth shipped in this build). The frontend does not send `user_id`; the API defaults to the demo user internally.
+## Architecture
 
-## Data & portability
+```mermaid
+flowchart LR
+    UI["Vue 3 Frontend"] -->|REST / WebSocket| API["FastAPI Backend"]
+    API --> LESSON["Lesson Generator"]
+    API --> REVIEW["Review + SRS + Analytics"]
+    API --> DEMO["Demo Reset Seeder"]
+    LESSON --> OLLAMA["Ollama / Local LLM"]
+    LESSON --> RAG["Lazy RAG Manager"]
+    RAG --> CHROMA["ChromaDB"]
+    REVIEW --> DB["SQLite"]
+    DEMO --> DB
+    API --> DB
+    API --> FILES["Lesson JSON / PDF / Audio Files"]
+```
 
-- The backend stores lesson **file keys** in SQLite as relative paths under `DATA_DIR` (not absolute machine paths).
-- Default `DATA_DIR` is `./data` at the repository root.
-- Runtime data is excluded from git (SQLite DB, Chroma persistent store, generated lessons, exports, etc).
+## Demo Flow
 
-Backend environment variables (optional):
+1. **Generate Lesson**  
+   Open `Today`, choose English or Japanese, optionally add a topic, and generate a lesson.
+2. **Answer Questions**  
+   Complete grammar and reading questions in the lesson page.
+3. **Review Mistakes**  
+   Submit the review to score answers, update progress, and populate the Wrong Answer Notebook.
+4. **View Analytics**  
+   Open `Progress`, `Vocabulary`, `Mistakes`, and `Analytics` to show retention and learning signals.
 
-- `DATA_DIR` (default: `./data`)
-- `DB_PATH` (default: `${DATA_DIR}/language_coach.db`)
-- `CHROMA_DB_PATH` (default: `${DATA_DIR}/chroma_db`)
+For a clean presentation state at any time:
 
-## Preview features (demo-only)
+```bash
+curl -X POST http://127.0.0.1:8000/api/demo/reset
+```
 
-- TTS (API only): endpoint returns `available=false` unless a real provider is integrated (see `backend/tts_service.py`). No TTS UI in this build.
-- Chat Tutor (Preview UI): requires a configured AI provider; messages are not persisted.
+## Screenshot Section
 
-## Quick start (local)
+Use these four screens as the core portfolio walkthrough:
+
+| Screen | What it demonstrates |
+| --- | --- |
+| `Today` | lesson generation, review flow, demo reset, and PDF export |
+| `Vocabulary` | imported word bank, deletion consistency, and empty-state UX |
+| `Progress` | RPG stats, word cards, and study-plan generation |
+| `Chat` | WebSocket tutor preview and resilient reconnect handling |
+
+Suggested capture targets live in [docs/screenshots](/C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/docs/screenshots).
+
+## Demo Mode and Data Model
+
+- This repo is intentionally **single-tenant demo mode** and uses `default_user`.
+- Frontend clients do **not** send arbitrary `user_id`.
+- The backend enforces demo scoping while keeping the schema migration-ready for future auth.
+- Lesson file paths are stored as relative keys under `DATA_DIR`, not machine-specific absolute paths.
+
+## Environment Toggles
+
+Backend environment variables:
+
+- `DATA_DIR` - base runtime data directory
+- `DB_PATH` - SQLite file path
+- `CHROMA_DB_PATH` - Chroma persistence directory
+- `ENABLE_RAG` - `true` to use ChromaDB lazily, `false` to use a dummy retriever
+- `LOG_LEVEL` - default `INFO`
+- `CORS_ORIGINS` - comma-separated frontend origins
+
+`ENABLE_RAG=false` is the recommended setting for CI, smoke tests, and lightweight demos where embeddings are unnecessary.
+
+## Local Quick Start
 
 ### Backend
 
@@ -43,7 +91,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -56,53 +104,52 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Then open [http://localhost:5173](http://localhost:5173).
 
-## Docker (API only)
+## Docker
 
 ```bash
 docker compose up --build
 ```
 
-Frontend is intended to run via `npm run dev` and will proxy `/api` and `/ws` to the backend.
+The compose stack mounts `/data`, creates the directory on startup, fixes ownership for `appuser`, and defaults `ENABLE_RAG=false` for reliable demo startup.
 
-## Tests
+## Testing
+
+### Backend
 
 ```bash
 cd backend
 python -m pip install -r requirements.txt -r requirements-dev.txt
-pytest tests/ -v
+ENABLE_RAG=false pytest tests -v
 ```
+
+### Frontend
 
 ```bash
 cd frontend
 npm install
 npm run test
 npm run build
-# With backend running on http://localhost:8000 and frontend dev server on http://127.0.0.1:5173
-npm run e2e -- --project=chromium
 ```
 
-### e2e with custom ports (optional)
-
-If you need to run the backend on a different port, set Vite proxy targets:
+### Playwright
 
 ```bash
-# example: backend on 8001, frontend on 5181
 cd frontend
-VITE_API_TARGET=http://127.0.0.1:8001 VITE_WS_TARGET=ws://127.0.0.1:8001 npm run dev -- --host 127.0.0.1 --port 5181 --strictPort
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:5181 npm run e2e -- --project=chromium
+RUN_E2E=1 npm run e2e -- --project=chromium
 ```
 
-## Repository hygiene
+Set `RUN_E2E=0` to skip browser e2e during quick local or CI passes.
 
-Runtime data is excluded from git:
+## Reliability Notes
 
-- `data/*.db` (SQLite)
-- `data/chroma_db/` (Chroma persistent store)
-- `frontend/node_modules/`, `frontend/dist/`
+- RAG and ChromaDB are **lazy-loaded** and never initialized at module import time.
+- Backend startup avoids model loading and stays fast even when Ollama is unavailable.
+- Error responses are normalized with `error`, `message`, and `code` fields.
+- Scheduler and cache paths use structured logging instead of `print`.
+- `/api/demo/reset` rebuilds lessons, vocabulary, wrong answers, and progress for a stable presentation state.
 
 ## License
 
-MIT (see `LICENSE`).
-
+MIT. See [LICENSE](/C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/LICENSE).

@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+test.skip(process.env.RUN_E2E === '0', 'RUN_E2E=0 disables browser e2e in CI and local quick checks.')
+
 test('lesson flow - generate, review, and see progress update', async ({ page }) => {
   await page.goto('/')
 

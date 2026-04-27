@@ -1,8 +1,9 @@
 """Exercise review, SRS due items, and generation task history."""
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
+from api_errors import api_error
 from database import db
 from gamification_engine import gamification_engine
 from models import ErrorType, ReviewAnswer, UserRPGStats
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["review"])
 def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) -> None:
     lesson_id = answers[0].lesson_id
     if any(a.lesson_id != lesson_id for a in answers):
-        raise HTTPException(status_code=400, detail="Invalid review payload: mixed lesson_id")
+        raise api_error(400, "Invalid review payload: mixed lesson_id", "review_mixed_lesson_id")
 
     grammar_exercises = lesson_data.get("grammar", {}).get("exercises", []) or []
     reading_questions = lesson_data.get("reading", {}).get("questions", []) or []
@@ -29,30 +30,27 @@ def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) 
     for a in answers:
         # Disallow blank answers (avoid polluted wrong-answer notebook/analytics).
         if str(a.user_answer).strip() == "":
-            raise HTTPException(status_code=400, detail="Invalid review payload: user_answer must be non-empty")
+            raise api_error(400, "Invalid review payload: user_answer must be non-empty", "review_blank_user_answer")
 
         key = (a.exercise_type, a.question_index)
         if key in seen:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid review payload: duplicate answer for {a.exercise_type}[{a.question_index}]",
-            )
+            raise api_error(400, f"Invalid review payload: duplicate answer for {a.exercise_type}[{a.question_index}]", "review_duplicate_answer")
         seen.add(key)
 
         if a.question_index < 0:
-            raise HTTPException(status_code=400, detail="Invalid review payload: question_index must be >= 0")
+            raise api_error(400, "Invalid review payload: question_index must be >= 0", "review_negative_question_index")
 
         if a.exercise_type == "grammar":
             if a.question_index >= len(grammar_exercises):
-                raise HTTPException(status_code=400, detail="Invalid review payload: grammar question_index out of range")
+                raise api_error(400, "Invalid review payload: grammar question_index out of range", "review_grammar_index_out_of_range")
             expected = str((grammar_exercises[a.question_index] or {}).get("correct_answer", ""))
         else:
             if a.question_index >= len(reading_questions):
-                raise HTTPException(status_code=400, detail="Invalid review payload: reading question_index out of range")
+                raise api_error(400, "Invalid review payload: reading question_index out of range", "review_reading_index_out_of_range")
             expected = str((reading_questions[a.question_index] or {}).get("correct_answer", ""))
 
         if str(a.correct_answer).strip() != expected.strip():
-            raise HTTPException(status_code=400, detail="Invalid review payload: correct_answer mismatch")
+            raise api_error(400, "Invalid review payload: correct_answer mismatch", "review_correct_answer_mismatch")
 
 
 @router.post("/review", response_model=dict)
@@ -62,7 +60,7 @@ async def submit_review(
     error_type: ErrorType | None = Query(default=None),
 ):
     if not answers:
-        raise HTTPException(status_code=400, detail="No answers provided")
+        raise api_error(400, "No answers provided", "review_answers_required")
 
     lesson_id = answers[0].lesson_id
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
@@ -191,10 +189,10 @@ async def submit_srs_review(
 ):
     word = str(word).strip()
     if not word:
-        raise HTTPException(status_code=400, detail="Missing word")
+        raise api_error(400, "Missing word", "srs_word_required")
     prev = db.get_srs_item(user_id, word, language)
     if not prev:
-        raise HTTPException(status_code=404, detail="SRS item not found")
+        raise api_error(404, "SRS item not found", "srs_item_not_found")
 
     srs_data = srs_engine.calculate(
         quality=quality,

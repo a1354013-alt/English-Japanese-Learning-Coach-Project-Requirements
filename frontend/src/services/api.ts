@@ -23,6 +23,7 @@ import type {
   TtsResponse,
   SrsDueResponse,
   ErrorType,
+  DemoResetResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -231,6 +232,13 @@ export const streakApi = {
 export const analyticsApi = {
   async getAnalytics() {
     const response = await api.get<AnalyticsResponse>('/analytics')
+    return response.data
+  },
+}
+
+export const systemApi = {
+  async resetDemo() {
+    const response = await api.post<DemoResetResponse>('/demo/reset')
     return response.data
   },
 }

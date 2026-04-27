@@ -2,6 +2,13 @@ export type Language = 'EN' | 'JP'
 
 export type ErrorType = 'spelling' | 'grammar' | 'vocabulary' | 'comprehension'
 
+export interface ApiErrorPayload {
+  error: boolean
+  message: string
+  code: string
+  detail?: unknown
+}
+
 export interface VocabularyItem {
   word: string
   reading?: string | null
@@ -358,4 +365,15 @@ export interface SrsItem {
 export interface SrsDueResponse {
   success: boolean
   items: SrsItem[]
+}
+
+export interface DemoResetResponse {
+  success: boolean
+  message: string
+  summary: {
+    lessons: number
+    imported_vocabulary: number
+    wrong_answers: number
+    today_lesson_id: string
+  }
 }

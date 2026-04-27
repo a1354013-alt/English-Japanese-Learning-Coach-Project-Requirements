@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from fastapi import HTTPException
 
+from api_errors import api_error
 from config import settings
 from database import db
 from models import ReviewAnswer
@@ -15,7 +16,7 @@ from srs import srs_engine
 def load_lesson_payload(lesson_id: str, *, user_id: str | None = None) -> Dict[str, Any]:
     lesson_meta = db.get_lesson(lesson_id, user_id=user_id)
     if not lesson_meta:
-        raise HTTPException(status_code=404, detail="Lesson not found")
+        raise api_error(404, "Lesson not found", "lesson_not_found")
 
     raw_path = str(lesson_meta["file_path"])
     p = Path(raw_path)
@@ -27,9 +28,9 @@ def load_lesson_payload(lesson_id: str, *, user_id: str | None = None) -> Dict[s
         try:
             file_path.relative_to(base)
         except ValueError:
-            raise HTTPException(status_code=500, detail="Invalid lesson file path") from None
+            raise api_error(500, "Invalid lesson file path", "invalid_lesson_file_path") from None
     if not file_path.exists():
-        raise HTTPException(status_code=500, detail="Lesson file is missing")
+        raise api_error(500, "Lesson file is missing", "lesson_file_missing")
 
     return json.loads(file_path.read_text(encoding="utf-8"))
 

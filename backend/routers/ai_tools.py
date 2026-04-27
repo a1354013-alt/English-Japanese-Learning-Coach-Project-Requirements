@@ -5,6 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, WebSocket
 from fastapi.responses import FileResponse
 
+from api_errors import api_error
 from chat_handler import chat_manager
 from config import settings
 from database import db
@@ -58,15 +59,15 @@ async def generate_tts(text: str, language: str, user_id: str = Depends(require_
 async def get_audio_file(filename: str):
     safe_name = Path(filename).name
     if not safe_name:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+        raise api_error(400, "Invalid filename", "invalid_audio_filename")
     base = settings.audio_dir.resolve()
     file_path = (base / safe_name).resolve()
     try:
         file_path.relative_to(base)
     except ValueError:
-        raise HTTPException(status_code=403, detail="Invalid audio path") from None
+        raise api_error(403, "Invalid audio path", "invalid_audio_path") from None
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
+        raise api_error(404, "Audio file not found", "audio_file_not_found")
     return FileResponse(file_path)
 
 

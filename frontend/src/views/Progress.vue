@@ -62,8 +62,8 @@ const loadProgress = async () => {
   try {
     const response = await progressApi.getProgress()
     progress.value = response.progress
-  } catch {
-    error.value = 'Could not load progress. Check that the API is running and try again.'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Could not load progress. Check that the API is running and try again.'
   } finally {
     loading.value = false
   }
@@ -78,4 +78,3 @@ onMounted(loadProgress)
   margin: 0 0 0.75rem;
 }
 </style>
-
