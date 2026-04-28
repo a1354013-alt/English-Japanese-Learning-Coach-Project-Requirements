@@ -231,12 +231,6 @@ class LazyRAGManager:
         self._backend: _DummyRetriever | _ChromaRAGBackend | None = None
 
     def _build_backend(self) -> _DummyRetriever | _ChromaRAGBackend:
-        enable_rag = bool(getattr(settings, "enable_rag", True))
-
-        if not enable_rag:
-            logger.info("rag_disabled_by_config")
-            return _DummyRetriever(init_error="RAG disabled by ENABLE_RAG=false")
-
         try:
             backend = _ChromaRAGBackend()
             logger.info("rag_backend_ready", extra={"path": str(settings.chroma_db_path)})
