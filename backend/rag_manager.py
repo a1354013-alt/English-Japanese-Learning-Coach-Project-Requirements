@@ -16,7 +16,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 # Tests may monkeypatch this symbol directly.
-chromadb: Any = SimpleNamespace()
+chromadb: Any = SimpleNamespace(PersistentClient=None)
 
 
 def split_into_chunks(text: str, size: int = 500, overlap: int = 50) -> List[str]:
@@ -231,16 +231,11 @@ class LazyRAGManager:
         self._backend: _DummyRetriever | _ChromaRAGBackend | None = None
 
     def _build_backend(self) -> _DummyRetriever | _ChromaRAGBackend:
-        if not settings.enable_rag:
+        enable_rag = bool(getattr(settings, "enable_rag", True))
+
+        if not enable_rag:
             logger.info("rag_disabled_by_config")
             return _DummyRetriever(init_error="RAG disabled by ENABLE_RAG=false")
-        try:
-            backend = _ChromaRAGBackend()
-            logger.info("rag_backend_ready", extra={"path": str(settings.chroma_db_path)})
-            return backend
-        except Exception as err:
-            logger.warning("rag_backend_init_failed", extra={"error": str(err)})
-            return _DummyRetriever(init_error=str(err))
 
     def _get_backend(self) -> _DummyRetriever | _ChromaRAGBackend:
         if self._backend is None:
