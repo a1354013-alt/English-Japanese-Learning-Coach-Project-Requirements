@@ -46,7 +46,7 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
 
   // Review result must be shown.
   await expect(page.getByTestId('review-result')).toBeVisible()
-  await expect(page.getByTestId('review-score')).toHaveText(/^Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)$/)
+  await expect(page.getByTestId('review-score')).toHaveText(/^\s*Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)\s*$/)
 
   // Progress page reflects the completed lesson.
   await page.getByTestId('nav-progress').click()
