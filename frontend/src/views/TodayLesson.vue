@@ -119,7 +119,9 @@
         <button data-testid="submit-review" :disabled="submitting" @click="submitReview">
           {{ submitting ? 'Submitting...' : 'Submit Review' }}
         </button>
-        <button class="secondary" @click="exportPdf">Export PDF</button>
+        <button class="secondary" :disabled="!lesson || exportingPdf" @click="exportPdf">
+          {{ exportingPdf ? 'Exporting PDF...' : 'Export PDF' }}
+        </button>
       </div>
 
       <!-- Success State - Review Result -->
@@ -158,6 +160,7 @@ const submitting = ref(false)
 const reviewResult = ref<ReviewResult | null>(null)
 const streak = ref<StreakResponse | null>(null)
 const resettingDemo = ref(false)
+const exportingPdf = ref(false)
 
 const answers = reactive<{ grammar: Record<number, string>; reading: Record<number, string> }>({
   grammar: {},
@@ -261,9 +264,17 @@ const submitReview = async () => {
   }
 }
 
-const exportPdf = () => {
-  if (lesson.value) {
-    lessonApi.exportPdf(lesson.value.metadata.lesson_id)
+const exportPdf = async () => {
+  if (!lesson.value || exportingPdf.value) return
+
+  exportingPdf.value = true
+  error.value = null
+  try {
+    await lessonApi.exportPdf(lesson.value.metadata.lesson_id)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to export PDF'
+  } finally {
+    exportingPdf.value = false
   }
 }
 
