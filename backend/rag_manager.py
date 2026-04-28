@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from config import settings
 
@@ -67,7 +68,7 @@ class RAGManager:
             )
             self._collection = self._client.get_or_create_collection(
                 name=self.COLLECTION_NAME,
-                embedding_function=None,
+                embedding_function=DefaultEmbeddingFunction(),
             )
             self.enabled = True
         except Exception as err:
