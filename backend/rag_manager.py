@@ -1,227 +1,143 @@
-"""Lazy RAG manager with optional ChromaDB backend."""
+"""RAG manager implementation backed by Chroma for user-uploaded reference materials."""
 
 from __future__ import annotations
 
-import importlib
-import logging
-from dataclasses import dataclass
-from datetime import datetime
-from threading import Lock
-from types import SimpleNamespace
+import uuid
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
+
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 from config import settings
 
-logger = logging.getLogger(__name__)
-
-# Tests may monkeypatch this symbol directly.
-chromadb: Any = SimpleNamespace()
+__all__ = ["RAGManager", "rag_manager", "split_into_chunks"]
 
 
-def split_into_chunks(text: str, size: int = 500, overlap: int = 50) -> List[str]:
-    """Split text into overlapping chunks for better retrieval."""
-    if not text or not text.strip():
+def split_into_chunks(text: str, max_chunk_size: int = 500, overlap: int = 50) -> List[str]:
+    if max_chunk_size <= 0:
+        raise ValueError("max_chunk_size must be positive")
+    if overlap < 0:
+        raise ValueError("overlap must be non-negative")
+
+    words = text.split()
+    if not words:
         return []
 
     chunks: List[str] = []
-    start = 0
-    text_len = len(text)
-    while start < text_len:
-        end = start + size
-        chunk = text[start:end]
-        if end < text_len:
-            search_start = max(start, end - 100)
-            for sep in ["?\n", ".\n", "!\n", "\n\n"]:
-                idx = chunk.rfind(sep, search_start - start)
-                if idx > size // 2:
-                    end = start + idx + len(sep)
-                    chunk = text[start:end]
-                    break
-        chunks.append(chunk.strip())
-        start = end - overlap if end < text_len else text_len
-    return [chunk for chunk in chunks if chunk]
+    current_chunk: List[str] = []
+    current_length = 0
+
+    for word in words:
+        token_length = len(word) + (1 if current_chunk else 0)
+        if current_length + token_length > max_chunk_size and current_chunk:
+            chunks.append(" ".join(current_chunk))
+            if overlap <= 0:
+                current_chunk = []
+                current_length = 0
+            else:
+                overlap_words = current_chunk[-overlap:]
+                current_chunk = list(overlap_words)
+                current_length = sum(len(w) + 1 for w in current_chunk) - 1
+        current_chunk.append(word)
+        current_length += token_length
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    return chunks
 
 
-def _and_where(clauses: List[Dict[str, Any]]) -> Dict[str, Any]:
-    clauses = [clause for clause in clauses if clause]
-    if not clauses:
-        return {}
-    if len(clauses) == 1:
-        return clauses[0]
-    return {"$and": clauses}
+class RAGManager:
+    COLLECTION_NAME = "rag_materials"
 
-
-def _load_chromadb_module() -> Any:
-    global chromadb
-    if getattr(chromadb, "PersistentClient", None) is None:
-        chromadb = importlib.import_module("chromadb")
-    return chromadb
-
-
-@dataclass
-class _DummyRetriever:
-    enabled: bool = False
-    init_error: Optional[str] = "RAG disabled by configuration"
-
-    def add_material(
-        self,
-        text: str,
-        metadata: Dict[str, Any],
-        *,
-        doc_id: Optional[str] = None,
-        user_id: str,
-    ) -> str:
-        raise RuntimeError(self.init_error or "RAG is disabled")
-
-    def query_materials(
-        self,
-        query_text: str,
-        *,
-        user_id: str,
-        language: str,
-        n_results: int = 3,
-        filter_criteria: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
-        return []
-
-    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
-        return []
-
-    def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        return False
-
-
-class _ChromaRAGBackend:
     def __init__(self) -> None:
-        chroma_module = _load_chromadb_module()
-        self.client = chroma_module.PersistentClient(path=str(settings.chroma_db_path))
-        self.collection = self.client.get_or_create_collection(
-            name="learning_materials",
-            embedding_function=_DeterministicEmbeddingFunction(),
-        )
-        self.enabled = True
+        self.enabled = False
         self.init_error: Optional[str] = None
+        self._client = None
+        self._collection = None
 
-    def add_material(
-        self,
-        text: str,
-        metadata: Dict[str, Any],
-        *,
-        doc_id: Optional[str] = None,
-        user_id: str,
-    ) -> str:
-        if not text.strip():
-            raise ValueError("Material content is empty")
-        chunks = split_into_chunks(text, size=500, overlap=50)
-        if not chunks:
-            raise ValueError("Material content produced no chunks")
+        if not settings.enable_rag:
+            self.init_error = "RAG is disabled by configuration"
+            return
 
-        timestamp = datetime.utcnow().isoformat()
-        source = str(metadata.get("source", "unknown"))
-        language = str(metadata.get("language", "unknown"))
-        material_id = doc_id or str(uuid4())
-
-        chunk_ids: List[str] = []
-        metadatas: List[Dict[str, Any]] = []
-        for index, chunk in enumerate(chunks):
-            chunk_ids.append(f"{material_id}_chunk_{index}")
-            metadatas.append(
-                {
-                    "doc_id": material_id,
-                    "user_id": user_id,
-                    "source": source,
-                    "chunk_index": index,
-                    "language": language,
-                    "uploaded_at": timestamp,
-                    "total_chunks": len(chunks),
-                }
-            )
-
-        self.collection.add(documents=chunks, metadatas=metadatas, ids=chunk_ids)
-        return material_id
-
-    def query_materials(
-        self,
-        query_text: str,
-        *,
-        user_id: str,
-        language: str,
-        n_results: int = 3,
-        filter_criteria: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
         try:
-            clauses: List[Dict[str, Any]] = [{"user_id": user_id}, {"language": language}]
-            if filter_criteria:
-                for key, value in filter_criteria.items():
-                    clauses.append({str(key): value})
-            results = self.collection.query(
-                query_texts=[query_text],
-                n_results=n_results,
-                where=_and_where(clauses),
-                include=["documents", "metadatas"],
+            self._client = chromadb.PersistentClient(
+                path=str(settings.chroma_db_path),
+                settings=ChromaSettings(),
             )
-            docs = results.get("documents") or []
-            metas = results.get("metadatas") or []
-            if not docs or not docs[0]:
-                return []
-            evidence: List[Dict[str, Any]] = []
-            for index, doc in enumerate(docs[0]):
-                if not doc:
-                    continue
-                metadata = metas[0][index] if metas and index < len(metas[0]) else {}
-                evidence.append(
-                    {
-                        "text": str(doc),
-                        "source": metadata.get("source", "unknown"),
-                        "chunk_index": metadata.get("chunk_index", 0),
-                        "doc_id": metadata.get("doc_id"),
-                    }
-                )
-            return evidence
-        except Exception:
-            logger.exception("rag_query_failed")
-            return []
+            self._collection = self._client.get_or_create_collection(
+                name=self.COLLECTION_NAME,
+                embedding_function=DefaultEmbeddingFunction(),
+            )
+            self.enabled = True
+        except Exception as err:
+            self.init_error = str(err)
+            self.enabled = False
 
-    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
-        clauses: List[Dict[str, Any]] = [{"user_id": user_id}]
+    def _user_filter(self, user_id: str, language: Optional[str] = None) -> Dict[str, Any]:
+        filters: List[Dict[str, str]] = [{"user_id": user_id}]
         if language:
-            clauses.append({"language": language})
-        try:
-            results = self.collection.get(where=_and_where(clauses), include=["metadatas"])
-            metas = results.get("metadatas") or []
-            by_doc: Dict[str, Dict[str, Any]] = {}
-            for meta in metas:
-                if not isinstance(meta, dict):
-                    continue
-                doc_id = str(meta.get("doc_id") or "")
-                if not doc_id or doc_id in by_doc:
-                    continue
-                by_doc[doc_id] = {
-                    "doc_id": doc_id,
-                    "source": meta.get("source", "unknown"),
-                    "language": meta.get("language", "unknown"),
-                    "uploaded_at": meta.get("uploaded_at"),
-                    "total_chunks": meta.get("total_chunks"),
-                }
-            return sorted(by_doc.values(), key=lambda item: str(item.get("uploaded_at") or ""), reverse=True)
-        except Exception:
-            logger.exception("rag_list_failed")
+            filters.append({"language": language})
+        if len(filters) == 1:
+            return filters[0]
+        return {"$and": filters}
+
+    def _normalize_get_result(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        ids = result.get("ids") or []
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+
+        items: List[Dict[str, Any]] = []
+        for idx, item_id in enumerate(ids):
+            metadata = dict(metadatas[idx] if idx < len(metadatas) else {})
+            document = documents[idx] if idx < len(documents) else ""
+            item: Dict[str, Any] = {
+                "doc_id": item_id,
+                "source": metadata.get("source", "unknown"),
+                "language": metadata.get("language", "unknown"),
+                "uploaded_at": metadata.get("uploaded_at", ""),
+                "total_chunks": metadata.get("total_chunks", 1),
+            }
+            items.append(item)
+        return items
+
+    def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id: Optional[str] = None) -> str:
+        if not self.enabled or self._collection is None:
+            raise RuntimeError("RAG manager is not available")
+
+        doc_id = doc_id or str(uuid.uuid4())
+        metadata_copy = dict(metadata)
+        metadata_copy["user_id"] = user_id
+
+        self._collection.add(
+            ids=[doc_id],
+            documents=[text],
+            metadatas=[metadata_copy],
+        )
+        return doc_id
+
+    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
+        if not self.enabled or self._collection is None:
             return []
+
+        where = self._user_filter(user_id, language)
+        result = self._collection.get(where=where, include=["ids", "documents", "metadatas"])
+        return self._normalize_get_result(result)
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        where = _and_where([{"user_id": user_id}, {"doc_id": doc_id}])
-        try:
-            existing = self.collection.get(where=where, include=["metadatas"])
-        except Exception as err:
-            raise RuntimeError(f"RAG lookup failed: {err}") from err
-        ids = existing.get("ids") or []
-        if not ids:
+        if not self.enabled or self._collection is None:
             return False
-        try:
-            self.collection.delete(where=where)
-        except Exception as err:
-            raise RuntimeError(f"RAG delete failed: {err}") from err
+
+        result = self._collection.get(ids=[doc_id], include=["metadatas"])
+        if not result.get("ids"):
+            return False
+
+        metadata = result.get("metadatas", [])[0] if result.get("metadatas") else {}
+        if metadata.get("user_id") != user_id:
+            return False
+
+        self._collection.delete(ids=[doc_id])
         return True
 
 
@@ -269,49 +185,42 @@ class LazyRAGManager:
 
     def query_materials(
         self,
-        query_text: str,
+        query: str,
         *,
         user_id: str,
-        language: str,
+        language: Optional[str] = None,
         n_results: int = 3,
-        filter_criteria: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
-        return self._get_backend().query_materials(
-            query_text,
-            user_id=user_id,
-            language=language,
+    ) -> List[dict]:
+        if not self.enabled or self._collection is None:
+            return []
+
+        where = self._user_filter(user_id, language)
+        result = self._collection.query(
+            query_texts=[query],
             n_results=n_results,
-            filter_criteria=filter_criteria,
+            where=where,
+            include=["metadatas", "documents"],
         )
 
-    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[Dict[str, Any]]:
-        return self._get_backend().list_materials(user_id=user_id, language=language)
+        ids = result.get("ids") or [[]]
+        documents = result.get("documents") or [[]]
+        metadatas = result.get("metadatas") or [[]]
 
-    def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        return self._get_backend().delete_material(user_id=user_id, doc_id=doc_id)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._backend = None
-
-
-class _DeterministicEmbeddingFunction:
-    """Tiny local embedding function for tests/demo mode without external downloads."""
-
-    def __call__(self, input: List[str]) -> List[List[float]]:
-        embeddings: List[List[float]] = []
-        for text in input:
-            vector = [0.0] * 8
-            encoded = text.encode("utf-8", errors="ignore")
-            if not encoded:
-                embeddings.append(vector)
-                continue
-            for index, byte in enumerate(encoded):
-                vector[index % 8] += byte / 255.0
-            scale = float(len(encoded))
-            embeddings.append([round(value / scale, 6) for value in vector])
-        return embeddings
+        items: List[Dict[str, Any]] = []
+        for idx, item_id in enumerate(ids[0] if isinstance(ids[0], list) else ids):
+            metadata = dict(metadatas[0][idx] if metadatas and metadatas[0] else {})
+            document = documents[0][idx] if documents and documents[0] else ""
+            items.append(
+                {
+                    "doc_id": item_id,
+                    "text": document,
+                    "source": metadata.get("source", "unknown"),
+                    "language": metadata.get("language", "unknown"),
+                    "uploaded_at": metadata.get("uploaded_at", ""),
+                    "total_chunks": metadata.get("total_chunks", 1),
+                }
+            )
+        return items
 
 
-RAGManager = LazyRAGManager
-rag_manager = LazyRAGManager()
+rag_manager = RAGManager()

@@ -79,8 +79,24 @@ export const lessonApi = {
     return response.data
   },
 
-  exportPdf(lessonId: string) {
-    window.open(`/api/export/pdf/${lessonId}`, '_blank', 'noopener,noreferrer')
+  async exportPdf(lessonId: string) {
+    const response = await api.get<Blob>(`/export/pdf/${encodeURIComponent(lessonId)}`, {
+      responseType: 'blob',
+    })
+
+    const responseContentType = response.headers['content-type']
+    const contentType = typeof responseContentType === 'string' ? responseContentType : 'application/pdf'
+    const blob = new Blob([response.data], { type: contentType })
+    const url = window.URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `lesson_${lessonId}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 30_000)
   },
 
   async getTts(text: string, language: Language) {

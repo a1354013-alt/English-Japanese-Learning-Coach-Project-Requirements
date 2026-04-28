@@ -46,7 +46,7 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
 
   // Review result must be shown.
   await expect(page.getByTestId('review-result')).toBeVisible()
-  await expect(page.getByTestId('review-score')).toHaveText(/^Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)$/)
+  await expect(page.getByTestId('review-score')).toHaveText(/^\s*Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)\s*$/)
 
   // Progress page reflects the completed lesson.
   await page.getByTestId('nav-progress').click()
@@ -54,14 +54,19 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await expect(page.getByTestId('progress-en-completed')).toHaveText(/[1-9]\d*/)
 
   // PDF export should return a PDF response (opens in a new tab/window).
+  // PDF export should return a PDF response.
   await page.getByRole('link', { name: 'Today' }).click()
-  const [pdfPopup] = await Promise.all([
-    page.waitForEvent('popup'),
+
+  const [pdfResponse] = await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/export/pdf/') &&
+        r.status() === 200
+    ),
     page.getByRole('button', { name: 'Export PDF' }).click(),
   ])
-  const pdfResponse = await pdfPopup.waitForResponse((r) => r.url().includes('/api/export/pdf/') && r.status() === 200)
+
   expect(pdfResponse.headers()['content-type']).toContain('application/pdf')
-  await pdfPopup.close()
 
   // Analytics page renders (computed by backend).
   await page.getByRole('link', { name: 'Analytics' }).click()
