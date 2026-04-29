@@ -1,4 +1,5 @@
 import axios from 'axios'
+import i18n from '@/i18n'
 import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { showApiError } from '@/services/apiNotifications'
 import type {
@@ -31,16 +32,34 @@ const api = axios.create({
   timeout: 120000,
 })
 
+function getFriendlyApiMessage(error: unknown): string {
+  if (!axios.isAxiosError(error)) {
+    return i18n.global.t('errors.unableToLoadData')
+  }
+
+  const data = error.response?.data
+  const detail = data !== undefined ? formatApiErrorDetail(data) : error.message || 'Network error'
+  const normalized = detail.toLowerCase()
+
+  if (!error.response || normalized.includes('network error') || normalized.includes('failed to fetch')) {
+    return i18n.global.t('errors.serverNotResponding')
+  }
+
+  if (
+    error.response.status >= 500 ||
+    normalized.includes('internal server error') ||
+    normalized.includes('request failed with status code 500')
+  ) {
+    return i18n.global.t('errors.unableToLoadData')
+  }
+
+  return detail
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
-    if (axios.isAxiosError(error)) {
-      const data = error.response?.data
-      const msg = data !== undefined ? formatApiErrorDetail(data) : error.message || 'Network error'
-      showApiError(msg)
-    } else {
-      showApiError('Unexpected error')
-    }
+    showApiError(getFriendlyApiMessage(error))
     return Promise.reject(error)
   },
 )

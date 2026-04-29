@@ -1,15 +1,15 @@
 <template>
-  <section class="grid" style="margin-top: 1rem">
-    <div class="panel row between center">
+  <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
+    <div v-if="!embedded" class="panel row between center">
       <div>
-        <h2 style="margin: 0">Chat Tutor (Preview)</h2>
+        <h2 style="margin: 0">{{ t('chat.title') }}</h2>
         <p style="margin: 0.2rem 0 0; color: #475569; font-size: 0.9rem">
-          Preview UI for the demo build. Requires a configured AI provider; messages are not persisted.
+          {{ t('chat.subtitle') }}
         </p>
       </div>
       <select v-model="selectedLanguage" @change="reconnect">
-        <option value="EN">English</option>
-        <option value="JP">Japanese</option>
+        <option value="EN">{{ t('common.english') }}</option>
+        <option value="JP">{{ t('common.japanese') }}</option>
       </select>
     </div>
 
@@ -17,14 +17,14 @@
       <div class="chat-container">
         <div class="messages" ref="messagesContainer">
           <div v-if="connectionStatus === 'connecting'" class="system-message">
-            Connecting...
+            {{ t('chat.connecting') }}
           </div>
           <div v-else-if="connectionStatus === 'reconnecting'" class="system-message">
-            Reconnecting...
+            {{ t('chat.reconnecting') }}
           </div>
           <div v-else-if="connectionStatus === 'error'" class="system-message error">
-            Connection failed. This is a preview UI and requires a configured AI provider.
-            <button @click="reconnect" class="secondary" style="margin-left: 0.5rem">Reconnect</button>
+            {{ t('chat.connectionFailed') }}
+            <button @click="reconnect" class="secondary" style="margin-left: 0.5rem">{{ t('chat.reconnect') }}</button>
           </div>
 
           <div
@@ -32,7 +32,7 @@
             :key="idx"
             :class="['message', msg.role]"
           >
-            <strong>{{ msg.role === 'user' ? 'You' : 'Tutor' }}:</strong>
+            <strong>{{ msg.role === 'user' ? t('chat.you') : t('chat.tutor') }}:</strong>
             <span>{{ msg.text }}</span>
           </div>
         </div>
@@ -41,12 +41,12 @@
           <input
             v-model="inputText"
             type="text"
-            placeholder="Type your message..."
+            :placeholder="t('chat.messagePlaceholder')"
             :disabled="connectionStatus !== 'connected'"
             style="flex: 1; padding: 0.5rem"
           />
           <button type="submit" :disabled="!inputText.trim() || connectionStatus !== 'connected'">
-            Send
+            {{ t('chat.send') }}
           </button>
         </form>
       </div>
@@ -55,7 +55,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -64,6 +65,11 @@ interface Message {
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error' | 'disconnected'
 
+withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
+
+const { t } = useI18n()
 const selectedLanguage = ref('EN')
 const inputText = ref('')
 const messages = ref<Message[]>([])
@@ -81,6 +87,8 @@ const scrollToBottom = () => {
   })
 }
 
+const languageLabel = () => (selectedLanguage.value === 'EN' ? t('common.english') : t('common.japanese'))
+
 const connect = () => {
   if (ws.value) {
     ws.value.close()
@@ -96,7 +104,7 @@ const connect = () => {
     ws.value.onopen = () => {
       connectionStatus.value = 'connected'
       reconnectAttempts.value = 0
-      messages.value.push({ role: 'system', text: `Connected to ${selectedLanguage.value} tutor.` })
+      messages.value.push({ role: 'system', text: t('chat.connectedToTutor', { language: languageLabel() }) })
     }
 
     ws.value.onmessage = (event) => {
@@ -107,7 +115,7 @@ const connect = () => {
           scrollToBottom()
         }
       } catch {
-        messages.value.push({ role: 'system', text: 'Received invalid message format.' })
+        messages.value.push({ role: 'system', text: t('chat.invalidMessage') })
       }
     }
 
@@ -117,7 +125,6 @@ const connect = () => {
 
     ws.value.onclose = () => {
       if (connectionStatus.value === 'connected') {
-        // Unexpected close, try reconnect
         handleReconnect()
       } else {
         connectionStatus.value = 'disconnected'
@@ -131,7 +138,7 @@ const connect = () => {
 const handleReconnect = () => {
   if (reconnectAttempts.value >= maxReconnectAttempts) {
     connectionStatus.value = 'error'
-    messages.value.push({ role: 'system', text: 'Max reconnection attempts reached.' })
+    messages.value.push({ role: 'system', text: t('chat.maxReconnectAttempts') })
     return
   }
 

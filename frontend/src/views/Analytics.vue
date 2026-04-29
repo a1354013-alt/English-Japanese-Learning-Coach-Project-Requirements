@@ -1,65 +1,65 @@
 <template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel">
-      <h2>Learning Analytics</h2>
-      <p style="color: #64748b; margin-bottom: 1.5rem">Computed by backend (single source of truth).</p>
+      <h2>{{ t('analytics.title') }}</h2>
+      <p style="color: #64748b; margin-bottom: 1.5rem">{{ t('analytics.subtitle') }}</p>
 
-      <div v-if="loading" style="text-align: center; padding: 2rem">Loading analytics...</div>
+      <div v-if="loading" style="text-align: center; padding: 2rem">{{ t('analytics.loading') }}</div>
 
       <div v-else-if="error" class="error-panel">
         <p>{{ error }}</p>
-        <button @click="loadAnalytics" class="secondary">Retry</button>
+        <button @click="loadAnalytics" class="secondary">{{ t('common.retry') }}</button>
       </div>
 
       <div v-else-if="analytics" class="analytics-grid">
         <div class="stat-card">
-          <h3>Total XP</h3>
+          <h3>{{ t('analytics.totalXp') }}</h3>
           <p class="stat-value">{{ analytics.total_xp }}</p>
         </div>
         <div class="stat-card">
-          <h3>Level</h3>
+          <h3>{{ t('analytics.level') }}</h3>
           <p class="stat-value">{{ analytics.level }}</p>
         </div>
         <div class="stat-card">
-          <h3>Current Streak</h3>
-          <p class="stat-value">{{ analytics.streak }} days</p>
+          <h3>{{ t('analytics.currentStreak') }}</h3>
+          <p class="stat-value">{{ t('analytics.days', { count: analytics.streak }) }}</p>
         </div>
         <div class="stat-card">
-          <h3>Lessons Completed</h3>
+          <h3>{{ t('analytics.lessonsCompleted') }}</h3>
           <p class="stat-value">{{ analytics.lessons_completed }}</p>
         </div>
 
         <div class="panel-section">
-          <h3>Hardest Items</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">From active wrong-answer notebook.</p>
+          <h3>{{ t('analytics.hardestItems') }}</h3>
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">{{ t('analytics.hardestItemsHint') }}</p>
           <ul v-if="analytics.hardest_words.length > 0" class="word-list">
             <li v-for="(word, idx) in analytics.hardest_words" :key="idx" class="word-item">
               <span class="word">{{ word.word }}</span>
-              <span class="mistakes">{{ word.mistakes }} mistakes</span>
+              <span class="mistakes">{{ t('analytics.mistakesCount', { count: word.mistakes }) }}</span>
             </li>
           </ul>
-          <p v-else style="color: #94a3b8">No wrong answers recorded yet.</p>
+          <p v-else style="color: #94a3b8">{{ t('analytics.noWrongAnswers') }}</p>
         </div>
 
         <div class="panel-section">
-          <h3>Weakest Category</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Based on active items count.</p>
+          <h3>{{ t('analytics.weakestCategory') }}</h3>
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">{{ t('analytics.weakestCategoryHint') }}</p>
           <div v-if="analytics.weakest_category" class="category-badge">
-            {{ analytics.weakest_category.category }} ({{ analytics.weakest_category.active_items }} active items)
+            {{ analytics.weakest_category.category }} ({{ t('analytics.activeItems', { count: analytics.weakest_category.active_items }) }})
           </div>
-          <p v-else style="color: #94a3b8">Not enough data yet.</p>
+          <p v-else style="color: #94a3b8">{{ t('analytics.notEnoughData') }}</p>
         </div>
 
         <div class="panel-section">
-          <h3>Accuracy Trend</h3>
-          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">Last 5 review submissions.</p>
+          <h3>{{ t('analytics.accuracyTrend') }}</h3>
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">{{ t('analytics.accuracyTrendHint') }}</p>
           <div v-if="analytics.accuracy_trend.length > 0" class="trend-grid">
             <div v-for="(p, idx) in analytics.accuracy_trend" :key="idx" class="trend-point">
               <div class="trend-value">{{ Number(p.accuracy_rate).toFixed(1) }}%</div>
               <div class="trend-meta">{{ new Date(p.submitted_at).toLocaleDateString() }}</div>
             </div>
           </div>
-          <p v-else style="color: #94a3b8">No review history yet.</p>
+          <p v-else style="color: #94a3b8">{{ t('analytics.noReviewHistory') }}</p>
         </div>
       </div>
     </div>
@@ -68,9 +68,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { analyticsApi } from '@/services/api'
 import type { AnalyticsPayload } from '@/types'
 
+const { t } = useI18n()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const analytics = ref<AnalyticsPayload | null>(null)
@@ -82,7 +84,8 @@ const loadAnalytics = async () => {
     const res = await analyticsApi.getAnalytics()
     analytics.value = res.analytics
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load analytics.'
+    console.error(err)
+    error.value = t('analytics.loadError')
   } finally {
     loading.value = false
   }
@@ -199,4 +202,3 @@ onMounted(loadAnalytics)
   color: #b91c1c;
 }
 </style>
-

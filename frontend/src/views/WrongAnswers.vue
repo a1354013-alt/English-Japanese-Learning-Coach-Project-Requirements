@@ -1,33 +1,33 @@
 <template>
-  <section class="grid" style="margin-top: 1rem">
-    <div class="panel row between center">
+  <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
+    <div v-if="!embedded" class="panel row between center">
       <div>
-        <h2 style="margin: 0">Wrong Answer Notebook</h2>
-        <p style="margin: 0.2rem 0 0; color: #475569">Review, retry, and master your mistakes.</p>
+        <h2 style="margin: 0">{{ t('mistakes.title') }}</h2>
+        <p style="margin: 0.2rem 0 0; color: #475569">{{ t('mistakes.subtitle') }}</p>
       </div>
       <div class="row gap-sm center" style="min-width: 280px">
         <select v-model="statusFilter" :disabled="loading">
-          <option value="active">Active</option>
-          <option value="mastered">Mastered</option>
-          <option value="all">All</option>
+          <option value="active">{{ t('mistakes.active') }}</option>
+          <option value="mastered">{{ t('mistakes.mastered') }}</option>
+          <option value="all">{{ t('mistakes.all') }}</option>
         </select>
         <button class="secondary" type="button" @click="loadItems" :disabled="loading">
-          {{ loading ? 'Loading...' : 'Refresh' }}
+          {{ loading ? t('mistakes.loading') : t('common.refresh') }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="panel">Loading...</div>
+    <div v-if="loading" class="panel">{{ t('mistakes.loading') }}</div>
 
     <div v-else-if="error" class="panel">
       <p style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
-      <button type="button" @click="loadItems">Retry</button>
+      <button type="button" @click="loadItems">{{ t('common.retry') }}</button>
     </div>
 
     <div v-else-if="items.length === 0" class="panel">
-      <p style="margin: 0">No items yet.</p>
+      <p style="margin: 0">{{ t('mistakes.empty') }}</p>
       <p style="margin: 0.35rem 0 0; color: #475569">
-        Submit a lesson review with incorrect answers and it will show up here automatically.
+        {{ t('mistakes.emptyHint') }}
       </p>
     </div>
 
@@ -38,7 +38,7 @@
             <strong>{{ item.question_type.toUpperCase() }}</strong>
             <span style="color: #475569"> · {{ item.language }}</span>
             <span style="color: #475569"> · {{ formatDate(item.created_at) }}</span>
-            <span v-if="item.wrong_count > 1" style="color: #475569"> · wrong ×{{ item.wrong_count }}</span>
+            <span v-if="item.wrong_count > 1" style="color: #475569"> · {{ t('mistakes.wrongCount', { count: item.wrong_count }) }}</span>
           </div>
           <span
             :style="{
@@ -50,40 +50,40 @@
               fontSize: '0.85rem',
             }"
           >
-            {{ item.status }}
+            {{ item.status === 'mastered' ? t('mistakes.mastered') : t('mistakes.active') }}
           </span>
         </div>
 
         <div>
-          <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">Question</div>
+          <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.question') }}</div>
           <div style="white-space: pre-wrap">{{ item.question }}</div>
         </div>
 
         <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
           <div>
-            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">Your answer</div>
+            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.yourAnswer') }}</div>
             <div style="white-space: pre-wrap; color: #b91c1c">{{ item.user_answer }}</div>
           </div>
           <div>
-            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">Correct answer</div>
+            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.correctAnswer') }}</div>
             <div style="white-space: pre-wrap; color: #065f46">{{ item.correct_answer }}</div>
           </div>
         </div>
 
         <div v-if="retryingId === item.id" class="panel" style="background: #f8fafc">
           <div class="row gap-sm center" style="flex-wrap: wrap">
-            <input v-model="retryAnswer" placeholder="Type your answer and retry" style="flex: 1 1 240px" />
+            <input v-model="retryAnswer" :placeholder="t('mistakes.retryPlaceholder')" style="flex: 1 1 240px" />
             <button type="button" @click="submitRetry(item)" :disabled="submittingRetry">
-              {{ submittingRetry ? 'Checking...' : 'Submit' }}
+              {{ submittingRetry ? t('mistakes.checking') : t('mistakes.retrySubmit') }}
             </button>
-            <button class="secondary" type="button" @click="cancelRetry" :disabled="submittingRetry">Cancel</button>
+            <button class="secondary" type="button" @click="cancelRetry" :disabled="submittingRetry">{{ t('mistakes.retryCancel') }}</button>
           </div>
           <p
             v-if="retryFeedback"
             style="margin: 0.6rem 0 0"
             :style="{ color: retryFeedback.ok ? '#065f46' : '#b91c1c' }"
           >
-            {{ retryFeedback.ok ? 'Correct! Marked as mastered.' : 'Not yet — keep practicing.' }}
+            {{ retryFeedback.ok ? t('mistakes.retryCorrect') : t('mistakes.retryIncorrect') }}
           </p>
         </div>
 
@@ -94,16 +94,16 @@
             @click="startRetry(item)"
             :disabled="retryingId !== null && retryingId !== item.id"
           >
-            Retry
+            {{ t('mistakes.retry') }}
           </button>
           <button v-if="item.status === 'active'" type="button" @click="markMastered(item)" :disabled="updatingId === item.id">
-            {{ updatingId === item.id ? 'Updating...' : 'Mark mastered' }}
+            {{ updatingId === item.id ? t('mistakes.updating') : t('mistakes.markMastered') }}
           </button>
           <button class="secondary" type="button" @click="openSourceLesson(item)" :disabled="!item.source_lesson_id">
-            Open source lesson
+            {{ t('mistakes.openSourceLesson') }}
           </button>
           <button type="button" style="background: #ef4444" @click="removeItem(item)" :disabled="deletingId === item.id">
-            {{ deletingId === item.id ? 'Deleting...' : 'Delete' }}
+            {{ deletingId === item.id ? t('mistakes.deleting') : t('mistakes.delete') }}
           </button>
         </div>
       </article>
@@ -113,11 +113,17 @@
 
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { wrongAnswerApi } from '@/services/api'
 import type { WrongAnswer, WrongAnswerStatus } from '@/types'
 
+withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
+
 const router = useRouter()
+const { t } = useI18n()
 
 const items = ref<WrongAnswer[]>([])
 const loading = ref(true)
@@ -142,7 +148,8 @@ const loadItems = async () => {
     const res = await wrongAnswerApi.listWrongAnswers({ status })
     items.value = res.items
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Could not load your wrong answers. Check that the API is running and try again.'
+    console.error(err)
+    error.value = t('mistakes.loadError')
   } finally {
     loading.value = false
   }
@@ -154,6 +161,9 @@ const removeItem = async (item: WrongAnswer) => {
     await wrongAnswerApi.deleteWrongAnswer(item.id)
     items.value = items.value.filter((x) => x.id !== item.id)
     if (retryingId.value === item.id) cancelRetry()
+  } catch (err) {
+    console.error(err)
+    error.value = t('mistakes.deleteError')
   } finally {
     deletingId.value = null
   }
@@ -168,6 +178,9 @@ const markMastered = async (item: WrongAnswer) => {
     } else {
       items.value = items.value.map((x) => (x.id === item.id ? res.item : x))
     }
+  } catch (err) {
+    console.error(err)
+    error.value = t('mistakes.updateError')
   } finally {
     updatingId.value = null
   }
@@ -208,6 +221,9 @@ const submitRetry = async (item: WrongAnswer) => {
     } else {
       items.value = items.value.map((x) => (x.id === item.id ? res.item : x))
     }
+  } catch (err) {
+    console.error(err)
+    error.value = t('mistakes.retryError')
   } finally {
     submittingRetry.value = false
   }

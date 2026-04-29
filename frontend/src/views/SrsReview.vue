@@ -1,37 +1,37 @@
 <template>
-  <section class="grid" style="margin-top: 1rem">
-    <div class="panel row between center">
-      <h2 style="margin: 0">SRS Review</h2>
+  <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
+    <div v-if="!embedded" class="panel row between center">
+      <h2 style="margin: 0">{{ t('review.title') }}</h2>
       <div class="row gap-sm center">
         <select v-model="language" style="min-width: 140px">
-          <option value="EN">English</option>
-          <option value="JP">Japanese</option>
+          <option value="EN">{{ t('common.english') }}</option>
+          <option value="JP">{{ t('common.japanese') }}</option>
         </select>
-        <button class="secondary" @click="load" :disabled="loading">Refresh</button>
+        <button class="secondary" @click="load" :disabled="loading">{{ t('common.refresh') }}</button>
       </div>
     </div>
 
     <div class="panel" v-if="loading && items.length === 0">
-      <p>Loading due items...</p>
+      <p>{{ t('review.loading') }}</p>
     </div>
 
     <div class="panel" v-else-if="error">
       <p style="color: #d32f2f">{{ error }}</p>
-      <button class="secondary" @click="load">Retry</button>
+      <button class="secondary" @click="load">{{ t('common.retry') }}</button>
     </div>
 
     <div class="panel" v-else-if="items.length === 0">
-      <p>No due items. You're all caught up.</p>
+      <p>{{ t('review.empty') }}</p>
     </div>
 
     <div class="panel" v-else>
       <table style="width: 100%; border-collapse: collapse">
         <thead>
           <tr>
-            <th align="left">Word</th>
-            <th align="left">Definition</th>
-            <th align="left">Next review</th>
-            <th align="left">Action</th>
+            <th align="left">{{ t('common.word') }}</th>
+            <th align="left">{{ t('common.definition') }}</th>
+            <th align="left">{{ t('review.nextReview') }}</th>
+            <th align="left">{{ t('common.action') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -40,15 +40,15 @@
             <td>{{ item.definition_zh ?? '' }}</td>
             <td>{{ new Date(item.next_review).toLocaleString() }}</td>
             <td class="row gap-sm">
-              <button class="secondary" @click="review(item.word, 5)" :disabled="submitting">Easy</button>
-              <button class="secondary" @click="review(item.word, 3)" :disabled="submitting">Hard</button>
-              <button class="secondary" @click="review(item.word, 1)" :disabled="submitting">Forgot</button>
+              <button class="secondary" @click="review(item.word, 5)" :disabled="submitting">{{ t('review.easy') }}</button>
+              <button class="secondary" @click="review(item.word, 3)" :disabled="submitting">{{ t('review.hard') }}</button>
+              <button class="secondary" @click="review(item.word, 1)" :disabled="submitting">{{ t('review.forgot') }}</button>
             </td>
           </tr>
         </tbody>
       </table>
       <p style="margin-top: 0.75rem; font-size: 0.85rem; color: #666">
-        Demo note: review updates your SRS schedule; XP/progress are not granted here.
+        {{ t('review.demoNote') }}
       </p>
     </div>
   </section>
@@ -56,9 +56,15 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { reviewApi } from '@/services/api'
 import type { Language, SrsItem } from '@/types'
 
+withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
+
+const { t } = useI18n()
 const language = ref<Language>('EN')
 const items = ref<SrsItem[]>([])
 const loading = ref(false)
@@ -72,7 +78,8 @@ const load = async () => {
     const res = await reviewApi.getDueSrs(language.value)
     items.value = res.items
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load due items'
+    console.error(e)
+    error.value = t('review.loadError')
   } finally {
     loading.value = false
   }
@@ -83,6 +90,9 @@ const review = async (word: string, quality: number) => {
   try {
     await reviewApi.submitSrsReview(word, language.value, quality)
     await load()
+  } catch (e) {
+    console.error(e)
+    error.value = t('review.submitError')
   } finally {
     submitting.value = false
   }
@@ -90,4 +100,3 @@ const review = async (word: string, quality: number) => {
 
 onMounted(load)
 </script>
-

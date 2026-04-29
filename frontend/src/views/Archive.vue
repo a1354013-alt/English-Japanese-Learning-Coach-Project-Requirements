@@ -1,68 +1,62 @@
 <template>
-  <section class="grid" style="margin-top: 1rem">
-    <div class="panel row between center">
-      <h2 style="margin: 0">Lesson Archive</h2>
-      <button class="secondary" @click="loadLessons" :disabled="loading">Refresh</button>
+  <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
+    <div v-if="!embedded" class="panel row between center">
+      <h2 style="margin: 0">{{ t('archive.title') }}</h2>
+      <button class="secondary" @click="loadLessons" :disabled="loading">{{ t('common.refresh') }}</button>
     </div>
 
-    <!-- Loading State -->
     <div class="panel" v-if="loading && lessons.length === 0">
-      <p>Loading lessons...</p>
+      <p>{{ t('archive.loading') }}</p>
     </div>
 
-    <!-- Error State -->
     <div class="panel" v-else-if="error">
       <p style="color: #d32f2f">{{ error }}</p>
-      <button @click="loadLessons" class="secondary">Retry</button>
+      <button @click="loadLessons" class="secondary">{{ t('common.retry') }}</button>
     </div>
 
-    <!-- Filter Panel -->
     <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))" v-if="!loading && !error">
       <div>
-        <label>Language</label>
+        <label>{{ t('common.language') }}</label>
         <select v-model="filters.language">
-          <option value="">All</option>
-          <option value="EN">English</option>
-          <option value="JP">Japanese</option>
+          <option value="">{{ t('common.all') }}</option>
+          <option value="EN">{{ t('common.english') }}</option>
+          <option value="JP">{{ t('common.japanese') }}</option>
         </select>
       </div>
       <div>
-        <label>Topic</label>
-        <input v-model="filters.topic" placeholder="Filter by topic" />
+        <label>{{ t('common.topic') }}</label>
+        <input v-model="filters.topic" :placeholder="t('archive.topicPlaceholder')" />
       </div>
       <div class="row center" style="margin-top: 1.6rem">
-        <button @click="loadLessons" :disabled="loading">Apply Filters</button>
+        <button @click="loadLessons" :disabled="loading">{{ t('archive.applyFilters') }}</button>
       </div>
     </div>
 
-    <!-- Lessons Grid -->
     <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))" v-if="lessons.length && !loading && !error">
       <div class="panel" v-for="lesson in lessons" :key="lesson.lesson_id">
         <h3 style="margin: 0">{{ lesson.topic }}</h3>
         <p>{{ lesson.language }} / {{ lesson.level }}</p>
         <p>{{ new Date(lesson.generated_at).toLocaleString() }}</p>
-        <button class="secondary" @click="viewLesson(lesson.lesson_id)">View Lesson</button>
+        <button class="secondary" @click="viewLesson(lesson.lesson_id)">{{ t('archive.viewLesson') }}</button>
       </div>
     </div>
 
-    <!-- Empty State -->
     <div class="panel" v-if="!lessons.length && !loading && !error">
-      <p>No lessons found. Generate your first lesson to get started!</p>
+      <p>{{ t('archive.empty') }}</p>
     </div>
 
-    <!-- Import Section -->
     <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))" v-if="!loading && !error">
       <div>
-        <h3>Excel Import</h3>
-        <p style="font-size: 0.85rem; color: #666">Select language before uploading</p>
+        <h3>{{ t('archive.excelImport') }}</h3>
+        <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
         <input type="file" accept=".xlsx,.xls" @change="handleExcelUpload" :disabled="!filters.language" />
-        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">Please select a language first</p>
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
       </div>
       <div>
-        <h3>RAG Upload</h3>
-        <p style="font-size: 0.85rem; color: #666">Select language before uploading</p>
+        <h3>{{ t('archive.ragUpload') }}</h3>
+        <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
         <input type="file" accept=".txt,.md,.csv" @change="handleRagUpload" :disabled="!filters.language" />
-        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">Please select a language first</p>
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
       </div>
     </div>
 
@@ -72,10 +66,15 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import TaskHistory from '@/components/TaskHistory.vue'
 import { importApi, lessonApi } from '@/services/api'
 import type { Language } from '@/types'
+
+withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
 
 interface LessonListItem {
   lesson_id: string
@@ -86,6 +85,7 @@ interface LessonListItem {
   key_points: string[] | string
 }
 
+const { t } = useI18n()
 const router = useRouter()
 const lessons = ref<LessonListItem[]>([])
 const loading = ref(false)
@@ -107,7 +107,8 @@ const loadLessons = async () => {
     })
     lessons.value = res.lessons
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load lessons'
+    console.error(err)
+    error.value = t('archive.loadError')
   } finally {
     loading.value = false
   }
@@ -119,7 +120,7 @@ const viewLesson = (id: string) => {
 
 const resolveImportLanguage = (): Language | null => {
   if (!filters.language) {
-    window.alert('Please select a specific language (English or Japanese). "All" cannot be used for imports.')
+    window.alert(t('archive.importLanguageRequired'))
     return null
   }
   return filters.language
@@ -133,6 +134,9 @@ const handleExcelUpload = async (event: Event) => {
   try {
     await importApi.importExcel(lang, file)
     await loadLessons()
+  } catch (err) {
+    console.error(err)
+    error.value = t('archive.excelImportError')
   } finally {
     ;(event.target as HTMLInputElement).value = ''
   }
@@ -145,6 +149,9 @@ const handleRagUpload = async (event: Event) => {
   if (!lang) return
   try {
     await importApi.uploadRagMaterial(lang, file)
+  } catch (err) {
+    console.error(err)
+    error.value = t('archive.ragUploadError')
   } finally {
     ;(event.target as HTMLInputElement).value = ''
   }

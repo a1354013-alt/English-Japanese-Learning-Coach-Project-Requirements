@@ -2,24 +2,43 @@
   <div class="app-shell">
     <div v-if="apiErrorMessage" class="api-error-banner row between center" role="alert">
       <span>{{ apiErrorMessage }}</span>
-      <button type="button" class="secondary" @click="clearApiError">Dismiss</button>
+      <button type="button" class="secondary" @click="clearApiError">
+        {{ t('common.dismiss') }}
+      </button>
     </div>
 
     <header class="topbar">
       <div class="container row between center">
-        <h1 class="brand" data-testid="app-title" @click="$router.push('/')">English-Japanese Learning Coach</h1>
-        <nav class="row gap-sm">
-          <RouterLink to="/">Today</RouterLink>
-          <RouterLink to="/review">Review</RouterLink>
-          <RouterLink to="/archive">Archive</RouterLink>
-          <RouterLink to="/materials">Materials</RouterLink>
-          <RouterLink to="/vocabulary">Vocabulary</RouterLink>
-          <RouterLink to="/mistakes">Mistakes</RouterLink>
-          <RouterLink to="/progress" data-testid="nav-progress">Progress</RouterLink>
-          <RouterLink to="/writing">Writing</RouterLink>
-          <RouterLink to="/chat">Chat (Preview)</RouterLink>
-          <RouterLink to="/analytics">Analytics</RouterLink>
+        <h1 class="brand" data-testid="app-title" @click="$router.push('/')">
+          {{ t('app.title') }}
+        </h1>
+
+        <nav class="topnav">
+          <RouterLink to="/">{{ t('nav.today') }}</RouterLink>
+          <RouterLink to="/workspace">{{ t('nav.workspace') }}</RouterLink>
+          <RouterLink to="/progress" data-testid="nav-progress">
+            {{ t('nav.progress') }}
+          </RouterLink>
+          <RouterLink to="/analytics">{{ t('nav.analytics') }}</RouterLink>
         </nav>
+
+        <div class="language-switcher" :aria-label="t('common.language')">
+          <button
+            type="button"
+            :class="{ active: locale === 'zh-TW' }"
+            @click="switchLanguage('zh-TW')"
+          >
+            {{ t('language.zh') }}
+          </button>
+          <span>|</span>
+          <button
+            type="button"
+            :class="{ active: locale === 'en' }"
+            @click="switchLanguage('en')"
+          >
+            {{ t('language.en') }}
+          </button>
+        </div>
       </div>
     </header>
 
@@ -32,11 +51,18 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Onboarding from '@/components/Onboarding.vue'
 import { apiErrorMessage, clearApiError } from '@/services/apiNotifications'
 import { progressApi } from '@/services/api'
 
 const showOnboarding = ref(false)
+const { t, locale } = useI18n()
+
+function switchLanguage(lang: 'zh-TW' | 'en') {
+  locale.value = lang
+  localStorage.setItem('locale', lang)
+}
 
 onMounted(async () => {
   try {
@@ -47,3 +73,37 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.language-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.language-switcher button {
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-weight: 500;
+  padding: 6px 4px;
+}
+
+.language-switcher button.active {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.language-switcher span {
+  color: #cbd5e1;
+}
+
+@media (max-width: 760px) {
+  .language-switcher {
+    margin-left: 0;
+  }
+}
+</style>

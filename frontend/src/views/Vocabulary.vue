@@ -1,54 +1,54 @@
 <template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
-      <h2 style="margin: 0">Imported Vocabulary</h2>
-      <button class="secondary" @click="load" :disabled="loading">Refresh</button>
+      <h2 style="margin: 0">{{ t('vocabulary.title') }}</h2>
+      <button class="secondary" @click="load" :disabled="loading">{{ t('common.refresh') }}</button>
     </div>
 
     <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))">
       <div>
-        <label>Language</label>
+        <label>{{ t('common.language') }}</label>
         <select v-model="language">
-          <option value="">All</option>
-          <option value="EN">English</option>
-          <option value="JP">Japanese</option>
+          <option value="">{{ t('common.all') }}</option>
+          <option value="EN">{{ t('common.english') }}</option>
+          <option value="JP">{{ t('common.japanese') }}</option>
         </select>
       </div>
       <div>
-        <label>Search</label>
-        <input v-model="q" placeholder="word / definition" @keyup.enter="load" />
+        <label>{{ t('vocabulary.searchLabel') }}</label>
+        <input v-model="q" :placeholder="t('vocabulary.searchPlaceholder')" @keyup.enter="load" />
       </div>
       <div class="row center" style="margin-top: 1.6rem">
-        <button @click="load" :disabled="loading">Search</button>
+        <button @click="load" :disabled="loading">{{ t('common.search') }}</button>
       </div>
     </div>
 
     <div class="panel" v-if="loading && items.length === 0">
-      <p>Loading vocabulary...</p>
+      <p>{{ t('vocabulary.loading') }}</p>
     </div>
 
     <div class="panel" v-else-if="error">
       <p style="color: #d32f2f">{{ error }}</p>
-      <button class="secondary" @click="load">Retry</button>
+      <button class="secondary" @click="load">{{ t('common.retry') }}</button>
     </div>
 
     <div class="panel" v-else-if="items.length === 0">
-      <p>No imported vocabulary yet.</p>
+      <p>{{ t('vocabulary.empty') }}</p>
       <p style="margin: 0.35rem 0 0; color: #475569; font-size: 0.9rem">
-        Use the Archive page → Excel Import to add items.
+        {{ t('vocabulary.emptyHint') }}
       </p>
     </div>
 
     <div class="panel" v-else>
-      <p style="margin-top: 0; color: #666; font-size: 0.85rem">Total: {{ count }}</p>
+      <p style="margin-top: 0; color: #666; font-size: 0.85rem">{{ t('vocabulary.total', { count }) }}</p>
       <table style="width: 100%; border-collapse: collapse">
         <thead>
           <tr>
-            <th align="left">Word</th>
-            <th align="left">Reading</th>
-            <th align="left">Definition</th>
-            <th align="left">Example</th>
-            <th align="left">Action</th>
+            <th align="left">{{ t('common.word') }}</th>
+            <th align="left">{{ t('vocabulary.reading') }}</th>
+            <th align="left">{{ t('common.definition') }}</th>
+            <th align="left">{{ t('common.example') }}</th>
+            <th align="left">{{ t('vocabulary.action') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -62,7 +62,7 @@
             </td>
             <td>
               <button class="secondary" @click="remove(v.id)" :disabled="deletingId === v.id">
-                {{ deletingId === v.id ? 'Deleting...' : 'Delete' }}
+                {{ deletingId === v.id ? t('vocabulary.deleting') : t('vocabulary.delete') }}
               </button>
             </td>
           </tr>
@@ -74,9 +74,11 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { importApi } from '@/services/api'
 import type { ImportedVocabularyItem, Language } from '@/types'
 
+const { t } = useI18n()
 const language = ref<'' | Language>('')
 const q = ref('')
 const loading = ref(false)
@@ -98,20 +100,24 @@ const load = async () => {
     items.value = res.items
     count.value = res.count
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load vocabulary'
+    console.error(e)
+    error.value = t('vocabulary.loadError')
   } finally {
     loading.value = false
   }
 }
 
 const remove = async (id: number) => {
-  if (!window.confirm('Delete this imported vocabulary item? This also removes its derived SRS entry and any matching word card.')) {
+  if (!window.confirm(t('vocabulary.deleteConfirm'))) {
     return
   }
   deletingId.value = id
   try {
     await importApi.deleteImportedVocabulary(id)
     await load()
+  } catch (e) {
+    console.error(e)
+    error.value = t('vocabulary.deleteError')
   } finally {
     deletingId.value = null
   }
@@ -119,4 +125,3 @@ const remove = async (id: number) => {
 
 onMounted(load)
 </script>
-
