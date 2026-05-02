@@ -1,17 +1,14 @@
-"""RAG manager implementation backed by Chroma for user-uploaded reference materials."""
+"""RAG manager abstraction with a safe disabled mode and optional Chroma backend."""
 
 from __future__ import annotations
 
+import importlib
 import uuid
 from typing import Any, Dict, List, Optional
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
 from config import settings
 
-__all__ = ["RAGManager", "rag_manager", "split_into_chunks"]
+__all__ = ["DisabledRAGManager", "RAGManager", "rag_manager", "split_into_chunks"]
 
 
 def split_into_chunks(text: str, max_chunk_size: int = 500, overlap: int = 50) -> List[str]:
@@ -48,32 +45,51 @@ def split_into_chunks(text: str, max_chunk_size: int = 500, overlap: int = 50) -
     return chunks
 
 
-class RAGManager:
+class RAGUnavailableError(RuntimeError):
+    """Raised when callers try to mutate RAG while the backend is unavailable."""
+
+
+class DisabledRAGManager:
+    def __init__(self, message: str, *, disabled_by_config: bool) -> None:
+        self.enabled = False
+        self.init_error = message
+        self.disabled_by_config = disabled_by_config
+
+    def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id: Optional[str] = None) -> str:
+        raise RAGUnavailableError(self.init_error or "RAG is unavailable")
+
+    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
+        return []
+
+    def delete_material(self, *, user_id: str, doc_id: str) -> bool:
+        return False
+
+    def query_materials(
+        self,
+        query: str,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        n_results: int = 3,
+    ) -> List[dict]:
+        return []
+
+
+class _ChromaRAGManager:
     COLLECTION_NAME = "rag_materials"
 
-    def __init__(self) -> None:
-        self.enabled = False
+    def __init__(self, chromadb_module: Any, chroma_settings_cls: Any, embedding_function_cls: Any) -> None:
+        self.enabled = True
         self.init_error: Optional[str] = None
-        self._client = None
-        self._collection = None
-
-        if not settings.enable_rag:
-            self.init_error = "RAG is disabled by configuration"
-            return
-
-        try:
-            self._client = chromadb.PersistentClient(
-                path=str(settings.chroma_db_path),
-                settings=ChromaSettings(),
-            )
-            self._collection = self._client.get_or_create_collection(
-                name=self.COLLECTION_NAME,
-                embedding_function=DefaultEmbeddingFunction(),
-            )
-            self.enabled = True
-        except Exception as err:
-            self.init_error = str(err)
-            self.enabled = False
+        self.disabled_by_config = False
+        self._client = chromadb_module.PersistentClient(
+            path=str(settings.chroma_db_path),
+            settings=chroma_settings_cls(),
+        )
+        self._collection = self._client.get_or_create_collection(
+            name=self.COLLECTION_NAME,
+            embedding_function=embedding_function_cls(),
+        )
 
     def _user_filter(self, user_id: str, language: Optional[str] = None) -> Dict[str, Any]:
         filters: List[Dict[str, str]] = [{"user_id": user_id}]
@@ -91,21 +107,19 @@ class RAGManager:
         items: List[Dict[str, Any]] = []
         for idx, item_id in enumerate(ids):
             metadata = dict(metadatas[idx] if idx < len(metadatas) else {})
-            document = documents[idx] if idx < len(documents) else ""
-            item: Dict[str, Any] = {
-                "doc_id": item_id,
-                "source": metadata.get("source", "unknown"),
-                "language": metadata.get("language", "unknown"),
-                "uploaded_at": metadata.get("uploaded_at", ""),
-                "total_chunks": metadata.get("total_chunks", 1),
-            }
-            items.append(item)
+            _ = documents[idx] if idx < len(documents) else ""
+            items.append(
+                {
+                    "doc_id": item_id,
+                    "source": metadata.get("source", "unknown"),
+                    "language": metadata.get("language", "unknown"),
+                    "uploaded_at": metadata.get("uploaded_at", ""),
+                    "total_chunks": metadata.get("total_chunks", 1),
+                }
+            )
         return items
 
     def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id: Optional[str] = None) -> str:
-        if not self.enabled or self._collection is None:
-            raise RuntimeError("RAG manager is not available")
-
         doc_id = doc_id or str(uuid.uuid4())
         metadata_copy = dict(metadata)
         metadata_copy["user_id"] = user_id
@@ -118,17 +132,11 @@ class RAGManager:
         return doc_id
 
     def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
-        if not self.enabled or self._collection is None:
-            return []
-
         where = self._user_filter(user_id, language)
         result = self._collection.get(where=where, include=["ids", "documents", "metadatas"])
         return self._normalize_get_result(result)
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        if not self.enabled or self._collection is None:
-            return False
-
         result = self._collection.get(ids=[doc_id], include=["metadatas"])
         if not result.get("ids"):
             return False
@@ -140,49 +148,6 @@ class RAGManager:
         self._collection.delete(ids=[doc_id])
         return True
 
-
-class LazyRAGManager:
-    def __init__(self) -> None:
-        self._lock = Lock()
-        self._backend: _DummyRetriever | _ChromaRAGBackend | None = None
-
-    def _build_backend(self) -> _DummyRetriever | _ChromaRAGBackend:
-        if not getattr(settings, "rag_enabled", True):
-            logger.info("rag_disabled_by_config")
-            return _DummyRetriever(init_error="RAG disabled by configuration")
-        try:
-            backend = _ChromaRAGBackend()
-            logger.info("rag_backend_ready", extra={"path": str(settings.chroma_db_path)})
-            return backend
-        except Exception as err:
-            logger.warning("rag_backend_init_failed", extra={"error": str(err)})
-            return _DummyRetriever(init_error=str(err))
-
-    def _get_backend(self) -> _DummyRetriever | _ChromaRAGBackend:
-        if self._backend is None:
-            with self._lock:
-                if self._backend is None:
-                    self._backend = self._build_backend()
-        return self._backend
-
-    @property
-    def enabled(self) -> bool:
-        return self._get_backend().enabled
-
-    @property
-    def init_error(self) -> Optional[str]:
-        return self._get_backend().init_error
-
-    def add_material(
-        self,
-        text: str,
-        metadata: Dict[str, Any],
-        *,
-        doc_id: Optional[str] = None,
-        user_id: str,
-    ) -> str:
-        return self._get_backend().add_material(text, metadata, doc_id=doc_id, user_id=user_id)
-
     def query_materials(
         self,
         query: str,
@@ -191,9 +156,6 @@ class LazyRAGManager:
         language: Optional[str] = None,
         n_results: int = 3,
     ) -> List[dict]:
-        if not self.enabled or self._collection is None:
-            return []
-
         where = self._user_filter(user_id, language)
         result = self._collection.query(
             query_texts=[query],
@@ -206,10 +168,14 @@ class LazyRAGManager:
         documents = result.get("documents") or [[]]
         metadatas = result.get("metadatas") or [[]]
 
+        row_ids = ids[0] if ids and isinstance(ids[0], list) else ids
+        row_documents = documents[0] if documents and isinstance(documents[0], list) else documents
+        row_metadatas = metadatas[0] if metadatas and isinstance(metadatas[0], list) else metadatas
+
         items: List[Dict[str, Any]] = []
-        for idx, item_id in enumerate(ids[0] if isinstance(ids[0], list) else ids):
-            metadata = dict(metadatas[0][idx] if metadatas and metadatas[0] else {})
-            document = documents[0][idx] if documents and documents[0] else ""
+        for idx, item_id in enumerate(row_ids):
+            metadata = dict(row_metadatas[idx] if idx < len(row_metadatas) else {})
+            document = row_documents[idx] if idx < len(row_documents) else ""
             items.append(
                 {
                     "doc_id": item_id,
@@ -221,6 +187,74 @@ class LazyRAGManager:
                 }
             )
         return items
+
+
+class RAGManager:
+    def __init__(self) -> None:
+        self._backend = self._build_backend()
+
+    @staticmethod
+    def _build_backend() -> DisabledRAGManager | _ChromaRAGManager:
+        if not settings.enable_rag:
+            return DisabledRAGManager("RAG is disabled by configuration", disabled_by_config=True)
+
+        try:
+            chromadb_module = importlib.import_module("chromadb")
+            chroma_settings_cls = importlib.import_module("chromadb.config").Settings
+            embedding_function_cls = importlib.import_module(
+                "chromadb.utils.embedding_functions"
+            ).DefaultEmbeddingFunction
+        except ModuleNotFoundError as err:
+            missing_name = err.name or ""
+            if missing_name == "chromadb" or missing_name.startswith("chromadb.") or "chromadb" in str(err).lower():
+                message = (
+                    "RAG is enabled but chromadb is not installed. "
+                    "Install backend requirements or set ENABLE_RAG=false."
+                )
+                return DisabledRAGManager(message, disabled_by_config=False)
+            raise
+
+        try:
+            return _ChromaRAGManager(chromadb_module, chroma_settings_cls, embedding_function_cls)
+        except Exception as err:
+            message = f"RAG could not be initialized: {err}"
+            return DisabledRAGManager(message, disabled_by_config=False)
+
+    @property
+    def enabled(self) -> bool:
+        return self._backend.enabled
+
+    @property
+    def init_error(self) -> Optional[str]:
+        return self._backend.init_error
+
+    @property
+    def disabled_by_config(self) -> bool:
+        return self._backend.disabled_by_config
+
+    def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id: Optional[str] = None) -> str:
+        return self._backend.add_material(text, metadata, user_id=user_id, doc_id=doc_id)
+
+    def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
+        return self._backend.list_materials(user_id=user_id, language=language)
+
+    def delete_material(self, *, user_id: str, doc_id: str) -> bool:
+        return self._backend.delete_material(user_id=user_id, doc_id=doc_id)
+
+    def query_materials(
+        self,
+        query: str,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        n_results: int = 3,
+    ) -> List[dict]:
+        return self._backend.query_materials(
+            query,
+            user_id=user_id,
+            language=language,
+            n_results=n_results,
+        )
 
 
 rag_manager = RAGManager()

@@ -10,6 +10,7 @@ class _StubRag:
     def __init__(self) -> None:
         self.enabled = True
         self.init_error = None
+        self.disabled_by_config = False
         self._items = {}
 
     def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id=None) -> str:
@@ -97,6 +98,7 @@ def test_rag_delete_returns_503_when_rag_disabled(monkeypatch):
     stub = _StubRag()
     stub.enabled = False
     stub.init_error = "RAG init failed"
+    stub.disabled_by_config = False
     monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
 
     app = FastAPI()
@@ -107,3 +109,34 @@ def test_rag_delete_returns_503_when_rag_disabled(monkeypatch):
     assert r_del.status_code == 503
     assert r_del.json()["detail"] == "RAG init failed"
 
+
+def test_rag_list_returns_empty_when_rag_disabled_by_configuration(monkeypatch):
+    stub = _StubRag()
+    stub.enabled = False
+    stub.init_error = "RAG is disabled by configuration"
+    stub.disabled_by_config = True
+    monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
+
+    app = FastAPI()
+    app.include_router(imports_router.router)
+    client = TestClient(app)
+
+    response = client.get("/api/rag/materials?language=EN")
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "items": []}
+
+
+def test_rag_list_returns_503_when_rag_backend_failed(monkeypatch):
+    stub = _StubRag()
+    stub.enabled = False
+    stub.init_error = "RAG is enabled but chromadb is not installed."
+    stub.disabled_by_config = False
+    monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
+
+    app = FastAPI()
+    app.include_router(imports_router.router)
+    client = TestClient(app)
+
+    response = client.get("/api/rag/materials?language=EN")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "RAG is enabled but chromadb is not installed."

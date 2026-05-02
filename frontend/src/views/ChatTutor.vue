@@ -78,6 +78,11 @@ const ws = ref<WebSocket | null>(null)
 const messagesContainer = ref<HTMLElement | null>(null)
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 5
+const wsBaseUrl = (
+  import.meta.env.VITE_WS_BASE_URL ||
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '').replace(/^http/i, 'ws') ||
+  'ws://localhost:8000'
+).trim()
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -95,8 +100,7 @@ const connect = () => {
   }
 
   connectionStatus.value = 'connecting'
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${protocol}//${window.location.host}/ws/chat/${selectedLanguage.value}`
+  const wsUrl = `${wsBaseUrl.replace(/\/$/, '')}/ws/chat/${selectedLanguage.value}`
 
   try {
     ws.value = new WebSocket(wsUrl)

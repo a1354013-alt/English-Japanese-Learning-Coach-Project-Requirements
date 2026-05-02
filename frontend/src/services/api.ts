@@ -27,8 +27,10 @@ import type {
   DemoResetResponse,
 } from '@/types'
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim()
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   timeout: 120000,
 })
 

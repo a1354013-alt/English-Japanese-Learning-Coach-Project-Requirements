@@ -1,18 +1,16 @@
 # English-Japanese Learning Coach
 
-Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **RAG**, **spaced repetition**, and **WebSocket chat**.
+Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **spaced repetition**, **RAG-ready lesson generation**, and **WebSocket chat**.
 
-In under 30 seconds: this app generates daily EN/JP lessons, scores reviews, updates progress and SRS schedules, tracks mistakes, and exposes a resettable demo dataset so the product is always ready for presentation.
+The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and reset demo data back to a presentable state.
 
-## Technical Highlights
+## Highlights
 
-- FastAPI backend with typed lesson, review, analytics, and demo-reset APIs
-- Vue 3 frontend with loading, empty, error, and retry states across core flows
-- Lazy RAG initialization with `ENABLE_RAG=true|false` for CI-safe startup
-- SQLite persistence with idempotent migrations and critical index backfills
-- Spaced repetition review flow and wrong-answer notebook
-- WebSocket chat preview for tutor-style conversation
-- Dockerized backend with writable `/data` volume and non-root runtime
+- FastAPI backend with typed APIs for lessons, review, analytics, imports, demo reset, and tutor tools
+- Vue 3 frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
+- Optional RAG integration via ChromaDB, with safe disabled mode for CI, smoke tests, and lightweight demos
+- SQLite persistence with migration smoke tests and index coverage
+- Dockerized backend with persistent `/data` volume and non-root runtime
 
 ## Architecture
 
@@ -21,67 +19,57 @@ flowchart LR
     UI["Vue 3 Frontend"] -->|REST / WebSocket| API["FastAPI Backend"]
     API --> LESSON["Lesson Generator"]
     API --> REVIEW["Review + SRS + Analytics"]
+    API --> IMPORTS["Vocabulary / Material Imports"]
     API --> DEMO["Demo Reset Seeder"]
     LESSON --> OLLAMA["Ollama / Local LLM"]
-    LESSON --> RAG["Lazy RAG Manager"]
-    RAG --> CHROMA["ChromaDB"]
+    LESSON --> RAG["RAG Manager"]
+    RAG --> CHROMA["ChromaDB (Optional)"]
     REVIEW --> DB["SQLite"]
+    IMPORTS --> DB
     DEMO --> DB
-    API --> DB
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
 
 ## Demo Flow
 
-1. **Generate Lesson**  
-   Open `Today`, choose English or Japanese, optionally add a topic, and generate a lesson.
-2. **Answer Questions**  
-   Complete grammar and reading questions in the lesson page.
-3. **Review Mistakes**  
-   Submit the review to score answers, update progress, and populate the Wrong Answer Notebook.
-4. **View Analytics**  
-   Open `Progress`, `Vocabulary`, `Mistakes`, and `Analytics` to show retention and learning signals.
+1. Open `Today` and generate an English or Japanese lesson.
+2. Complete grammar and reading questions.
+3. Submit review results to update progress, SRS, and wrong-answer records.
+4. Show `Progress`, `Vocabulary`, `Wrong Answers`, `Analytics`, `Workspace`, and `Writing Center`.
 
-For a clean presentation state at any time:
+Reset demo data at any time:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
-## Screenshot Section
+## Repository Layout
 
-Use these four screens as the core portfolio walkthrough:
+- `backend/` FastAPI application, database layer, lesson generation, tests, Docker image
+- `frontend/` Vue 3 application, i18n resources, service client, Vitest and Playwright tests
+- `docs/screenshots/` suggested portfolio screenshots
+- `data/` runtime data directory kept in git only as `data/.gitkeep`
+- `LICENSE` project license
 
-| Screen | What it demonstrates |
-| --- | --- |
-| `Today` | lesson generation, review flow, demo reset, and PDF export |
-| `Vocabulary` | imported word bank, deletion consistency, and empty-state UX |
-| `Progress` | RPG stats, word cards, and study-plan generation |
-| `Chat` | WebSocket tutor preview and resilient reconnect handling |
-
-Suggested capture targets live in [docs/screenshots](/C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/docs/screenshots).
-
-## Demo Mode and Data Model
-
-- This repo is intentionally **single-tenant demo mode** and uses `default_user`.
-- Frontend clients do **not** send arbitrary `user_id`.
-- The backend enforces demo scoping while keeping the schema migration-ready for future auth.
-- Lesson file paths are stored as relative keys under `DATA_DIR`, not machine-specific absolute paths.
-
-## Environment Toggles
+## Environment
 
 Backend environment variables:
 
-- `DATA_DIR` - base runtime data directory
-- `DB_PATH` - SQLite file path
-- `CHROMA_DB_PATH` - Chroma persistence directory
-- `ENABLE_RAG` - `true` to use ChromaDB lazily, `false` to use a dummy retriever
-- `LOG_LEVEL` - default `INFO`
-- `CORS_ORIGINS` - comma-separated frontend origins
+- `DATA_DIR` runtime data directory
+- `DB_PATH` SQLite database path
+- `CHROMA_DB_PATH` Chroma persistence directory
+- `ENABLE_RAG` set `true` to enable Chroma-backed RAG, `false` to disable it cleanly
+- `CORS_ORIGINS` comma-separated frontend origins
+- `LOG_LEVEL` backend log level
 
-`ENABLE_RAG=false` is the recommended setting for CI, smoke tests, and lightweight demos where embeddings are unnecessary.
+Frontend environment variables:
 
-## Local Quick Start
+- `VITE_API_BASE_URL` defaults to `http://localhost:8000/api`
+- `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
+
+For local development, `ENABLE_RAG=false` is the safest default unless Chroma dependencies are intentionally installed and configured.
+
+## Local Setup
 
 ### Backend
 
@@ -92,7 +80,10 @@ python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env
+# Optional: install RAG dependencies when you want ENABLE_RAG=true
+# python -m pip install -r requirements-rag.txt
+# Windows: copy .env.example .env
+# macOS/Linux: cp .env.example .env
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -108,11 +99,13 @@ Then open [http://localhost:5173](http://localhost:5173).
 
 ## Docker
 
+The provided Compose file starts the backend API only. The frontend is intended to run with `npm run dev` on the host during development.
+
 ```bash
 docker compose up --build
 ```
 
-The compose stack mounts `/data`, creates the directory on startup, fixes ownership for `appuser`, and defaults `ENABLE_RAG=false` for reliable demo startup.
+The API is exposed at [http://localhost:8000](http://localhost:8000), and the compose configuration defaults `ENABLE_RAG=false` for reliable startup in environments without ChromaDB.
 
 ## Testing
 
@@ -120,8 +113,8 @@ The compose stack mounts `/data`, creates the directory on startup, fixes owners
 
 ```bash
 cd backend
-python -m pip install -r requirements.txt -r requirements-dev.txt
-ENABLE_RAG=false pytest tests -v
+python -m compileall -q .
+ENABLE_RAG=false python -m pytest tests -q
 ```
 
 ### Frontend
@@ -129,27 +122,26 @@ ENABLE_RAG=false pytest tests -v
 ```bash
 cd frontend
 npm install
-npm run test
 npm run build
+npm run test
 ```
 
-### Playwright
+### Docker
 
 ```bash
-cd frontend
-RUN_E2E=1 npm run e2e -- --project=chromium
+docker compose config
+docker compose build
+docker compose up
 ```
-
-Set `RUN_E2E=0` to skip browser e2e during quick local or CI passes.
 
 ## Reliability Notes
 
-- RAG and ChromaDB are **lazy-loaded** and never initialized at module import time.
-- Backend startup avoids model loading and stays fast even when Ollama is unavailable.
-- Error responses are normalized with `error`, `message`, and `code` fields.
-- Scheduler and cache paths use structured logging instead of `print`.
-- `/api/demo/reset` rebuilds lessons, vocabulary, wrong answers, and progress for a stable presentation state.
+- Importing `backend/main.py` does not require `chromadb` when `ENABLE_RAG=false`.
+- `backend/requirements-rag.txt` contains the optional Chroma / embedding dependencies for RAG-enabled environments.
+- If `ENABLE_RAG=true` but `chromadb` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
+- Lesson generation can fall back to deterministic sample content when the model path fails.
+- Demo reset rebuilds stable sample data for portfolio walkthroughs.
 
 ## License
 
-MIT. See [LICENSE](/C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/LICENSE).
+MIT. See [LICENSE](LICENSE).

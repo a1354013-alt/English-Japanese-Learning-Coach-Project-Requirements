@@ -1,5 +1,8 @@
 *.pyc
 __pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
 *.log
 *.tmp
 *.swp
@@ -13,34 +16,25 @@ __pycache__/
 .vscode/
 .idea/
 
-# Python caches / coverage
+# Python / virtualenv
 .mypy_cache/
-.pytest_cache/
-.coverage
-coverage/
-htmlcov/
-
-# Node
-node_modules/
-dist/
-build/
-
-# Virtualenvs
 venv/
 .venv/
 
-# Runtime data (do not version)
+# Runtime data
 data/*.db
-data/**/*.db
-data/*.sqlite*
-data/chroma_db/
-data/**/chroma_db/
-data/lessons/
-data/audio/
-data/exports/
-backend/data/
-backend/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.sqlite
+data/*.sqlite3
+tmp_chroma_test/
+tmp_chroma_test2/
+.chroma/
+chroma/
 
-# Playwright artifacts
+# Build outputs and dependencies
+dist/
+node_modules/
+build/
 frontend/test-results/
 frontend/playwright-report/

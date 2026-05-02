@@ -115,6 +115,8 @@ async def list_rag_materials(
     language: Literal["EN", "JP"] | None = None,
     user_id: str = Depends(require_demo_user_id),
 ):
+    if not rag_manager.enabled and not getattr(rag_manager, "disabled_by_config", False):
+        raise api_error(503, rag_manager.init_error or "RAG is unavailable", "rag_unavailable")
     return {"success": True, "items": rag_manager.list_materials(user_id=user_id, language=language)}
 
 
