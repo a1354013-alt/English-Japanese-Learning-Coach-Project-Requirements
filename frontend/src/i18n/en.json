@@ -46,6 +46,21 @@
     "writing": "Writing",
     "chat": "Chat"
   },
+  "onboarding": {
+    "title": "Welcome",
+    "subtitle": "Set your initial language and level.",
+    "language": "Language",
+    "currentLevel": "Current Level",
+    "difficultyMode": "Difficulty Mode",
+    "saving": "Saving...",
+    "start": "Start",
+    "error": "Onboarding failed. Please try again.",
+    "difficulty": {
+      "easy": "Easy",
+      "normal": "Normal",
+      "hardcore": "Hardcore"
+    }
+  },
   "workspace": {
     "eyebrow": "Learning Workspace",
     "title": "Study tools in one place",
@@ -161,8 +176,8 @@
     "checking": "Checking...",
     "retrySubmit": "Submit",
     "retryCancel": "Cancel",
-    "retryCorrect": "Correct! Marked as mastered.",
-    "retryIncorrect": "Not yet, keep practicing.",
+    "retryCorrect": "Correct. Marked as mastered.",
+    "retryIncorrect": "Not yet. Keep practicing.",
     "retry": "Retry",
     "updating": "Updating...",
     "markMastered": "Mark mastered",
@@ -212,13 +227,37 @@
     "wordCardsDescription": "Your collected cards stay visible here so progress feels cumulative over time.",
     "noDefinition": "No definition available"
   },
+  "taskHistory": {
+    "title": "Generation Tasks",
+    "loading": "Loading task history...",
+    "empty": "No task history yet.",
+    "time": "Time",
+    "status": "Status",
+    "model": "Model",
+    "duration": "Duration",
+    "note": "Note",
+    "error": "Failed to load generation tasks."
+  },
+  "evidence": {
+    "title": "Evidence Sources",
+    "chunk": "chunk {index}"
+  },
+  "wordCard": {
+    "rarity": "Rarity: {rarity}"
+  },
+  "rpgBoard": {
+    "title": "RPG Summary",
+    "level": "Level {level} - {title}",
+    "xp": "XP {current} / {next} (Total {total})",
+    "streak": "Streak {days} days"
+  },
   "archive": {
     "title": "Lesson Archive",
     "loading": "Loading lessons...",
     "topicPlaceholder": "Filter by topic",
     "applyFilters": "Apply Filters",
     "viewLesson": "View Lesson",
-    "empty": "No lessons found. Generate your first lesson to get started!",
+    "empty": "No lessons found. Generate your first lesson to get started.",
     "excelImport": "Excel Import",
     "ragUpload": "RAG Upload",
     "selectLanguageBeforeUpload": "Select language before uploading",

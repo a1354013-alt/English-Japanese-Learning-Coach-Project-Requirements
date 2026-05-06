@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 
 function switchLang(lang: string) {
   locale.value = lang
@@ -15,7 +15,7 @@ function switchLang(lang: string) {
       :class="{ active: locale === 'zh-TW' }"
       @click="switchLang('zh-TW')"
     >
-      中文
+      {{ t('language.zh') }}
     </button>
 
     <span class="divider">|</span>
@@ -24,7 +24,7 @@ function switchLang(lang: string) {
       :class="{ active: locale === 'en' }"
       @click="switchLang('en')"
     >
-      English
+      {{ t('language.en') }}
     </button>
   </div>
 </template>

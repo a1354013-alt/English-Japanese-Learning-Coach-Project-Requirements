@@ -230,25 +230,25 @@ class LessonGenerator:
             VocabularyItem(
                 word="resilience",
                 phonetic="/rɪˈzɪl.jəns/",
-                definition_zh="韌性；恢復力",
+                definition_zh="韌性；適應力",
                 example_sentence="Consistency builds resilience.",
-                example_translation="持續練習能培養韌性。",
+                example_translation="持續練習會培養韌性。",
             )
             if language == "EN"
             else VocabularyItem(
-                word="習慣",
-                reading="しゅうかん",
-                definition_zh="習慣",
-                example_sentence="毎日少しずつ勉強する習慣を作りましょう。",
-                example_translation="讓我們建立每天一點點學習的習慣。",
+                word="継続",
+                reading="けいぞく",
+                definition_zh="持續；堅持",
+                example_sentence="毎日少しずつ勉強することが継続のコツです。",
+                example_translation="每天一點一點地學習，就是持續下去的訣竅。",
             )
         )
         reading_content = (
             "Study a little every day to build confidence."
             if language == "EN"
-            else "毎日少しずつ勉強すると、自信が少しずつ育っていきます。"
+            else "毎日少しずつ勉強すると、自信を積み重ねることができます。"
         )
-        reading_answer = "Study daily" if language == "EN" else "每天少量學習"
+        reading_answer = "Study daily" if language == "EN" else "每天學習"
         lesson = Lesson(
             metadata=LessonMetadata(
                 language=language,
@@ -260,11 +260,11 @@ class LessonGenerator:
             vocabulary=[vocab],
             grammar=GrammarSection(
                 title="Simple Present" if language == "EN" else "基本形",
-                explanation="Use it for habits and routines." if language == "EN" else "基本形可用來表達日常習慣與固定動作。",
+                explanation="Use it for habits and routines." if language == "EN" else "基本形可用來表達習慣、日常行為與一般事實。",
                 examples=[],
                 exercises=[
                     {
-                        "question": "Choose the correct sentence for a daily habit:" if language == "EN" else "請選出描述日常習慣的正確句子：",
+                        "question": "Choose the correct sentence for a daily habit:" if language == "EN" else "請選出最適合描述日常習慣的句子：",
                         "options": (
                             [
                                 "I study a little every day.",
@@ -279,7 +279,7 @@ class LessonGenerator:
                             ]
                         ),
                         "correct_answer": "I study a little every day." if language == "EN" else "私は毎日少しずつ勉強します。",
-                        "explanation": "Use the base pattern for habits." if language == "EN" else "描述習慣時使用基本形最自然。",
+                        "explanation": "Use the base pattern for habits." if language == "EN" else "描述習慣時，使用動詞的基本敬體形式最自然。",
                     }
                 ],
             ),
@@ -289,14 +289,14 @@ class LessonGenerator:
                 word_count=len(reading_content.split()),
                 questions=[
                     {
-                        "question": "What is the main idea of the reading?" if language == "EN" else "這段短文的重點是什麼？",
+                        "question": "What is the main idea of the reading?" if language == "EN" else "這段文章的重點是什麼？",
                         "options": (
                             ["Study daily", "Never study", "Study only once a week"]
                             if language == "EN"
-                            else ["每天少量學習", "完全不要學習", "每週只學一次"]
+                            else ["每天學習", "完全不學習", "每週只學一次"]
                         ),
                         "correct_answer": reading_answer,
-                        "explanation": "The passage recommends steady daily practice." if language == "EN" else "這段內容強調每天穩定練習的重要性。",
+                        "explanation": "The passage recommends steady daily practice." if language == "EN" else "文章鼓勵學習者每天穩定練習，逐步建立自信。",
                     }
                 ],
             ),

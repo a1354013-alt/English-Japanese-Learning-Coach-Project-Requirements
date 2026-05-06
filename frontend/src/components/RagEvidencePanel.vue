@@ -1,20 +1,24 @@
 <template>
   <section class="evidence-panel" v-if="evidence && evidence.length > 0">
-    <h4>Evidence Sources</h4>
+    <h4>{{ t('evidence.title') }}</h4>
     <ul class="evidence-list">
       <li v-for="(item, idx) in evidence" :key="idx" class="evidence-item">
         <span class="source-badge">{{ item.source }}</span>
-        <span class="chunk-info">chunk {{ item.chunk_index + 1 }}</span>
+        <span class="chunk-info">{{ t('evidence.chunk', { index: item.chunk_index + 1 }) }}</span>
       </li>
     </ul>
   </section>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 interface EvidenceItem {
   source: string
   chunk_index: number
 }
+
+const { t } = useI18n()
 
 defineProps<{
   evidence?: EvidenceItem[]

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="page-shell page-stack" data-testid="today-lesson">
     <div class="hero-card today-hero">
       <div class="page-header">
@@ -28,7 +28,7 @@
         <div class="surface-muted summary-card">
           <h2>{{ t('today.summaryTitle') }}</h2>
           <p class="summary-meta">
-            {{ lesson.metadata.language }} · {{ lesson.metadata.level }} ·
+            {{ lesson.metadata.language }} / {{ lesson.metadata.level }} /
             {{ t('today.estimatedDuration', { minutes: lesson.metadata.estimated_duration_minutes }) }}
           </p>
           <div class="summary-pills">
@@ -701,3 +701,4 @@ onMounted(loadStreak)
   }
 }
 </style>
+

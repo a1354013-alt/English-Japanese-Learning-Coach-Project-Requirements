@@ -1,19 +1,19 @@
 <template>
   <section>
     <div class="row between center" style="margin-bottom: 0.75rem">
-      <h3 style="margin: 0">Generation Tasks</h3>
-      <button class="secondary" @click="loadTasks" :disabled="loading">{{ loading ? 'Loading...' : 'Refresh' }}</button>
+      <h3 style="margin: 0">{{ t('taskHistory.title') }}</h3>
+      <button class="secondary" @click="loadTasks" :disabled="loading">{{ loading ? t('taskHistory.loading') : t('common.refresh') }}</button>
     </div>
     <p v-if="error" style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
-    <p v-if="loading && tasks.length === 0">Loading task history...</p>
+    <p v-if="loading && tasks.length === 0">{{ t('taskHistory.loading') }}</p>
     <table v-else-if="tasks.length" style="width: 100%; border-collapse: collapse">
       <thead>
         <tr>
-          <th align="left">Time</th>
-          <th align="left">Status</th>
-          <th align="left">Model</th>
-          <th align="left">Duration</th>
-          <th align="left">Note</th>
+          <th align="left">{{ t('taskHistory.time') }}</th>
+          <th align="left">{{ t('taskHistory.status') }}</th>
+          <th align="left">{{ t('taskHistory.model') }}</th>
+          <th align="left">{{ t('taskHistory.duration') }}</th>
+          <th align="left">{{ t('taskHistory.note') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -28,16 +28,18 @@
         </tr>
       </tbody>
     </table>
-    <p v-else>No task history yet.</p>
+    <p v-else>{{ t('taskHistory.empty') }}</p>
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { lessonApi } from '@/services/api'
 import type { GenerationTask } from '@/types'
 import { getTaskStatusLabel } from '@/utils/taskStatusLabel'
 
+const { t } = useI18n()
 const tasks = ref<GenerationTask[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -49,7 +51,7 @@ const loadTasks = async () => {
     const res = await lessonApi.getTasks()
     tasks.value = res.tasks
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load generation tasks'
+    error.value = err instanceof Error ? err.message : t('taskHistory.error')
   } finally {
     loading.value = false
   }

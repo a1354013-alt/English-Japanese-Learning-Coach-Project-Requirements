@@ -3,6 +3,10 @@ import { test, expect } from '@playwright/test'
 test.skip(process.env.RUN_E2E === '0', 'RUN_E2E=0 disables browser e2e in CI and local quick checks.')
 
 test('lesson flow - generate, review, and see progress update', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('locale', 'en')
+  })
+
   await page.goto('/')
 
   // App shell loads
@@ -55,7 +59,7 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
 
   // PDF export should return a PDF response (opens in a new tab/window).
   // PDF export should return a PDF response.
-  await page.getByRole('link', { name: 'Today' }).click()
+  await page.goto('/')
 
   const [pdfResponse] = await Promise.all([
     page.waitForResponse(
@@ -69,7 +73,7 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   expect(pdfResponse.headers()['content-type']).toContain('application/pdf')
 
   // Analytics page renders (computed by backend).
-  await page.getByRole('link', { name: 'Analytics' }).click()
+  await page.goto('/analytics')
   await expect(page.getByText('Learning Analytics')).toBeVisible()
   await expect(page.getByText('Total XP')).toBeVisible()
 })

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
     <div v-if="!embedded" class="panel row between center">
       <div>
@@ -36,9 +36,9 @@
         <div class="row between center" style="gap: 1rem; flex-wrap: wrap">
           <div>
             <strong>{{ item.question_type.toUpperCase() }}</strong>
-            <span style="color: #475569"> · {{ item.language }}</span>
-            <span style="color: #475569"> · {{ formatDate(item.created_at) }}</span>
-            <span v-if="item.wrong_count > 1" style="color: #475569"> · {{ t('mistakes.wrongCount', { count: item.wrong_count }) }}</span>
+            <span style="color: #475569"> / {{ item.language }}</span>
+            <span style="color: #475569"> / {{ formatDate(item.created_at) }}</span>
+            <span v-if="item.wrong_count > 1" style="color: #475569"> / {{ t('mistakes.wrongCount', { count: item.wrong_count }) }}</span>
           </div>
           <span
             :style="{
@@ -235,3 +235,4 @@ watch(statusFilter, () => {
 
 onMounted(loadItems)
 </script>
+

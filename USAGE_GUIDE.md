@@ -10,7 +10,8 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env
+# Windows: copy .env.example .env
+# macOS/Linux: cp .env.example .env
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -126,4 +127,3 @@ npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 cd frontend
 npm run e2e -- --project=chromium
 ```
-
