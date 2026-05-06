@@ -3,28 +3,51 @@ import io
 from typing import Literal
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 
-from api_errors import api_error
-from fastapi.responses import FileResponse
+from api_errors import COMMON_ERROR_RESPONSES, api_error
+from config import settings
 from database import db
 from export_service import pdf_exporter
+from fastapi.responses import FileResponse
 from gamification_engine import gamification_engine
+from models import (
+    ImportExcelResponse,
+    ImportedVocabularyListResponse,
+    RagMaterialsResponse,
+    RagUploadResponse,
+    SuccessResponse,
+)
 from rag_manager import rag_manager
 from routers.deps import require_demo_user_id
 from srs import srs_engine
 from services.lesson_ops import load_lesson_payload
 
-router = APIRouter(prefix="/api", tags=["imports"])
+router = APIRouter(prefix="/api", tags=["imports"], responses=COMMON_ERROR_RESPONSES)
 
 
-@router.post("/import/excel")
+async def _read_upload_with_size_limit(file: UploadFile) -> bytes:
+    contents = await file.read()
+    if len(contents) > settings.max_upload_size_bytes:
+        raise api_error(
+            413,
+            f"Uploaded file exceeds the {settings.max_upload_size_mb} MB limit",
+            "FILE_TOO_LARGE",
+        )
+    return contents
+
+
+@router.post("/import/excel", response_model=ImportExcelResponse)
 async def import_excel(
     language: Literal["EN", "JP"] = "EN",
     file: UploadFile = File(...),
     user_id: str = Depends(require_demo_user_id),
 ):
-    contents = await file.read()
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".xlsx", ".xls")):
+        raise api_error(400, "Only .xlsx and .xls files are supported", "import_unsupported_file_type")
+
+    contents = await _read_upload_with_size_limit(file)
     try:
         df = pd.read_excel(io.BytesIO(contents))
     except Exception as err:
@@ -75,7 +98,7 @@ async def import_excel(
     return {"success": True, "count": imported_count}
 
 
-@router.post("/rag/upload")
+@router.post("/rag/upload", response_model=RagUploadResponse)
 async def upload_rag_material(
     language: Literal["EN", "JP"],
     file: UploadFile = File(...),
@@ -87,7 +110,7 @@ async def upload_rag_material(
     if not filename.endswith((".txt", ".md", ".csv")):
         raise api_error(400, "Only .txt, .md, and .csv files are supported", "rag_unsupported_file_type")
 
-    raw = await file.read()
+    raw = await _read_upload_with_size_limit(file)
     if not raw:
         raise api_error(400, "Uploaded file is empty", "rag_file_empty")
 
@@ -110,7 +133,7 @@ async def upload_rag_material(
     return {"success": True, "doc_id": doc_id}
 
 
-@router.get("/rag/materials")
+@router.get("/rag/materials", response_model=RagMaterialsResponse)
 async def list_rag_materials(
     language: Literal["EN", "JP"] | None = None,
     user_id: str = Depends(require_demo_user_id),
@@ -120,7 +143,7 @@ async def list_rag_materials(
     return {"success": True, "items": rag_manager.list_materials(user_id=user_id, language=language)}
 
 
-@router.delete("/rag/materials/{doc_id}")
+@router.delete("/rag/materials/{doc_id}", response_model=SuccessResponse)
 async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_user_id)):
     if not rag_manager.enabled:
         raise api_error(503, rag_manager.init_error or "RAG is disabled", "rag_unavailable")
@@ -133,7 +156,7 @@ async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_u
     return {"success": True}
 
 
-@router.get("/imported-vocabulary")
+@router.get("/imported-vocabulary", response_model=ImportedVocabularyListResponse)
 async def list_imported_vocabulary(
     language: Literal["EN", "JP"] | None = None,
     q: str | None = None,
@@ -145,7 +168,7 @@ async def list_imported_vocabulary(
     return {"success": True, "count": count, "items": items}
 
 
-@router.delete("/imported-vocabulary/{item_id}")
+@router.delete("/imported-vocabulary/{item_id}", response_model=SuccessResponse)
 async def delete_imported_vocabulary(item_id: int, user_id: str = Depends(require_demo_user_id)):
     ok = db.delete_imported_vocabulary(user_id=user_id, item_id=item_id)
     if not ok:

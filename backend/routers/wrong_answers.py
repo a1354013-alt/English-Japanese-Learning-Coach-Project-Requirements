@@ -2,21 +2,25 @@
 
 from fastapi import APIRouter, Depends, Query
 
-from api_errors import api_error
+from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
 from models import (
     WrongAnswer,
     WrongAnswerCreate,
+    WrongAnswerItemResponse,
+    WrongAnswerListResponse,
     WrongAnswerRetryRequest,
+    WrongAnswerRetryResponse,
     WrongAnswerStatus,
     WrongAnswerUpdate,
+    SuccessResponse,
 )
 from routers.deps import require_demo_user_id
 
-router = APIRouter(prefix="/api", tags=["wrong-answers"])
+router = APIRouter(prefix="/api", tags=["wrong-answers"], responses=COMMON_ERROR_RESPONSES)
 
 
-@router.get("/wrong-answers", response_model=dict)
+@router.get("/wrong-answers", response_model=WrongAnswerListResponse)
 async def list_wrong_answers(
     user_id: str = Depends(require_demo_user_id),
     status: WrongAnswerStatus | None = Query(default=None),
@@ -28,7 +32,7 @@ async def list_wrong_answers(
     return {"success": True, "count": total, "items": [WrongAnswer(**item).model_dump(mode="json") for item in items]}
 
 
-@router.post("/wrong-answers", response_model=dict)
+@router.post("/wrong-answers", response_model=WrongAnswerItemResponse)
 async def create_wrong_answer(
     payload: WrongAnswerCreate,
     user_id: str = Depends(require_demo_user_id),
@@ -45,7 +49,7 @@ async def create_wrong_answer(
     return {"success": True, "item": WrongAnswer(**item).model_dump(mode="json")}
 
 
-@router.patch("/wrong-answers/{wrong_answer_id}", response_model=dict)
+@router.patch("/wrong-answers/{wrong_answer_id}", response_model=WrongAnswerItemResponse)
 async def update_wrong_answer(
     wrong_answer_id: int,
     payload: WrongAnswerUpdate,
@@ -57,7 +61,7 @@ async def update_wrong_answer(
     return {"success": True, "item": WrongAnswer(**item).model_dump(mode="json")}
 
 
-@router.delete("/wrong-answers/{wrong_answer_id}", response_model=dict)
+@router.delete("/wrong-answers/{wrong_answer_id}", response_model=SuccessResponse)
 async def delete_wrong_answer(
     wrong_answer_id: int,
     user_id: str = Depends(require_demo_user_id),
@@ -68,7 +72,7 @@ async def delete_wrong_answer(
     return {"success": True}
 
 
-@router.post("/wrong-answers/{wrong_answer_id}/retry", response_model=dict)
+@router.post("/wrong-answers/{wrong_answer_id}/retry", response_model=WrongAnswerRetryResponse)
 async def retry_wrong_answer(
     wrong_answer_id: int,
     payload: WrongAnswerRetryRequest,

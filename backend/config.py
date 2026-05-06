@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     data_dir: str = str(DEFAULT_DATA_DIR)
     db_path: str = str(DEFAULT_DATA_DIR / "language_coach.db")
     chroma_db_path: str = str(DEFAULT_DATA_DIR / "chroma_db")
-    enable_rag: bool = True
+    enable_rag: bool = False
+    max_upload_size_mb: int = 10
 
     # Cache
     redis_url: str = "redis://localhost:6379/0"
@@ -54,6 +55,10 @@ class Settings(BaseSettings):
     @property
     def exports_dir(self) -> Path:
         return self.data_path / "exports"
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return max(0, self.max_upload_size_mb) * 1024 * 1024
 
 
 settings = Settings()

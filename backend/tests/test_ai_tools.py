@@ -16,7 +16,18 @@ client = TestClient(app)
 def test_generate_study_plan_success():
     with patch("routers.ai_tools.study_planner") as mock_planner, patch("routers.ai_tools.db") as mock_db:
         mock_plan = MagicMock()
-        mock_plan.model_dump.return_value = {"plan_id": "test-plan"}
+        mock_plan.model_dump.return_value = {
+            "plan_id": "test-plan",
+            "user_id": "default_user",
+            "target_goal": "TOEIC 800",
+            "language": "EN",
+            "start_date": "2026-05-06T08:00:00",
+            "end_date": "2026-06-06T08:00:00",
+            "milestones": [],
+            "daily_commitment_minutes": 30,
+            "focus_areas": ["speaking"],
+            "generated_at": "2026-05-06T08:00:00",
+        }
         mock_planner.generate_plan = AsyncMock(return_value=mock_plan)
 
         mock_db.get_progress.return_value = {"english_progress": {"current_level": "A2"}, "japanese_progress": {}}
@@ -35,7 +46,18 @@ def test_generate_study_plan_success():
 def test_analyze_writing_success():
     with patch("routers.ai_tools.writing_assistant") as mock_assistant, patch("routers.ai_tools.db") as mock_db:
         mock_analysis = MagicMock()
-        mock_analysis.model_dump.return_value = {"original_text": "x", "corrected_text": "x"}
+        mock_analysis.model_dump.return_value = {
+            "original_text": "x",
+            "corrected_text": "x",
+            "grammar_score": 90,
+            "vocabulary_score": 88,
+            "style_score": 87,
+            "overall_score": 89,
+            "estimated_level": "A2",
+            "corrections": [],
+            "suggestions": [],
+            "feedback": "Looks good.",
+        }
         mock_assistant.analyze_writing = AsyncMock(return_value=mock_analysis)
         mock_db.record_learning_activity = MagicMock()
 
@@ -60,4 +82,3 @@ def test_generate_tts_returns_audio_url():
         body = response.json()
         assert body["success"] is True
         assert body["audio_url"] == "/api/audio/audio_123.wav"
-

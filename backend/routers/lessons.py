@@ -3,18 +3,27 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 
+from api_errors import COMMON_ERROR_RESPONSES
 from config import settings
 from database import db
 from gamification_engine import gamification_engine
 from lesson_generator import lesson_generator
-from models import GenerateLessonRequest, UserRPGStats
+from models import (
+    GenerateLessonRequest,
+    GeneratedLessonResponse,
+    LessonDetailResponse,
+    LessonListResponse,
+    SuccessResponse,
+    TodayLessonResponse,
+    UserRPGStats,
+)
 from routers.deps import require_demo_user_id
 from services.lesson_ops import load_lesson_payload
 
-router = APIRouter(prefix="/api", tags=["lessons"])
+router = APIRouter(prefix="/api", tags=["lessons"], responses=COMMON_ERROR_RESPONSES)
 
 
-@router.post("/generate/lesson", response_model=dict)
+@router.post("/generate/lesson", response_model=GeneratedLessonResponse)
 async def generate_lesson(request: GenerateLessonRequest, user_id: str = Depends(require_demo_user_id)):
     # Pass user_id to lesson generator for proper user scoping
     lesson = await lesson_generator.generate_lesson(
@@ -41,7 +50,7 @@ async def generate_lesson(request: GenerateLessonRequest, user_id: str = Depends
     return {"success": True, "lesson": lesson_dict}
 
 
-@router.get("/lessons", response_model=dict)
+@router.get("/lessons", response_model=LessonListResponse)
 async def list_lessons(
     language: Optional[Literal["EN", "JP"]] = None,
     start_date: Optional[str] = None,
@@ -56,7 +65,7 @@ async def list_lessons(
     return {"success": True, "count": total, "lessons": lessons}
 
 
-@router.get("/lessons/today/{language}", response_model=dict)
+@router.get("/lessons/today/{language}", response_model=TodayLessonResponse)
 async def get_today_lesson(language: Literal["EN", "JP"], user_id: str = Depends(require_demo_user_id)):
     lesson_meta = db.get_today_lesson(user_id, language)
     if not lesson_meta:
@@ -64,12 +73,12 @@ async def get_today_lesson(language: Literal["EN", "JP"], user_id: str = Depends
     return {"success": True, "lesson": load_lesson_payload(lesson_meta["lesson_id"], user_id=user_id)}
 
 
-@router.get("/lessons/{lesson_id}", response_model=dict)
+@router.get("/lessons/{lesson_id}", response_model=LessonDetailResponse)
 async def get_lesson(lesson_id: str, user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "lesson": load_lesson_payload(lesson_id, user_id=user_id)}
 
 
-@router.post("/onboard")
+@router.post("/onboard", response_model=SuccessResponse)
 async def onboard_user(language: Literal["EN", "JP"], level: str, difficulty: str, user_id: str = Depends(require_demo_user_id)):
     progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"

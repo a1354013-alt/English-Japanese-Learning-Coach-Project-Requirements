@@ -205,20 +205,42 @@ class RAGManager:
                 "chromadb.utils.embedding_functions"
             ).DefaultEmbeddingFunction
         except ModuleNotFoundError as err:
-            missing_name = err.name or ""
-            if missing_name == "chromadb" or missing_name.startswith("chromadb.") or "chromadb" in str(err).lower():
-                message = (
-                    "RAG is enabled but chromadb is not installed. "
-                    "Install backend requirements or set ENABLE_RAG=false."
-                )
+            message = RAGManager._optional_dependency_error_message(err)
+            if message:
                 return DisabledRAGManager(message, disabled_by_config=False)
             raise
 
         try:
             return _ChromaRAGManager(chromadb_module, chroma_settings_cls, embedding_function_cls)
+        except ModuleNotFoundError as err:
+            message = RAGManager._optional_dependency_error_message(err)
+            if message:
+                return DisabledRAGManager(message, disabled_by_config=False)
+            raise
         except Exception as err:
             message = f"RAG could not be initialized: {err}"
             return DisabledRAGManager(message, disabled_by_config=False)
+
+    @staticmethod
+    def _optional_dependency_error_message(err: ModuleNotFoundError) -> Optional[str]:
+        missing_name = (err.name or "").lower()
+        error_text = str(err).lower()
+        if missing_name == "chromadb" or missing_name.startswith("chromadb.") or "chromadb" in error_text:
+            return (
+                "RAG is enabled but chromadb is not installed. "
+                "Install backend/requirements-rag.txt and set ENABLE_RAG=true only when those dependencies are available."
+            )
+        if (
+            missing_name == "sentence_transformers"
+            or missing_name.startswith("sentence_transformers.")
+            or "sentence-transformers" in error_text
+            or "sentence_transformers" in error_text
+        ):
+            return (
+                "RAG is enabled but sentence-transformers is not installed. "
+                "Install backend/requirements-rag.txt and set ENABLE_RAG=true only when those dependencies are available."
+            )
+        return None
 
     @property
     def enabled(self) -> bool:

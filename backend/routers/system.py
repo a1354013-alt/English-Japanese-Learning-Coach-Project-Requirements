@@ -7,20 +7,28 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 
+from api_errors import COMMON_ERROR_RESPONSES
 from config import settings
 from database import db
 from demo_seed import reset_demo_dataset
+from models import (
+    AnalyticsResponse,
+    DemoResetResponse,
+    HealthCheckResponse,
+    ProgressResponse,
+    RootResponse,
+)
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 from routers.deps import require_demo_user_id
 
 APP_VERSION = "1.2.0"
 
-root_router = APIRouter(tags=["system"])
-api_router = APIRouter(prefix="/api", tags=["system"])
+root_router = APIRouter(tags=["system"], responses=COMMON_ERROR_RESPONSES)
+api_router = APIRouter(prefix="/api", tags=["system"], responses=COMMON_ERROR_RESPONSES)
 
 
-@root_router.get("/")
+@root_router.get("/", response_model=RootResponse)
 async def root():
     return {
         "status": "healthy",
@@ -30,7 +38,7 @@ async def root():
     }
 
 
-@api_router.get("/health")
+@api_router.get("/health", response_model=HealthCheckResponse)
 async def health_check():
     db_reachable = db.check_connection()
     ollama_small_ready = await ollama_client.check_model_availability(settings.small_model_name)
@@ -59,18 +67,18 @@ async def health_check():
     }
 
 
-@api_router.post("/demo/reset")
+@api_router.post("/demo/reset", response_model=DemoResetResponse)
 async def demo_reset(user_id: str = Depends(require_demo_user_id)):
     summary = reset_demo_dataset(db)
     return {"success": True, "message": "Demo dataset reset complete.", "summary": summary}
 
 
-@api_router.get("/progress", response_model=dict)
+@api_router.get("/progress", response_model=ProgressResponse)
 async def get_progress(user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "progress": db.get_progress(user_id)}
 
 
-@api_router.get("/analytics", response_model=dict)
+@api_router.get("/analytics", response_model=AnalyticsResponse)
 async def get_analytics(user_id: str = Depends(require_demo_user_id)):
     streak_info = db.get_streak_info(user_id)
     progress = db.get_progress(user_id)

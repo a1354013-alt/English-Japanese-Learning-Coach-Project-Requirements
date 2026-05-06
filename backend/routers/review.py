@@ -3,10 +3,18 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from api_errors import api_error
+from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
 from gamification_engine import gamification_engine
-from models import ErrorType, ReviewAnswer, UserRPGStats
+from models import (
+    ErrorType,
+    ReviewAnswer,
+    ReviewSubmitResponse,
+    SrsDueResponse,
+    SuccessResponse,
+    TasksResponse,
+    UserRPGStats,
+)
 from routers.deps import require_demo_user_id
 from services.lesson_ops import (
     load_lesson_payload,
@@ -16,7 +24,7 @@ from services.lesson_ops import (
 )
 from srs import srs_engine
 
-router = APIRouter(prefix="/api", tags=["review"])
+router = APIRouter(prefix="/api", tags=["review"], responses=COMMON_ERROR_RESPONSES)
 
 def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) -> None:
     lesson_id = answers[0].lesson_id
@@ -53,7 +61,7 @@ def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) 
             raise api_error(400, "Invalid review payload: correct_answer mismatch", "review_correct_answer_mismatch")
 
 
-@router.post("/review", response_model=dict)
+@router.post("/review", response_model=ReviewSubmitResponse)
 async def submit_review(
     answers: List[ReviewAnswer],
     user_id: str = Depends(require_demo_user_id),
@@ -157,7 +165,7 @@ async def submit_review(
     }
 
 
-@router.get("/srs/due")
+@router.get("/srs/due", response_model=SrsDueResponse)
 async def get_due_items(
     language: Optional[str] = None,
     user_id: str = Depends(require_demo_user_id),
@@ -180,7 +188,7 @@ async def get_due_items(
     return {"success": True, "items": items}
 
 
-@router.post("/srs/review", response_model=dict)
+@router.post("/srs/review", response_model=SuccessResponse)
 async def submit_srs_review(
     word: str,
     language: str,
@@ -206,6 +214,6 @@ async def submit_srs_review(
     return {"success": True}
 
 
-@router.get("/tasks")
+@router.get("/tasks", response_model=TasksResponse)
 async def get_tasks(limit: int = 10, user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "tasks": db.get_generation_tasks(user_id, limit)}

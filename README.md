@@ -58,7 +58,8 @@ Backend environment variables:
 - `DATA_DIR` runtime data directory
 - `DB_PATH` SQLite database path
 - `CHROMA_DB_PATH` Chroma persistence directory
-- `ENABLE_RAG` set `true` to enable Chroma-backed RAG, `false` to disable it cleanly
+- `ENABLE_RAG` defaults to `false`; set `true` only after installing `backend/requirements-rag.txt`
+- `MAX_UPLOAD_SIZE_MB` maximum upload size for import and RAG material endpoints, defaults to `10`
 - `CORS_ORIGINS` comma-separated frontend origins
 - `LOG_LEVEL` backend log level
 
@@ -67,7 +68,7 @@ Frontend environment variables:
 - `VITE_API_BASE_URL` defaults to `http://localhost:8000/api`
 - `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
 
-For local development, `ENABLE_RAG=false` is the safest default unless Chroma dependencies are intentionally installed and configured.
+For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
 ## Local Setup
 
@@ -80,7 +81,7 @@ python -m venv .venv
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install -r requirements.txt -r requirements-dev.txt
-# Optional: install RAG dependencies when you want ENABLE_RAG=true
+# Optional: install RAG dependencies only when you want ENABLE_RAG=true
 # python -m pip install -r requirements-rag.txt
 # Windows: copy .env.example .env
 # macOS/Linux: cp .env.example .env
@@ -105,7 +106,7 @@ The provided Compose file starts the backend API only. The frontend is intended 
 docker compose up --build
 ```
 
-The API is exposed at [http://localhost:8000](http://localhost:8000), and the compose configuration defaults `ENABLE_RAG=false` for reliable startup in environments without ChromaDB.
+The API is exposed at [http://localhost:8000](http://localhost:8000), and the compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
 
 ## Testing
 
@@ -123,8 +124,15 @@ ENABLE_RAG=false python -m pytest tests -q
 cd frontend
 npm install
 npm run build
-npm run test
+npm run test:ci
+npx playwright test
 ```
+
+Playwright E2E is configured as a frontend-only flow test. It starts the Vite dev server automatically through Playwright `webServer` and mocks the lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
+
+- No backend startup is required for `cd frontend && npx playwright test`
+- No Ollama, ChromaDB, network access, or other external services are required
+- The E2E lesson flow uses stable mocked lesson/review responses instead of relying on live generation
 
 ### Docker
 
@@ -136,11 +144,17 @@ docker compose up
 
 ## Reliability Notes
 
-- Importing `backend/main.py` does not require `chromadb` when `ENABLE_RAG=false`.
+- Importing `backend/main.py` does not require `chromadb` or `sentence-transformers` when `ENABLE_RAG=false`.
 - `backend/requirements-rag.txt` contains the optional Chroma / embedding dependencies for RAG-enabled environments.
-- If `ENABLE_RAG=true` but `chromadb` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
+- If `ENABLE_RAG=true` but `chromadb` or `sentence-transformers` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
+- Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
+- Playwright E2E is intentionally mocked at the API layer so CI does not depend on backend process startup, demo seed state, or real LLM/Ollama availability.
 - Lesson generation can fall back to deterministic sample content when the model path fails.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
+
+## Known Limitations
+
+- Upload size validation is currently applied immediately after `await file.read()` completes. This keeps behavior consistent across import and RAG upload endpoints, but it is not a full streaming upload guard yet.
 
 ## License
 

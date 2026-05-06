@@ -8,8 +8,19 @@ from typing import Any
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from models import ApiErrorPayload
 
 logger = logging.getLogger(__name__)
+
+
+COMMON_ERROR_RESPONSES = {
+    400: {"model": ApiErrorPayload, "description": "Bad request"},
+    404: {"model": ApiErrorPayload, "description": "Not found"},
+    413: {"model": ApiErrorPayload, "description": "Payload too large"},
+    422: {"model": ApiErrorPayload, "description": "Validation error"},
+    500: {"model": ApiErrorPayload, "description": "Internal server error"},
+    503: {"model": ApiErrorPayload, "description": "Service unavailable"},
+}
 
 
 class ApiHTTPException(HTTPException):

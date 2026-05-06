@@ -91,6 +91,16 @@ class DialogueSection(BaseModel):
 
 
 # ============ Lesson Models ============
+class LessonEvidence(BaseModel):
+    doc_id: Optional[str] = None
+    text: str = ""
+    source: str
+    language: Optional[str] = None
+    uploaded_at: Optional[str] = None
+    total_chunks: Optional[int] = None
+    chunk_index: Optional[int] = None
+
+
 class LessonMetadata(BaseModel):
     """Metadata for a lesson"""
     lesson_id: str = Field(default_factory=lambda: str(uuid4()))
@@ -109,8 +119,9 @@ class Lesson(BaseModel):
     grammar: GrammarSection
     reading: ReadingSection
     dialogue: DialogueSection
-    tts_scripts: Optional[List[dict]] = None  # For future TTS integration
-    evidence: Optional[List[Dict[str, Any]]] = None  # RAG evidence sources
+    tts_scripts: Optional[List[Dict[str, Any]]] = None  # For future TTS integration
+    evidence: Optional[List[LessonEvidence]] = None  # RAG evidence sources
+    gamification: Optional["LessonGamification"] = None
 
 
 # ============ Stability & Tracking Models ============
@@ -154,6 +165,11 @@ class WordCard(BaseModel):
     rarity: Literal["C", "B", "A", "S", "SS"]
     collected_at: datetime
     language: str
+    reading: Optional[str] = None
+    phonetic: Optional[str] = None
+    definition_zh: Optional[str] = None
+    example_sentence: Optional[str] = None
+    example_translation: Optional[str] = None
 
 class UserRPGStats(BaseModel):
     """RPG-style user statistics"""
@@ -269,6 +285,13 @@ class StreakInfo(BaseModel):
 
 
 # ============ Writing Assistant Models ============
+class WritingCorrection(BaseModel):
+    original: str
+    corrected: str
+    explanation: str
+    type: str
+
+
 class WritingAnalysis(BaseModel):
     """AI analysis of user writing"""
     original_text: str
@@ -278,7 +301,7 @@ class WritingAnalysis(BaseModel):
     style_score: int  # 0-100
     overall_score: int  # 0-100
     estimated_level: str  # CEFR or JLPT
-    corrections: List[Dict[str, str]]  # List of {original, corrected, explanation, type}
+    corrections: List[WritingCorrection]
     suggestions: List[str]
     feedback: str
 
@@ -329,3 +352,243 @@ class LessonQueryParams(BaseModel):
     topic: Optional[str] = None
     limit: int = 20
     offset: int = 0
+
+
+# ============ API Response Models ============
+class ApiErrorPayload(BaseModel):
+    error: bool = True
+    message: str
+    code: str
+    detail: Optional[Any] = None
+
+
+class SuccessResponse(BaseModel):
+    success: bool = True
+
+
+class MessageResponse(SuccessResponse):
+    message: str
+
+
+class LessonGamification(BaseModel):
+    xp_added: int
+    leveled_up: bool = False
+    new_cards: List[WordCard] = Field(default_factory=list)
+
+
+class ReviewGamification(BaseModel):
+    xp_added: int
+    leveled_up: bool = False
+
+
+class GeneratedLessonResponse(SuccessResponse):
+    lesson: Lesson
+
+
+class LessonListItem(BaseModel):
+    lesson_id: str
+    user_id: str
+    language: Literal["EN", "JP"]
+    level: str
+    topic: str
+    generated_at: datetime
+    estimated_duration_minutes: Optional[int] = None
+    key_points: List[str] | str | None = None
+    file_path: str
+    created_at: Optional[datetime] = None
+
+
+class LessonListResponse(SuccessResponse):
+    count: int
+    lessons: List[LessonListItem]
+
+
+class LessonDetailResponse(SuccessResponse):
+    lesson: Lesson
+
+
+class TodayLessonResponse(SuccessResponse):
+    lesson: Optional[Lesson] = None
+
+
+class ReviewSubmitResponse(SuccessResponse):
+    total_questions: int
+    correct_count: int
+    accuracy_rate: float
+    incorrect_items: List[IncorrectItem]
+    gamification: ReviewGamification
+
+
+class SrsDueItem(BaseModel):
+    word: str
+    language: str
+    definition_zh: Optional[str] = None
+    next_review: Optional[datetime] = None
+    interval: int
+    ease_factor: float
+    srs_level: int
+
+
+class SrsDueResponse(SuccessResponse):
+    items: List[SrsDueItem]
+
+
+class TasksResponse(SuccessResponse):
+    tasks: List[GenerationTask]
+
+
+class StreakResponse(SuccessResponse):
+    current_streak: int
+    longest_streak: int
+    last_active_date: Optional[str] = None
+    today_completed: bool
+
+
+class WritingAnalysisResponse(SuccessResponse):
+    analysis: WritingAnalysis
+
+
+class StudyPlanResponse(SuccessResponse):
+    plan: StudyPlan
+
+
+class TtsResponse(SuccessResponse):
+    available: bool
+    audio_url: Optional[str] = None
+    mode: Literal["live", "preview"]
+    message: Optional[str] = None
+
+
+class RagMaterial(BaseModel):
+    doc_id: str
+    source: str
+    language: str
+    uploaded_at: Optional[str] = None
+    total_chunks: Optional[int] = None
+    text: Optional[str] = None
+
+
+class RagUploadResponse(SuccessResponse):
+    doc_id: str
+
+
+class RagMaterialsResponse(SuccessResponse):
+    items: List[RagMaterial]
+
+
+class ImportedVocabularyItem(BaseModel):
+    id: int
+    user_id: str
+    language: Literal["EN", "JP"]
+    word: str
+    reading: Optional[str] = None
+    definition_zh: str
+    example_sentence: Optional[str] = None
+    example_translation: Optional[str] = None
+    created_at: datetime
+
+
+class ImportedVocabularyListResponse(SuccessResponse):
+    count: int
+    items: List[ImportedVocabularyItem]
+
+
+class ImportExcelResponse(SuccessResponse):
+    count: int
+
+
+class WrongAnswerListResponse(SuccessResponse):
+    count: int
+    items: List[WrongAnswer]
+
+
+class WrongAnswerItemResponse(SuccessResponse):
+    item: WrongAnswer
+
+
+class WrongAnswerRetryResponse(SuccessResponse):
+    correct: bool
+    item: WrongAnswer
+
+
+class RootResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+    timestamp: datetime
+
+
+class DatabaseHealth(BaseModel):
+    configured: bool
+    reachable: bool
+    ready: bool
+
+
+class OllamaHealth(BaseModel):
+    configured: bool
+    small_model: str
+    large_model: str
+    small_model_ready: bool
+    large_model_ready: bool
+    ready: bool
+
+
+class RagHealth(BaseModel):
+    configured: bool
+    ready: bool
+    error: Optional[str] = None
+
+
+class HealthCheckResponse(BaseModel):
+    api: str
+    database: DatabaseHealth
+    ollama: OllamaHealth
+    rag: RagHealth
+    timestamp: datetime
+
+
+class DemoResetSummary(BaseModel):
+    lessons: int
+    imported_vocabulary: int
+    wrong_answers: int
+    today_lesson_id: str
+
+
+class DemoResetResponse(MessageResponse):
+    summary: DemoResetSummary
+
+
+class ProgressResponse(SuccessResponse):
+    progress: UserProgress
+
+
+class AnalyticsHardestWord(BaseModel):
+    word: str
+    mistakes: int
+
+
+class AnalyticsWeakestCategory(BaseModel):
+    category: str
+    active_items: int
+
+
+class AnalyticsTrendPoint(BaseModel):
+    lesson_id: Optional[str] = None
+    accuracy_rate: float
+    submitted_at: datetime
+
+
+class AnalyticsPayload(BaseModel):
+    total_xp: int
+    level: int
+    streak: int
+    longest_streak: int
+    lessons_completed: int
+    hardest_words: List[AnalyticsHardestWord]
+    weakest_category: Optional[AnalyticsWeakestCategory] = None
+    accuracy_trend: List[AnalyticsTrendPoint]
+    today_completed: bool
+
+
+class AnalyticsResponse(SuccessResponse):
+    analytics: AnalyticsPayload
