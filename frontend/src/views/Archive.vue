@@ -49,13 +49,13 @@
       <div>
         <h3>{{ t('archive.excelImport') }}</h3>
         <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
-        <input type="file" accept=".xlsx,.xls" @change="handleExcelUpload" :disabled="!filters.language" />
+        <input type="file" accept=".xlsx" @change="handleExcelUpload" :disabled="!filters.language" />
         <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
       </div>
       <div>
         <h3>{{ t('archive.ragUpload') }}</h3>
         <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
-        <input type="file" accept=".txt,.md,.csv" @change="handleRagUpload" :disabled="!filters.language" />
+        <input type="file" accept=".txt,.md,.csv,.pdf" @change="handleRagUpload" :disabled="!filters.language" />
         <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
       </div>
     </div>

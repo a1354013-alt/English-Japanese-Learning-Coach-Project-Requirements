@@ -6,6 +6,7 @@ from datetime import datetime, time
 from typing import List, Dict, Any, Optional
 from models import UserRPGStats, Achievement, WordCard
 from database import db
+from services.streak_service import get_streak_snapshot
 
 class GamificationEngine:
     """Logic for RPG-style progression"""
@@ -71,6 +72,7 @@ class GamificationEngine:
         rpg_stats_data = db.get_rpg_stats(user_id) or {}
         rpg_stats = UserRPGStats(**rpg_stats_data)
         unlocked_now = []
+        streak = get_streak_snapshot(user_id)
         
         # 1. Early Bird Achievement (Study before 7:30 AM)
         now = datetime.now()
@@ -78,7 +80,7 @@ class GamificationEngine:
             self._unlock_achievement(rpg_stats, "early_bird", "Early Bird", "Study before 7:30 AM", "🌅", "rare", unlocked_now)
             
         # 2. Streak Achievements
-        if rpg_stats.streak_days >= 7:
+        if streak["current_streak"] >= 7:
             self._unlock_achievement(rpg_stats, "week_streak", "Week Warrior", "Maintain a 7-day streak", "🔥", "epic", unlocked_now)
             
         # 3. Accuracy Achievement (P1 Fix: Accuracy is 0-100 in progress)

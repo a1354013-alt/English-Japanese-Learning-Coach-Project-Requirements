@@ -92,13 +92,16 @@ class DialogueSection(BaseModel):
 
 # ============ Lesson Models ============
 class LessonEvidence(BaseModel):
+    material_id: str
     doc_id: Optional[str] = None
     text: str = ""
     source: str
+    title: str
     language: Optional[str] = None
+    source_type: Optional[str] = None
     uploaded_at: Optional[str] = None
-    total_chunks: Optional[int] = None
-    chunk_index: Optional[int] = None
+    total_chunks: int = 1
+    chunk_index: int = 0
 
 
 class LessonMetadata(BaseModel):
@@ -460,11 +463,14 @@ class TtsResponse(SuccessResponse):
 
 
 class RagMaterial(BaseModel):
+    material_id: str
     doc_id: str
     source: str
+    title: str
     language: str
+    source_type: Optional[str] = None
     uploaded_at: Optional[str] = None
-    total_chunks: Optional[int] = None
+    total_chunks: int = 1
     text: Optional[str] = None
 
 
@@ -560,6 +566,7 @@ class DemoResetResponse(MessageResponse):
 
 class ProgressResponse(SuccessResponse):
     progress: UserProgress
+    streak: StreakInfo
 
 
 class AnalyticsHardestWord(BaseModel):

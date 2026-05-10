@@ -19,7 +19,7 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -76,11 +76,14 @@ npm run dev
 
 11. RAG upload + management
 - Archive page → RAG Upload (select a language)
+- Supported upload formats: `.txt`, `.md`, `.csv`, `.pdf`
 - Open Materials page
 - Verify materials list and deletion works (non-existent `doc_id` returns 404)
+- If the backend runs with `ENABLE_RAG=false`, the materials list should still load, while upload/delete return a clear unavailable error
 
 12. PDF export
 - Today page → Export PDF
+- User text containing `<tag> & "quotes"` should not crash export
 
 13. Chat Tutor (Preview)
 - Open Chat (Preview) page
@@ -91,39 +94,48 @@ npm run dev
 
 - Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped). The frontend does not send `user_id`; the API defaults to the demo user internally.
 - TTS (API only): endpoint returns `available=false` unless a real provider is integrated (`backend/tts_service.py`). No TTS UI in this build.
-- RAG: uploads go to Chroma when available; when RAG is disabled on the backend, upload/delete returns an error.
+- RAG: uploads go to Chroma when available; materials are chunked per document and keep stable metadata. When RAG is disabled on the backend, listing still works and mutating endpoints return an unavailable error.
 
 ## Tests
 
 ```bash
 cd backend
 python -m pip install -r requirements.txt -r requirements-dev.txt
-pytest tests/ -v
+ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
 ```
 
 ```bash
 cd frontend
-npm install
-npm run test
+npm ci
+npm run test:ci
 npm run build
 ```
 
-## Playwright e2e (minimal acceptance)
+## Playwright e2e (mocked acceptance)
 
-Run backend and frontend locally, then execute Playwright:
+This suite does not require a backend:
 
 ```bash
-# Terminal 1
-cd backend
-python -m pip install -r requirements.txt
-python -m uvicorn main:app --host 127.0.0.1 --port 8000
-
-# Terminal 2
 cd frontend
-npm install
-npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
-
-# Terminal 3
-cd frontend
+npm ci
+npx playwright install --with-deps chromium
 npm run e2e -- --project=chromium
 ```
+
+## Playwright e2e (full-stack)
+
+This suite starts the real backend and real frontend automatically:
+
+```bash
+cd backend
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+```bash
+cd frontend
+npm ci
+npx playwright install --with-deps chromium
+npm run e2e:fullstack -- --project=chromium
+```
+
+The full-stack test uses deterministic fallback lesson generation plus `/api/demo/reset`, so it does not depend on a live LLM response.

@@ -1,6 +1,7 @@
 """PDF export service with full lesson support."""
 from pathlib import Path
 from typing import Any, Dict, List
+from xml.sax.saxutils import escape
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -41,6 +42,14 @@ class PDFExporter:
                 except Exception:
                     continue
 
+    @staticmethod
+    def _escape_text(value: Any, *, preserve_newlines: bool = False) -> str:
+        text = "" if value is None else str(value)
+        escaped = escape(text, {'"': "&quot;"})
+        if preserve_newlines:
+            return escaped.replace("\n", "<br/>")
+        return escaped
+
     def _add_lesson_sections(self, lesson_data: Dict[str, Any], styles: Dict[str, ParagraphStyle]) -> List:
         """Build PDF elements for a complete lesson."""
         elements = []
@@ -51,10 +60,11 @@ class PDFExporter:
         heading_style = styles["Heading2"]
         body_style = styles["Body"]
 
-        elements.append(Paragraph(f"Language Lesson: {metadata.get('topic', 'Lesson')}", title_style))
+        elements.append(Paragraph(f"Language Lesson: {self._escape_text(metadata.get('topic', 'Lesson'))}", title_style))
         elements.append(
             Paragraph(
-                f"Language: {metadata.get('language', 'N/A')} | Level: {metadata.get('level', 'N/A')}",
+                f"Language: {self._escape_text(metadata.get('language', 'N/A'))} | "
+                f"Level: {self._escape_text(metadata.get('level', 'N/A'))}",
                 body_style,
             )
         )
@@ -69,13 +79,13 @@ class PDFExporter:
             example = item.get("example_sentence", "")
             translation = item.get("example_translation", "")
 
-            elements.append(Paragraph(f"<b>{word}</b>", body_style))
+            elements.append(Paragraph(f"<b>{self._escape_text(word)}</b>", body_style))
             if definition:
-                elements.append(Paragraph(f"Definition: {definition}", body_style))
+                elements.append(Paragraph(f"Definition: {self._escape_text(definition, preserve_newlines=True)}", body_style))
             if example:
-                elements.append(Paragraph(f"Example: {example}", body_style))
+                elements.append(Paragraph(f"Example: {self._escape_text(example, preserve_newlines=True)}", body_style))
             if translation:
-                elements.append(Paragraph(f"Translation: {translation}", body_style))
+                elements.append(Paragraph(f"Translation: {self._escape_text(translation, preserve_newlines=True)}", body_style))
             elements.append(Spacer(1, 0.1 * inch))
 
         # Grammar Section
@@ -85,11 +95,11 @@ class PDFExporter:
             elements.append(Spacer(1, 0.15 * inch))
 
             if grammar.get("title"):
-                elements.append(Paragraph(f"<b>{grammar['title']}</b>", body_style))
+                elements.append(Paragraph(f"<b>{self._escape_text(grammar['title'])}</b>", body_style))
                 elements.append(Spacer(1, 0.1 * inch))
 
             if grammar.get("explanation"):
-                elements.append(Paragraph(grammar["explanation"], body_style))
+                elements.append(Paragraph(self._escape_text(grammar["explanation"], preserve_newlines=True), body_style))
                 elements.append(Spacer(1, 0.15 * inch))
 
             # Grammar Exercises
@@ -97,10 +107,10 @@ class PDFExporter:
             if exercises:
                 elements.append(Paragraph("<i>Exercises:</i>", body_style))
                 for i, ex in enumerate(exercises, 1):
-                    elements.append(Paragraph(f"{i}. {ex.get('question', '')}", body_style))
+                    elements.append(Paragraph(f"{i}. {self._escape_text(ex.get('question', ''), preserve_newlines=True)}", body_style))
                     correct = ex.get("correct_answer")
                     if correct:
-                        elements.append(Paragraph(f"   Answer: {correct}", body_style))
+                        elements.append(Paragraph(f"   Answer: {self._escape_text(correct, preserve_newlines=True)}", body_style))
                 elements.append(Spacer(1, 0.2 * inch))
 
         # Reading Section
@@ -111,7 +121,7 @@ class PDFExporter:
 
             content = reading.get("content", "")
             if content:
-                elements.append(Paragraph(content.replace("\n", "<br/>"), body_style))
+                elements.append(Paragraph(self._escape_text(content, preserve_newlines=True), body_style))
                 elements.append(Spacer(1, 0.15 * inch))
 
             # Reading Questions
@@ -120,12 +130,12 @@ class PDFExporter:
                 elements.append(Paragraph("<i>Comprehension Questions:</i>", body_style))
                 for i, q in enumerate(questions, 1):
                     if not isinstance(q, dict):
-                        elements.append(Paragraph(f"{i}. {str(q)}", body_style))
+                        elements.append(Paragraph(f"{i}. {self._escape_text(q, preserve_newlines=True)}", body_style))
                         continue
-                    elements.append(Paragraph(f"{i}. {q.get('question', '')}", body_style))
+                    elements.append(Paragraph(f"{i}. {self._escape_text(q.get('question', ''), preserve_newlines=True)}", body_style))
                     correct = q.get("correct_answer")
                     if correct:
-                        elements.append(Paragraph(f"   Answer: {correct}", body_style))
+                        elements.append(Paragraph(f"   Answer: {self._escape_text(correct, preserve_newlines=True)}", body_style))
                 elements.append(Spacer(1, 0.2 * inch))
 
         # Dialogue Section
@@ -138,9 +148,9 @@ class PDFExporter:
             scenario = dialogue_section.get("scenario")
             context = dialogue_section.get("context")
             if scenario:
-                elements.append(Paragraph(f"<b>{scenario}</b>", body_style))
+                elements.append(Paragraph(f"<b>{self._escape_text(scenario)}</b>", body_style))
             if context:
-                elements.append(Paragraph(str(context), body_style))
+                elements.append(Paragraph(self._escape_text(context, preserve_newlines=True), body_style))
             if scenario or context:
                 elements.append(Spacer(1, 0.1 * inch))
 
@@ -151,9 +161,14 @@ class PDFExporter:
                 text = line.get("text", "")
                 translation = line.get("translation", "")
                 if speaker and text:
-                    elements.append(Paragraph(f"<b>{speaker}:</b> {text}", body_style))
+                    elements.append(
+                        Paragraph(
+                            f"<b>{self._escape_text(speaker)}:</b> {self._escape_text(text, preserve_newlines=True)}",
+                            body_style,
+                        )
+                    )
                     if translation:
-                        elements.append(Paragraph(f"<i>{translation}</i>", body_style))
+                        elements.append(Paragraph(f"<i>{self._escape_text(translation, preserve_newlines=True)}</i>", body_style))
             elements.append(Spacer(1, 0.2 * inch))
 
         # Evidence (RAG)
@@ -167,8 +182,8 @@ class PDFExporter:
                 source = item.get("source", "unknown")
                 text = item.get("text", "")
                 if text:
-                    elements.append(Paragraph(f"<b>{source}</b>", body_style))
-                    elements.append(Paragraph(str(text).replace("\n", "<br/>"), body_style))
+                    elements.append(Paragraph(f"<b>{self._escape_text(source)}</b>", body_style))
+                    elements.append(Paragraph(self._escape_text(text, preserve_newlines=True), body_style))
                     elements.append(Spacer(1, 0.1 * inch))
 
         return elements

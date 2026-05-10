@@ -15,7 +15,7 @@
     <div class="panel">
       <h3 style="margin-top: 0">{{ t('materials.upload') }}</h3>
       <p style="font-size: 0.85rem; color: #666">{{ t('materials.supported') }}</p>
-      <input type="file" accept=".txt,.md,.csv" @change="handleUpload" :disabled="!language" />
+      <input type="file" accept=".txt,.md,.csv,.pdf" @change="handleUpload" :disabled="!language" />
       <p v-if="!language" style="font-size: 0.75rem; color: #d32f2f">
         {{ t('materials.selectLanguageBeforeUpload') }}
       </p>
@@ -47,7 +47,7 @@
         </thead>
         <tbody>
           <tr v-for="m in materials" :key="m.doc_id">
-            <td>{{ m.source }}</td>
+            <td>{{ m.title || m.source }}</td>
             <td>{{ m.language }}</td>
             <td>{{ m.uploaded_at ? new Date(m.uploaded_at).toLocaleString() : '' }}</td>
             <td>{{ m.total_chunks ?? '' }}</td>

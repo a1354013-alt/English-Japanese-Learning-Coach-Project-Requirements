@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -31,7 +32,7 @@ jobs:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Pytest
-        run: pytest tests/ -v
+        run: pytest tests -q
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -80,3 +81,38 @@ jobs:
           RUN_E2E: "1"
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
         run: npm run e2e -- --project=chromium
+
+  e2e-fullstack:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright (Chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run full-stack e2e acceptance
+        run: npm run e2e:fullstack -- --project=chromium

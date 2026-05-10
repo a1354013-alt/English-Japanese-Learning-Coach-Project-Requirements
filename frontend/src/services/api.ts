@@ -9,7 +9,7 @@ import type {
   ReviewAnswer,
   ReviewResult,
   StudyPlan,
-  UserProgress,
+  ProgressResponse,
   WritingAnalysis,
   WritingSubmission,
   GenerationTask,
@@ -130,7 +130,7 @@ export const lessonApi = {
 
 export const progressApi = {
   async getProgress() {
-    const response = await api.get<{ success: boolean; progress: UserProgress }>('/progress')
+    const response = await api.get<ProgressResponse>('/progress')
     return response.data
   },
 
@@ -167,7 +167,7 @@ export const importApi = {
   async uploadRagMaterial(language: Language, file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<{ success: boolean }>('/rag/upload', formData, {
+    const response = await api.post<{ success: boolean; doc_id: string }>('/rag/upload', formData, {
       params: { language },
       headers: { 'Content-Type': 'multipart/form-data' },
     })

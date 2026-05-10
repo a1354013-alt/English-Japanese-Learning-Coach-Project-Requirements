@@ -103,6 +103,17 @@ def test_import_excel_keeps_file_type_errors_separate(monkeypatch):
     assert response.json()["code"] == "import_unsupported_file_type"
 
 
+def test_import_excel_rejects_legacy_xls_extension(monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_size_mb", 10, raising=False)
+    client = TestClient(_make_app())
+
+    files = {"file": ("vocab.xls", b"not-a-real-xls", "application/vnd.ms-excel")}
+    response = client.post("/api/import/excel?language=EN", files=files)
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only .xlsx files are supported"
+
+
 def test_rag_upload_small_file_succeeds(monkeypatch):
     monkeypatch.setattr(settings, "max_upload_size_mb", 1, raising=False)
     monkeypatch.setattr(imports_router, "rag_manager", _StubRag(), raising=False)
@@ -127,6 +138,18 @@ def test_rag_upload_rejects_oversized_file_with_413(monkeypatch):
     body = response.json()
     assert body["code"] == "FILE_TOO_LARGE"
     assert body["detail"] == body["message"]
+
+
+def test_rag_upload_rejects_empty_file(monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_size_mb", 1, raising=False)
+    monkeypatch.setattr(imports_router, "rag_manager", _StubRag(), raising=False)
+    client = TestClient(_make_app())
+
+    files = {"file": ("notes.txt", b"", "text/plain")}
+    response = client.post("/api/rag/upload?language=EN", files=files)
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "rag_file_empty"
 
 
 def test_rag_disabled_material_list_is_unaffected_by_upload_limit(monkeypatch):

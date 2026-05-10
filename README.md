@@ -1,6 +1,6 @@
 # English-Japanese Learning Coach
 
-Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **spaced repetition**, **RAG-ready lesson generation**, and **WebSocket chat**.
+Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **spaced repetition**, **chunked RAG lesson evidence**, and **WebSocket chat**.
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and reset demo data back to a presentable state.
 
@@ -8,7 +8,7 @@ The project is designed for live demos: it can generate EN/JP lessons, score rev
 
 - FastAPI backend with typed APIs for lessons, review, analytics, imports, demo reset, and tutor tools
 - Vue 3 frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
-- Optional RAG integration via ChromaDB, with safe disabled mode for CI, smoke tests, and lightweight demos
+- Optional RAG integration via ChromaDB, with chunked material storage plus safe disabled mode for CI and lightweight demos
 - SQLite persistence with migration smoke tests and index coverage
 - Dockerized backend with persistent `/data` volume and non-root runtime
 
@@ -92,7 +92,7 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
@@ -115,24 +115,46 @@ The API is exposed at [http://localhost:8000](http://localhost:8000), and the co
 ```bash
 cd backend
 python -m compileall -q .
-ENABLE_RAG=false python -m pytest tests -q
+ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-npm install
-npm run build
+npm ci
 npm run test:ci
-npx playwright test
+npm run build
 ```
 
-Playwright E2E is configured as a frontend-only flow test. It starts the Vite dev server automatically through Playwright `webServer` and mocks the lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
+### Mocked Frontend E2E
 
-- No backend startup is required for `cd frontend && npx playwright test`
+```bash
+cd frontend
+npx playwright install --with-deps chromium
+RUN_E2E=1 npm run e2e -- --project=chromium
+```
+
+Playwright mocked E2E starts only the Vite dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
+
+- No backend startup is required for `cd frontend && npm run e2e -- --project=chromium`
 - No Ollama, ChromaDB, network access, or other external services are required
 - The E2E lesson flow uses stable mocked lesson/review responses instead of relying on live generation
+
+### Full-Stack E2E
+
+```bash
+cd frontend
+npx playwright install --with-deps chromium
+npm run e2e:fullstack -- --project=chromium
+```
+
+The full-stack Playwright suite starts:
+
+- a real FastAPI backend on `http://127.0.0.1:8000`
+- a real Vite frontend on `http://127.0.0.1:4173`
+
+It uses `POST /api/demo/reset` to seed deterministic data, exercises the real review/progress/wrong-answer/PDF flows, and keeps `ENABLE_RAG=false` so the run does not depend on ChromaDB.
 
 ### Docker
 
@@ -147,14 +169,13 @@ docker compose up
 - Importing `backend/main.py` does not require `chromadb` or `sentence-transformers` when `ENABLE_RAG=false`.
 - `backend/requirements-rag.txt` contains the optional Chroma / embedding dependencies for RAG-enabled environments.
 - If `ENABLE_RAG=true` but `chromadb` or `sentence-transformers` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
-- Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
+- Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit with chunked reads and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
+- Excel import is intentionally `.xlsx` only. The backend uses `openpyxl`, and the frontend/file validation/docs now match that contract.
+- RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored vectors are chunked per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
+- When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.
 - Playwright E2E is intentionally mocked at the API layer so CI does not depend on backend process startup, demo seed state, or real LLM/Ollama availability.
 - Lesson generation can fall back to deterministic sample content when the model path fails.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
-
-## Known Limitations
-
-- Upload size validation is currently applied immediately after `await file.read()` completes. This keeps behavior consistent across import and RAG upload endpoints, but it is not a full streaming upload guard yet.
 
 ## License
 

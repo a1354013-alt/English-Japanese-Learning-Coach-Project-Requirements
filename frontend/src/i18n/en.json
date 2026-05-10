@@ -131,7 +131,7 @@
   "materials": {
     "title": "RAG Materials",
     "upload": "Upload",
-    "supported": "Supported: .txt, .md, .csv (choose language first)",
+    "supported": "Supported: .txt, .md, .csv, .pdf (choose language first)",
     "selectLanguageBeforeUpload": "Please select a language (not \"All\") before uploading.",
     "loading": "Loading materials...",
     "empty": "No materials yet.",
@@ -141,7 +141,7 @@
     "loadError": "Unable to load materials. Please try again later.",
     "uploadError": "Unable to upload materials. Please try again later.",
     "deleteError": "Unable to delete the material. Please try again later.",
-    "demoNote": "Demo note: if RAG is disabled on the backend, upload/delete will return an error."
+    "demoNote": "Demo note: if RAG is disabled on the backend, listing still works but upload/delete return a clear error."
   },
   "vocabulary": {
     "title": "Imported Vocabulary",

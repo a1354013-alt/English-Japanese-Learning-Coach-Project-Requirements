@@ -21,6 +21,7 @@ from models import (
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 from routers.deps import require_demo_user_id
+from services.streak_service import get_streak_snapshot
 
 APP_VERSION = "1.2.0"
 
@@ -75,12 +76,13 @@ async def demo_reset(user_id: str = Depends(require_demo_user_id)):
 
 @api_router.get("/progress", response_model=ProgressResponse)
 async def get_progress(user_id: str = Depends(require_demo_user_id)):
-    return {"success": True, "progress": db.get_progress(user_id)}
+    streak = get_streak_snapshot(user_id)
+    return {"success": True, "progress": db.get_progress(user_id), "streak": streak}
 
 
 @api_router.get("/analytics", response_model=AnalyticsResponse)
 async def get_analytics(user_id: str = Depends(require_demo_user_id)):
-    streak_info = db.get_streak_info(user_id)
+    streak_info = get_streak_snapshot(user_id)
     progress = db.get_progress(user_id)
     rpg_stats = progress.get("rpg_stats", {})
     english_completed = progress.get("english_progress", {}).get("completed_lessons", 0)

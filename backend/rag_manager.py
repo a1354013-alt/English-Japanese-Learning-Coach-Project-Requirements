@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from config import settings
@@ -104,32 +105,88 @@ class _ChromaRAGManager:
         documents = result.get("documents") or []
         metadatas = result.get("metadatas") or []
 
-        items: List[Dict[str, Any]] = []
+        materials: Dict[str, Dict[str, Any]] = {}
         for idx, item_id in enumerate(ids):
             metadata = dict(metadatas[idx] if idx < len(metadatas) else {})
-            _ = documents[idx] if idx < len(documents) else ""
-            items.append(
-                {
-                    "doc_id": item_id,
+            document = documents[idx] if idx < len(documents) else ""
+            material_id = str(metadata.get("material_id") or item_id)
+            current = materials.get(material_id)
+            if current is None:
+                current = {
+                    "material_id": material_id,
+                    "doc_id": material_id,
                     "source": metadata.get("source", "unknown"),
+                    "title": metadata.get("title") or metadata.get("source", "unknown"),
                     "language": metadata.get("language", "unknown"),
+                    "source_type": metadata.get("source_type", "text"),
                     "uploaded_at": metadata.get("uploaded_at", ""),
-                    "total_chunks": metadata.get("total_chunks", 1),
+                    "total_chunks": int(metadata.get("total_chunks", 1) or 1),
+                    "text": document or None,
                 }
-            )
-        return items
+                materials[material_id] = current
+            else:
+                current["total_chunks"] = max(
+                    int(current.get("total_chunks", 1) or 1),
+                    int(metadata.get("total_chunks", 1) or 1),
+                )
+                if not current.get("text") and document:
+                    current["text"] = document
+        return sorted(materials.values(), key=lambda item: str(item.get("uploaded_at") or ""), reverse=True)
+
+    @staticmethod
+    def _chunk_id(material_id: str, chunk_index: int) -> str:
+        return f"{material_id}:chunk:{chunk_index}"
+
+    @staticmethod
+    def _material_metadata(
+        metadata: Dict[str, Any],
+        *,
+        user_id: str,
+        material_id: str,
+        chunk_index: int,
+        total_chunks: int,
+    ) -> Dict[str, Any]:
+        title = str(metadata.get("title") or metadata.get("source") or "unknown")
+        source = str(metadata.get("source") or title)
+        uploaded_at = str(metadata.get("uploaded_at") or datetime.now().isoformat())
+        source_type = str(metadata.get("source_type") or "text")
+        language = str(metadata.get("language") or "unknown")
+        return {
+            "user_id": user_id,
+            "material_id": material_id,
+            "title": title,
+            "source": source,
+            "language": language,
+            "source_type": source_type,
+            "chunk_index": chunk_index,
+            "total_chunks": total_chunks,
+            "uploaded_at": uploaded_at,
+        }
 
     def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id: Optional[str] = None) -> str:
-        doc_id = doc_id or str(uuid.uuid4())
-        metadata_copy = dict(metadata)
-        metadata_copy["user_id"] = user_id
+        material_id = doc_id or str(uuid.uuid4())
+        chunks = split_into_chunks(text)
+        if not chunks and text.strip():
+            chunks = [text.strip()]
+        if not chunks:
+            raise ValueError("Cannot add empty material")
 
+        total_chunks = len(chunks)
         self._collection.add(
-            ids=[doc_id],
-            documents=[text],
-            metadatas=[metadata_copy],
+            ids=[self._chunk_id(material_id, idx) for idx in range(total_chunks)],
+            documents=chunks,
+            metadatas=[
+                self._material_metadata(
+                    dict(metadata),
+                    user_id=user_id,
+                    material_id=material_id,
+                    chunk_index=idx,
+                    total_chunks=total_chunks,
+                )
+                for idx in range(total_chunks)
+            ],
         )
-        return doc_id
+        return material_id
 
     def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
         where = self._user_filter(user_id, language)
@@ -137,15 +194,12 @@ class _ChromaRAGManager:
         return self._normalize_get_result(result)
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        result = self._collection.get(ids=[doc_id], include=["metadatas"])
-        if not result.get("ids"):
+        where = {"$and": [self._user_filter(user_id), {"material_id": doc_id}]}
+        result = self._collection.get(where=where, include=["metadatas"])
+        ids = result.get("ids") or []
+        if not ids:
             return False
-
-        metadata = result.get("metadatas", [])[0] if result.get("metadatas") else {}
-        if metadata.get("user_id") != user_id:
-            return False
-
-        self._collection.delete(ids=[doc_id])
+        self._collection.delete(ids=ids)
         return True
 
     def query_materials(
@@ -176,14 +230,19 @@ class _ChromaRAGManager:
         for idx, item_id in enumerate(row_ids):
             metadata = dict(row_metadatas[idx] if idx < len(row_metadatas) else {})
             document = row_documents[idx] if idx < len(row_documents) else ""
+            material_id = str(metadata.get("material_id") or item_id)
             items.append(
                 {
-                    "doc_id": item_id,
+                    "material_id": material_id,
+                    "doc_id": material_id,
                     "text": document,
                     "source": metadata.get("source", "unknown"),
+                    "title": metadata.get("title") or metadata.get("source", "unknown"),
                     "language": metadata.get("language", "unknown"),
+                    "source_type": metadata.get("source_type", "text"),
                     "uploaded_at": metadata.get("uploaded_at", ""),
-                    "total_chunks": metadata.get("total_chunks", 1),
+                    "total_chunks": int(metadata.get("total_chunks", 1) or 1),
+                    "chunk_index": int(metadata.get("chunk_index", 0) or 0),
                 }
             )
         return items

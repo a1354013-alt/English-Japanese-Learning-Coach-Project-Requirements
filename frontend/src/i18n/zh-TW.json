@@ -131,7 +131,7 @@
   "materials": {
     "title": "RAG 教材",
     "upload": "上傳",
-    "supported": "支援格式：.txt、.md、.csv（請先選擇語言）",
+    "supported": "支援格式：.txt、.md、.csv、.pdf（請先選擇語言）",
     "selectLanguageBeforeUpload": "請先選擇特定語言，不能使用「全部」。",
     "loading": "載入教材中...",
     "empty": "目前還沒有教材。",
@@ -141,7 +141,7 @@
     "loadError": "目前無法載入教材，請稍後再試。",
     "uploadError": "目前無法上傳教材，請稍後再試。",
     "deleteError": "目前無法刪除教材，請稍後再試。",
-    "demoNote": "Demo 提示：如果後端停用了 RAG，教材的上傳與刪除會回傳錯誤。"
+    "demoNote": "Demo 提示：如果後端停用了 RAG，教材清單仍可載入，但上傳與刪除會回傳明確錯誤。"
   },
   "vocabulary": {
     "title": "匯入單字",

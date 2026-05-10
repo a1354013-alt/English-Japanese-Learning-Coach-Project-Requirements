@@ -98,16 +98,25 @@ export interface Lesson {
   grammar: GrammarSection
   reading: ReadingSection
   dialogue: DialogueSection
-  evidence?: Array<{
-    text: string
-    source: string
-    chunk_index: number
-  }>
+  evidence?: LessonEvidence[]
   gamification?: {
     xp_added: number
     leveled_up: boolean
     new_cards: WordCard[]
   }
+}
+
+export interface LessonEvidence {
+  material_id: string
+  doc_id?: string | null
+  text: string
+  source: string
+  title: string
+  language?: string | null
+  source_type?: string | null
+  uploaded_at?: string | null
+  total_chunks: number
+  chunk_index: number
 }
 
 export interface LanguageProgress {
@@ -152,6 +161,12 @@ export interface UserProgress {
   japanese_progress: LanguageProgress
   rpg_stats: UserRPGStats
   updated_at: string
+}
+
+export interface ProgressResponse {
+  success: boolean
+  progress: UserProgress
+  streak: StreakResponse
 }
 
 export interface ReviewAnswer {
@@ -322,11 +337,15 @@ export interface TtsResponse {
 }
 
 export interface RagMaterial {
+  material_id: string
   doc_id: string
   source: string
+  title: string
   language: string
+  source_type?: string | null
   uploaded_at?: string
-  total_chunks?: number
+  total_chunks: number
+  text?: string | null
 }
 
 export interface RagMaterialsResponse {

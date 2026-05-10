@@ -164,3 +164,65 @@ def test_pdf_export_endpoint_returns_pdf(tmp_path, monkeypatch):
     assert r.status_code == 200
     assert r.headers.get("content-type", "").startswith("application/pdf")
     assert r.content[:4] == b"%PDF"
+
+
+def test_pdf_export_escapes_special_characters_and_supports_cjk(tmp_path):
+    exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
+    pdf_path = exporter.export_lesson(
+        {
+            "metadata": {
+                "lesson_id": "special-pdf",
+                "language": "JP",
+                "level": "N4",
+                "topic": '<tag> & "quotes" 中文 日本語',
+            },
+            "vocabulary": [
+                {
+                    "word": "<danger>",
+                    "definition_zh": '中文 & 日本語 "ok"',
+                    "example_sentence": 'Use <tag> & keep "quotes".',
+                    "example_translation": "中文例句與日本語の例文",
+                }
+            ],
+            "grammar": {
+                "title": "<grammar>",
+                "explanation": 'A & B < C > D "quoted"',
+                "exercises": [{"question": "<q1>", "correct_answer": "&answer"}],
+            },
+            "reading": {
+                "content": '第一行 <tag>\n第二行 & "quotes"\n日本語テキスト',
+                "questions": [{"question": "<what>", "correct_answer": "中文答案"}],
+            },
+            "dialogue": {
+                "scenario": "<scene>",
+                "context": 'A & B "quoted"',
+                "dialogue": [{"speaker": "<A>", "text": 'こんにちは & <tag>', "translation": "你好"}],
+            },
+            "evidence": [{"source": "<pdf>", "text": '證據 & エビデンス "ok"'}],
+        }
+    )
+
+    assert pdf_path.exists()
+    assert pdf_path.read_bytes()[:4] == b"%PDF"
+
+
+def test_pdf_export_handles_empty_content_without_crashing(tmp_path):
+    exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
+    pdf_path = exporter.export_lesson(
+        {
+            "metadata": {
+                "lesson_id": "empty-pdf",
+                "language": "EN",
+                "level": "A1",
+                "topic": "",
+            },
+            "vocabulary": [{"word": "", "definition_zh": "", "example_sentence": "", "example_translation": ""}],
+            "grammar": {"title": "", "explanation": "", "exercises": []},
+            "reading": {"content": "", "questions": []},
+            "dialogue": {"scenario": "", "context": "", "dialogue": []},
+            "evidence": [],
+        }
+    )
+
+    assert pdf_path.exists()
+    assert pdf_path.read_bytes()[:4] == b"%PDF"

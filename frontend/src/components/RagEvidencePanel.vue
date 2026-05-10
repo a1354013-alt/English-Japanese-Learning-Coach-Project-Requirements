@@ -2,9 +2,15 @@
   <section class="evidence-panel" v-if="evidence && evidence.length > 0">
     <h4>{{ t('evidence.title') }}</h4>
     <ul class="evidence-list">
-      <li v-for="(item, idx) in evidence" :key="idx" class="evidence-item">
-        <span class="source-badge">{{ item.source }}</span>
-        <span class="chunk-info">{{ t('evidence.chunk', { index: item.chunk_index + 1 }) }}</span>
+      <li v-for="(item, idx) in evidence" :key="`${item.material_id}-${item.chunk_index}-${idx}`" class="evidence-item">
+        <div class="evidence-topline">
+          <span class="source-badge">{{ item.title || item.source }}</span>
+          <span class="chunk-info">{{ t('evidence.chunk', { index: item.chunk_index + 1 }) }} / {{ item.total_chunks }}</span>
+        </div>
+        <p class="evidence-meta">
+          {{ item.language || 'N/A' }} · {{ item.source_type || 'text' }} · {{ item.material_id }}
+        </p>
+        <p class="evidence-text">{{ item.text }}</p>
       </li>
     </ul>
   </section>
@@ -12,16 +18,12 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-
-interface EvidenceItem {
-  source: string
-  chunk_index: number
-}
+import type { LessonEvidence } from '@/types'
 
 const { t } = useI18n()
 
 defineProps<{
-  evidence?: EvidenceItem[]
+  evidence?: LessonEvidence[]
 }>()
 </script>
 
@@ -46,16 +48,25 @@ defineProps<{
   list-style: none;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .evidence-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
   font-size: 0.8rem;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.evidence-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
 }
 
 .source-badge {
@@ -69,5 +80,19 @@ defineProps<{
 .chunk-info {
   color: #64748b;
   font-style: italic;
+}
+
+.evidence-meta,
+.evidence-text {
+  margin: 0;
+}
+
+.evidence-meta {
+  color: #64748b;
+}
+
+.evidence-text {
+  color: #0f172a;
+  white-space: pre-wrap;
 }
 </style>

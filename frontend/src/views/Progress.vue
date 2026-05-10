@@ -47,7 +47,7 @@
           </article>
           <article class="stat-card">
             <p class="stat-label">{{ t('progressCenter.streakDays') }}</p>
-            <p class="stat-value">{{ progress.rpg_stats.streak_days }}</p>
+            <p class="stat-value">{{ streak?.current_streak ?? 0 }}</p>
             <p class="stat-hint">{{ t('progressCenter.updatedAt', { time: formatDateTime(progress.updated_at) }) }}</p>
           </article>
           <article class="stat-card">
@@ -153,7 +153,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import StudyBlueprint from '@/components/StudyBlueprint.vue'
 import { progressApi } from '@/services/api'
-import type { Language, UserProgress } from '@/types'
+import type { Language, StreakResponse, UserProgress } from '@/types'
 import Archive from '@/views/Archive.vue'
 import SrsReview from '@/views/SrsReview.vue'
 import WrongAnswers from '@/views/WrongAnswers.vue'
@@ -164,6 +164,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const progress = ref<UserProgress | null>(null)
+const streak = ref<StreakResponse | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -199,6 +200,7 @@ const loadProgress = async () => {
   try {
     const response = await progressApi.getProgress()
     progress.value = response.progress
+    streak.value = response.streak
   } catch (err) {
     console.error(err)
     error.value = t('progress.loadError')
