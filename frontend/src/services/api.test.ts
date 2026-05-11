@@ -27,6 +27,7 @@ vi.mock('axios', async () => {
 })
 
 import { importApi, reviewApi } from './api'
+import type { ReviewAnswer } from '@/types'
 
 describe('api client', () => {
   it('calls SRS endpoints with query params', async () => {
@@ -50,7 +51,7 @@ describe('api client', () => {
   })
 
   it('does not send demo user_id query params from the frontend client', async () => {
-    const answers = [{ lesson_id: 'l1', exercise_type: 'grammar', question_index: 0, user_answer: 'A', correct_answer: 'A' }] as any
+    const answers: ReviewAnswer[] = [{ lesson_id: 'l1', exercise_type: 'grammar', question_index: 0, user_answer: 'A', correct_answer: 'A' }]
 
     mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
     await reviewApi.submitReview(answers)

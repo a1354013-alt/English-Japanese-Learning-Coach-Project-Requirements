@@ -81,4 +81,22 @@ def test_generate_tts_returns_audio_url():
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is True
+        assert body["available"] is True
         assert body["audio_url"] == "/api/audio/audio_123.wav"
+        assert body["mode"] == "live"
+
+
+def test_generate_tts_placeholder_returns_explicit_unavailable():
+    with patch("routers.ai_tools.tts_service") as mock_tts:
+        mock_tts.generate_audio = AsyncMock(return_value=None)
+
+        response = client.post("/api/tts", params={"text": "Hello world", "language": "en-US"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {
+            "success": True,
+            "available": False,
+            "audio_url": None,
+            "mode": "preview",
+            "message": "TTS is integration-ready but no runtime provider is configured.",
+        }

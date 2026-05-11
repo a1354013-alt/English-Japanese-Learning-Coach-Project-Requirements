@@ -1,16 +1,54 @@
 """Lesson file loading and review scoring / progress side effects."""
 import json
+import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
-
-from fastapi import HTTPException
+from typing import Any, Dict, Iterable, List
 
 from api_errors import api_error
 from config import settings
 from database import db
 from models import ReviewAnswer
 from srs import srs_engine
+
+
+_ANSWER_PUNCTUATION_MAP = str.maketrans(
+    {
+        "\u3002": ".",
+        "\u3001": ",",
+        "\uff0e": ".",
+        "\uff0c": ",",
+        "\uff01": "!",
+        "\uff1f": "?",
+    }
+)
+
+
+def normalize_answer(value: Any) -> str:
+    """Normalize deterministic answer differences without fuzzy grading."""
+    text = unicodedata.normalize("NFKC", str(value))
+    text = text.translate(_ANSWER_PUNCTUATION_MAP)
+    text = re.sub(r"\s+", " ", text.strip())
+    return text.lower()
+
+
+def _iter_accepted_answers(item: Dict[str, Any]) -> Iterable[str]:
+    yield str(item.get("correct_answer", ""))
+    raw = item.get("accepted_answers", [])
+    if isinstance(raw, str):
+        for part in re.split(r"\s*(?:\||;)\s*", raw):
+            if part:
+                yield part
+    elif isinstance(raw, list):
+        for value in raw:
+            if value is not None:
+                yield str(value)
+
+
+def is_answer_correct(user_answer: Any, item: Dict[str, Any]) -> bool:
+    normalized_user = normalize_answer(user_answer)
+    return any(normalized_user == normalize_answer(candidate) for candidate in _iter_accepted_answers(item))
 
 
 def load_lesson_payload(lesson_id: str, *, user_id: str | None = None) -> Dict[str, Any]:
@@ -39,23 +77,17 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
     incorrect_items: List[Dict[str, str]] = []
     correct_count = 0
 
-    # Calculate total questions from the lesson structure (not from submitted answers)
     grammar_exercises = lesson_data.get("grammar", {}).get("exercises", [])
     reading_questions = lesson_data.get("reading", {}).get("questions", [])
-    total_grammar = len(grammar_exercises)
-    total_reading = len(reading_questions)
-    total_questions = total_grammar + total_reading
+    total_questions = len(grammar_exercises) + len(reading_questions)
 
-    # Build a map of submitted answers by (exercise_type, question_index)
     answer_map: Dict[tuple, ReviewAnswer] = {}
     for answer in answers:
         answer_map[(answer.exercise_type, answer.question_index)] = answer
 
-    # Score grammar exercises
     for idx, exercise in enumerate(grammar_exercises):
         answer = answer_map.get(("grammar", idx))
         if answer is None:
-            # Unanswered question counts as wrong
             incorrect_items.append(
                 {
                     "question": str(exercise.get("question", "")),
@@ -66,9 +98,7 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
             )
             continue
 
-        user_text = str(answer.user_answer).strip().lower()
-        correct_text = str(exercise.get("correct_answer", "")).strip().lower()
-        if user_text == correct_text:
+        if is_answer_correct(answer.user_answer, exercise):
             correct_count += 1
         else:
             incorrect_items.append(
@@ -80,11 +110,9 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
                 }
             )
 
-    # Score reading questions
     for idx, question in enumerate(reading_questions):
         answer = answer_map.get(("reading", idx))
         if answer is None:
-            # Unanswered question counts as wrong
             incorrect_items.append(
                 {
                     "question": str(question.get("question", "")),
@@ -95,9 +123,7 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
             )
             continue
 
-        user_text = str(answer.user_answer).strip().lower()
-        correct_text = str(question.get("correct_answer", "")).strip().lower()
-        if user_text == correct_text:
+        if is_answer_correct(answer.user_answer, question):
             correct_count += 1
         else:
             incorrect_items.append(
@@ -125,7 +151,7 @@ def update_progress_after_review(
     correct: int,
     *,
     increment_completed_lessons: bool,
-    increment_exercise_totals: bool,
+    previous_best_correct: int | None = None,
 ) -> Dict[str, Any]:
     progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
@@ -133,9 +159,11 @@ def update_progress_after_review(
     target = progress[key]
     if increment_completed_lessons:
         target["completed_lessons"] += 1
-    if increment_exercise_totals:
+    if previous_best_correct is None:
         target["total_exercises"] += total
         target["correct_exercises"] += correct
+    elif correct > previous_best_correct:
+        target["correct_exercises"] += correct - previous_best_correct
     target["last_study_date"] = datetime.now().isoformat()
     target["accuracy_rate"] = (
         (target["correct_exercises"] / target["total_exercises"] * 100) if target["total_exercises"] else 0.0

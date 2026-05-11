@@ -36,7 +36,7 @@ npm run dev
 3. Review (lesson scoring)
 - Answer grammar and reading questions
 - Click Submit Review
-- Re-submitting the same lesson is allowed, but **XP/progress/SRS side-effects are only awarded once per lesson**
+- Re-submitting the same lesson is allowed: XP and completed lesson count are awarded once, progress keeps the best score for that lesson, and SRS is refreshed from the latest attempt
 - If you submit with unanswered questions, they are counted as incorrect (by design)
 
 4. SRS Review (due items)
@@ -93,8 +93,8 @@ npm run dev
 ## Notes on Current Build
 
 - Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped). The frontend does not send `user_id`; the API defaults to the demo user internally.
-- TTS (API only): endpoint returns `available=false` unless a real provider is integrated (`backend/tts_service.py`). No TTS UI in this build.
-- RAG: uploads go to Chroma when available; materials are chunked per document and keep stable metadata. When RAG is disabled on the backend, listing still works and mutating endpoints return an unavailable error.
+- TTS (API only): endpoint returns `available=false` with a clear integration-ready message unless a real provider is configured (`backend/tts_service.py`). No TTS UI in this build.
+- RAG: uploads go to Chroma when available; materials are CJK-aware chunked per document and keep stable metadata. When RAG is disabled on the backend, listing still works and mutating endpoints return an unavailable error.
 
 ## Tests
 

@@ -118,6 +118,8 @@ class Database:
                 total_questions INTEGER NOT NULL,
                 correct_count INTEGER NOT NULL,
                 accuracy_rate REAL NOT NULL,
+                latest_correct_count INTEGER,
+                latest_accuracy_rate REAL,
                 submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, lesson_id, exercise_type),
                 FOREIGN KEY (lesson_id) REFERENCES lessons(lesson_id)
@@ -191,6 +193,11 @@ class Database:
                 if "user_id" in cols:
                     conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
                     continue
+            if version == "0004_exercise_results_latest_attempt.sql":
+                cols = [r["name"] for r in conn.execute("PRAGMA table_info(exercise_results)").fetchall()]
+                if "latest_correct_count" in cols and "latest_accuracy_rate" in cols:
+                    conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+                    continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
@@ -204,6 +211,11 @@ class Database:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
             "ON exercise_results(user_id, lesson_id, exercise_type)"
         )
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(exercise_results)").fetchall()]
+        if "latest_correct_count" not in cols:
+            conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_correct_count INTEGER")
+        if "latest_accuracy_rate" not in cols:
+            conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_accuracy_rate REAL")
 
     def _local_date_str(self, dt: Optional[datetime] = None) -> str:
         tz = ZoneInfo(settings.timezone)
@@ -390,16 +402,47 @@ class Database:
             conn.execute(
                 """
                 INSERT INTO exercise_results (
-                    user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate,
+                    latest_correct_count, latest_accuracy_rate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, lesson_id, exercise_type) DO UPDATE SET
                     total_questions=excluded.total_questions,
-                    correct_count=excluded.correct_count,
-                    accuracy_rate=excluded.accuracy_rate,
+                    correct_count=MAX(exercise_results.correct_count, excluded.correct_count),
+                    accuracy_rate=MAX(exercise_results.accuracy_rate, excluded.accuracy_rate),
+                    latest_correct_count=excluded.latest_correct_count,
+                    latest_accuracy_rate=excluded.latest_accuracy_rate,
                     submitted_at=CURRENT_TIMESTAMP
                 """,
-                (user_id, lesson_id, exercise_type, total_questions, correct_count, accuracy_rate),
+                (
+                    user_id,
+                    lesson_id,
+                    exercise_type,
+                    total_questions,
+                    correct_count,
+                    accuracy_rate,
+                    correct_count,
+                    accuracy_rate,
+                ),
             )
+
+    def get_exercise_result(
+        self,
+        *,
+        user_id: str,
+        lesson_id: str,
+        exercise_type: str,
+    ) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT lesson_id, exercise_type, total_questions, correct_count, accuracy_rate,
+                       latest_correct_count, latest_accuracy_rate, submitted_at
+                FROM exercise_results
+                WHERE user_id = ? AND lesson_id = ? AND exercise_type = ?
+                """,
+                (user_id, lesson_id, exercise_type),
+            ).fetchone()
+            return dict(row) if row else None
 
     def list_recent_exercise_results(self, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:

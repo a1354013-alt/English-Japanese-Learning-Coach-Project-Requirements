@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from rag_manager import _ChromaRAGManager
+from rag_manager import _ChromaRAGManager, split_into_chunks
 
 
 class _FakeCollection:
@@ -158,3 +158,21 @@ def test_delete_material_removes_all_chunks_for_same_material():
     assert manager._collection.records == {}
     assert manager.delete_material(user_id="u1", doc_id=material_id) is False
 
+
+def test_split_into_chunks_keeps_english_text_chunked():
+    chunks = split_into_chunks(" ".join(f"word{idx}" for idx in range(80)), max_chunk_size=80, overlap=10)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 90 for chunk in chunks)
+    assert chunks[0][-10:] == chunks[1][:10]
+
+
+def test_split_into_chunks_handles_cjk_without_spaces():
+    text = "これは日本語の文章です。" * 30
+    chunks = split_into_chunks(text, max_chunk_size=60, overlap=8)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 68 for chunk in chunks)
+    assert chunks[0][-8:] == chunks[1][:8]
+
+
+def test_split_into_chunks_empty_text_is_empty():
+    assert split_into_chunks("   ", max_chunk_size=20, overlap=5) == []

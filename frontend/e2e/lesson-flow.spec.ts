@@ -157,6 +157,16 @@ function buildAnalytics(completedLessons: number): AnalyticsPayload {
   }
 }
 
+function buildStreak(completedLessons: number): StreakResponse {
+  return {
+    success: true,
+    current_streak: completedLessons > 0 ? 1 : 0,
+    longest_streak: completedLessons > 0 ? 3 : 0,
+    last_active_date: completedLessons > 0 ? '2026-05-11' : null,
+    today_completed: completedLessons > 0,
+  }
+}
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -168,13 +178,7 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
 async function installMockApi(page: Page) {
   let currentLesson: Lesson | null = null
   let progress = buildProgress(false, 0)
-  let streak: StreakResponse = {
-    success: true,
-    current_streak: 0,
-    longest_streak: 0,
-    last_active_date: null,
-    today_completed: false,
-  }
+  let streak = buildStreak(0)
   let analytics = buildAnalytics(0)
 
   await page.route('**/api/**', async (route) => {
@@ -184,7 +188,7 @@ async function installMockApi(page: Page) {
     const method = request.method()
 
     if (path === '/api/progress' && method === 'GET') {
-      await fulfillJson(route, { success: true, progress })
+      await fulfillJson(route, { success: true, progress, streak })
       return
     }
 
@@ -214,13 +218,7 @@ async function installMockApi(page: Page) {
     if (path === '/api/review' && method === 'POST') {
       const answers = (request.postDataJSON() as ReviewAnswer[]) || []
       progress = buildProgress(true, 1)
-      streak = {
-        success: true,
-        current_streak: 1,
-        longest_streak: 1,
-        last_active_date: TIMESTAMP,
-        today_completed: true,
-      }
+      streak = buildStreak(1)
       analytics = buildAnalytics(1)
       const result: ReviewResult = {
         success: true,
@@ -254,13 +252,7 @@ async function installMockApi(page: Page) {
     if (path === '/api/demo/reset' && method === 'POST') {
       currentLesson = null
       progress = buildProgress(true, 0)
-      streak = {
-        success: true,
-        current_streak: 0,
-        longest_streak: 1,
-        last_active_date: null,
-        today_completed: false,
-      }
+      streak = buildStreak(0)
       analytics = buildAnalytics(0)
       await fulfillJson(route, {
         success: true,

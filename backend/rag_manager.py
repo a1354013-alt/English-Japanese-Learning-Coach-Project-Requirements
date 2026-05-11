@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -18,30 +19,35 @@ def split_into_chunks(text: str, max_chunk_size: int = 500, overlap: int = 50) -
     if overlap < 0:
         raise ValueError("overlap must be non-negative")
 
-    words = text.split()
-    if not words:
+    normalized = text.strip()
+    if not normalized:
         return []
 
     chunks: List[str] = []
-    current_chunk: List[str] = []
-    current_length = 0
+    boundaries = [m.end() for m in re.finditer(r"[\u3002\uff01\uff1f.!?\n]+", normalized)]
+    start = 0
+    while start < len(normalized):
+        hard_end = min(start + max_chunk_size, len(normalized))
+        end = hard_end
+        natural = [idx for idx in boundaries if start < idx <= hard_end]
+        if natural:
+            end = natural[-1]
+        elif hard_end < len(normalized):
+            space = normalized.rfind(" ", start + 1, hard_end + 1)
+            if space > start:
+                end = space
 
-    for word in words:
-        token_length = len(word) + (1 if current_chunk else 0)
-        if current_length + token_length > max_chunk_size and current_chunk:
-            chunks.append(" ".join(current_chunk))
-            if overlap <= 0:
-                current_chunk = []
-                current_length = 0
-            else:
-                overlap_words = current_chunk[-overlap:]
-                current_chunk = list(overlap_words)
-                current_length = sum(len(w) + 1 for w in current_chunk) - 1
-        current_chunk.append(word)
-        current_length += token_length
+        if end <= start:
+            end = hard_end
 
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
+        chunk = normalized[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        if end >= len(normalized):
+            break
+
+        next_start = max(0, end - overlap) if overlap else end
+        start = end if next_start <= start else next_start
 
     return chunks
 

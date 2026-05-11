@@ -17,6 +17,7 @@ from models import (
 )
 from routers.deps import require_demo_user_id
 from services.lesson_ops import (
+    is_answer_correct,
     load_lesson_payload,
     score_answers,
     update_progress_after_review,
@@ -74,7 +75,8 @@ async def submit_review(
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     _validate_review_submission(lesson_data, answers)
     review_data = score_answers(lesson_data, answers)
-    was_completed = db.has_exercise_result(user_id=user_id, lesson_id=lesson_id)
+    previous_result = db.get_exercise_result(user_id=user_id, lesson_id=lesson_id, exercise_type="mixed")
+    was_completed = previous_result is not None
 
     # Any review submission counts as a learning activity (one per local day).
     db.record_learning_activity(user_id=user_id, activity_type="review")
@@ -88,8 +90,9 @@ async def submit_review(
         accuracy_rate=review_data["accuracy_rate"],
     )
 
-    # Demo rule: XP/progress/SRS side-effects are awarded only once per lesson.
-    # Re-submitting a review updates the latest exercise_result but must not allow point farming.
+    # Demo rule: XP and completed lesson count are awarded only once per lesson.
+    # Re-submitting updates the latest exercise_result, improves progress when it
+    # beats the prior best score, and refreshes SRS from the latest attempt.
     xp_amount = 0
     xp_result = {"leveled_up": False}
     if not was_completed:
@@ -113,10 +116,9 @@ async def submit_review(
         review_data["total_questions"],
         review_data["correct_count"],
         increment_completed_lessons=not was_completed,
-        increment_exercise_totals=not was_completed,
+        previous_best_correct=int(previous_result["correct_count"]) if previous_result else None,
     )
-    if not was_completed:
-        update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
+    update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
 
     # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
     answer_map = {(a.exercise_type, a.question_index): a for a in answers}
@@ -124,10 +126,8 @@ async def submit_review(
     for idx, exercise in enumerate(grammar_exercises):
         submitted = answer_map.get(("grammar", idx))
         user_answer = str(submitted.user_answer) if submitted is not None else "(no answer)"
-        user_text = user_answer.strip().lower()
         correct_answer = str(exercise.get("correct_answer", ""))
-        correct_text = correct_answer.strip().lower()
-        if user_text == correct_text:
+        if is_answer_correct(user_answer, exercise):
             continue
         db.upsert_wrong_answer(
             user_id=user_id,
@@ -143,10 +143,8 @@ async def submit_review(
     for idx, question in enumerate(reading_questions):
         submitted = answer_map.get(("reading", idx))
         user_answer = str(submitted.user_answer) if submitted is not None else "(no answer)"
-        user_text = user_answer.strip().lower()
         correct_answer = str(question.get("correct_answer", ""))
-        correct_text = correct_answer.strip().lower()
-        if user_text == correct_text:
+        if is_answer_correct(user_answer, question):
             continue
         db.upsert_wrong_answer(
             user_id=user_id,

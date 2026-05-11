@@ -306,7 +306,7 @@ export interface AnalyticsWeakestCategory {
 }
 
 export interface AnalyticsTrendPoint {
-  lesson_id: string
+  lesson_id: string | null
   accuracy_rate: number
   submitted_at: string
 }

@@ -69,10 +69,13 @@ class GamificationEngine:
         if not progress:
             return []
             
-        rpg_stats_data = db.get_rpg_stats(user_id) or {}
-        rpg_stats = UserRPGStats(**rpg_stats_data)
         unlocked_now = []
         streak = get_streak_snapshot(user_id)
+
+        # get_streak_snapshot mirrors the canonical streak into rpg_stats, so use a
+        # fresh snapshot for achievement writes to avoid overwriting that update.
+        rpg_stats_data = db.get_rpg_stats(user_id) or {}
+        rpg_stats = UserRPGStats(**rpg_stats_data)
         
         # 1. Early Bird Achievement (Study before 7:30 AM)
         now = datetime.now()
