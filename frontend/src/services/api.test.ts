@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('axios', async () => {
-  const actual = await vi.importActual<any>('axios')
+  const actual = await vi.importActual<typeof import('axios')>('axios')
   return {
     ...actual,
     default: {

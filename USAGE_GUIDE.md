@@ -9,10 +9,17 @@ cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -U pip
+python -m pip install -r requirements.txt -r requirements-dev.txt
 # Windows: copy .env.example .env
 # macOS/Linux: cp .env.example .env
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/api/health
 ```
 
 ### Frontend
@@ -23,7 +30,7 @@ npm ci
 npm run dev
 ```
 
-## End-to-End Functional Check (demo flow)
+## End-to-End Functional Check
 
 1. Onboarding
 - Open `http://localhost:5173`
@@ -33,19 +40,19 @@ npm run dev
 - Go to Today page
 - Click Generate
 
-3. Review (lesson scoring)
+3. Review
 - Answer grammar and reading questions
 - Click Submit Review
 - Re-submitting the same lesson is allowed: XP and completed lesson count are awarded once, progress keeps the best score for that lesson, and SRS is refreshed from the latest attempt
-- If you submit with unanswered questions, they are counted as incorrect (by design)
+- If you submit with unanswered questions, they are counted as incorrect by design
 
-4. SRS Review (due items)
+4. SRS review
 - Open Review page
-- Confirm you can review due items (Easy/Hard/Forgot)
+- Confirm you can review due items
 
 5. Progress
 - Open Progress page
-- Verify completed lessons and accuracy update
+- Verify completed lessons, streak, XP, word cards, and accuracy update
 
 6. Archive and lesson detail
 - Open Archive page
@@ -57,74 +64,72 @@ npm run dev
 
 8. Study plan
 - Open Progress page
-- Enter target goal in Study Plan section
+- Enter a target goal in the Study Plan section
 
-9. Excel import (vocabulary)
-- Archive page → Excel Import
-- Select English or Japanese in the language filter (imports are disabled while filter is `All`)
-- Upload `.xlsx` with at least:
-  - `word`
-  - `definition` or `definition_zh`
-- Optional columns:
-  - `reading`
-  - `example` or `example_sentence`
-  - `example_translation`
+9. Excel import
+- Archive page -> Excel Import
+- Select English or Japanese in the language filter; imports are disabled while filter is `All`
+- Upload `.xlsx` with at least `word` and `definition` or `definition_zh`
+- Optional columns: `reading`, `example`, `example_sentence`, `example_translation`
 
 10. Imported vocabulary management
 - Open Vocabulary page
 - Verify imported items list and deletion works
 
-11. RAG upload + management
-- Archive page → RAG Upload (select a language)
+11. RAG upload and management
+- Archive page -> RAG Upload, then select a language
 - Supported upload formats: `.txt`, `.md`, `.csv`, `.pdf`
 - Open Materials page
-- Verify materials list and deletion works (non-existent `doc_id` returns 404)
+- Verify materials list and deletion works
 - If the backend runs with `ENABLE_RAG=false`, the materials list should still load, while upload/delete return a clear unavailable error
 
 12. PDF export
-- Today page → Export PDF
+- Today page -> Export PDF
 - User text containing `<tag> & "quotes"` should not crash export
 
-13. Chat Tutor (Preview)
-- Open Chat (Preview) page
+13. Chat Tutor preview
+- Open Chat page
 - This is a preview UI and requires a configured AI provider
-- If the AI provider is not configured/available, expect the UI to show a connection failure message
+- If the AI provider is unavailable, expect a connection failure message
 
-## Notes on Current Build
+## Current Build Notes
 
-- Single-tenant demo: backend enforces `user_id=default_user` (no auth shipped). The frontend does not send `user_id`; the API defaults to the demo user internally.
-- TTS (API only): endpoint returns `available=false` with a clear integration-ready message unless a real provider is configured (`backend/tts_service.py`). No TTS UI in this build.
-- RAG: uploads go to Chroma when available; materials are CJK-aware chunked per document and keep stable metadata. When RAG is disabled on the backend, listing still works and mutating endpoints return an unavailable error.
+- Single-tenant demo: backend enforces `user_id=default_user`; the frontend does not send `user_id`.
+- TTS is API-only and provider-ready. `POST /api/tts` returns `available=false` with a clear preview message unless a real provider is configured.
+- RAG uploads go to Chroma when available; materials are CJK-aware chunked per document and keep stable metadata.
+- When RAG is disabled, listing still works and mutating endpoints return an unavailable error.
 
 ## Tests
 
 ```bash
 cd backend
-python -m pip install -r requirements.txt -r requirements-dev.txt
-ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
+python -m compileall .
+pip-audit -r requirements.txt
+ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest -q
 ```
 
 ```bash
 cd frontend
 npm ci
+npm audit
+npm audit --omit=dev
+npm run typecheck
 npm run test:ci
 npm run build
 ```
 
-## Playwright e2e (mocked acceptance)
+## Playwright E2E
 
-This suite does not require a backend:
+Mocked acceptance suite:
 
 ```bash
 cd frontend
 npm ci
 npx playwright install --with-deps chromium
-npm run e2e -- --project=chromium
+RUN_E2E=1 npm run e2e -- --project=chromium
 ```
 
-## Playwright e2e (full-stack)
-
-This suite starts the real backend and real frontend automatically:
+Full-stack suite:
 
 ```bash
 cd backend

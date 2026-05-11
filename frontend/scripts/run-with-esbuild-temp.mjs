@@ -27,7 +27,14 @@ function ensureTempEsbuildBinary() {
   const resolved = resolveEsbuildBinary()
   if (!resolved) return null
 
-  const target = path.join(os.tmpdir(), 'language-coach-esbuild.exe')
+  let version = 'unknown'
+  try {
+    const packageJson = require('@esbuild/win32-x64/package.json')
+    version = packageJson.version || version
+  } catch {
+    // Keep a stable fallback name if package metadata is unavailable.
+  }
+  const target = path.join(os.tmpdir(), `language-coach-esbuild-${version}.exe`)
   try {
     if (!fs.existsSync(target)) {
       fs.copyFileSync(resolved, target)

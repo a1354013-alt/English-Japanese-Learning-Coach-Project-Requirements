@@ -1,6 +1,6 @@
 # English-Japanese Learning Coach
 
-Portfolio-grade language learning demo built with **FastAPI**, **Vue 3**, **SQLite**, **spaced repetition**, **chunked RAG lesson evidence**, and **WebSocket chat**.
+Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, **Vue 3 + TypeScript**, **SQLite**, **spaced repetition**, **chunked RAG lesson evidence**, **wrong-answer review**, **progress analytics**, and **gamification**.
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and reset demo data back to a presentable state.
 
@@ -9,8 +9,10 @@ TTS is currently integration-ready rather than provider-backed: `POST /api/tts` 
 ## Highlights
 
 - FastAPI backend with typed APIs for lessons, review, analytics, imports, demo reset, and tutor tools
-- Vue 3 frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
+- Vue 3 + TypeScript frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
 - Optional RAG integration via ChromaDB, with chunked material storage plus safe disabled mode for CI and lightweight demos
+- SRS and gamification flows that avoid duplicate XP on repeated submissions
+- TTS provider-ready placeholder with a stable unavailable response shape; this is not shipped as full voice synthesis
 - SQLite persistence with migration smoke tests and index coverage
 - Dockerized backend with persistent `/data` volume and non-root runtime
 
@@ -31,6 +33,8 @@ flowchart LR
     DEMO --> DB
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
+
+Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, activity streaks, and analytics in SQLite. RAG is optional and disabled by default; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
 
 ## Demo Flow
 
@@ -70,7 +74,7 @@ Frontend environment variables:
 - `VITE_API_BASE_URL` defaults to `http://localhost:8000/api`
 - `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
 
-For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
+Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
 ## Local Setup
 
@@ -108,7 +112,7 @@ The provided Compose file starts the backend API only. The frontend is intended 
 docker compose up --build
 ```
 
-The API is exposed at [http://localhost:8000](http://localhost:8000), and the compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
+The API is exposed at [http://localhost:8000](http://localhost:8000). Health is available at [http://localhost:8000/api/health](http://localhost:8000/api/health), and the compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
 
 ## Testing
 
@@ -117,6 +121,7 @@ The API is exposed at [http://localhost:8000](http://localhost:8000), and the co
 ```bash
 cd backend
 python -m compileall -q .
+pip-audit -r requirements.txt
 ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
 ```
 
@@ -125,6 +130,9 @@ ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
 ```bash
 cd frontend
 npm ci
+npm audit
+npm audit --omit=dev
+npm run typecheck
 npm run test:ci
 npm run build
 ```
@@ -165,6 +173,21 @@ docker compose config
 docker compose build
 docker compose up
 ```
+
+## Screenshots
+
+`docs/screenshots/` currently contains a checklist rather than committed screenshots. Capture real images only after running the app locally so the portfolio reflects the actual UI:
+
+- Dashboard / Home
+- Today Lesson
+- Review Result
+- Progress / Analytics
+- Wrong Answer Notebook
+- Materials / RAG
+
+## Portfolio Signals
+
+This project is intended to demonstrate engineering quality rather than flashy feature breadth: typed API contracts, migration-safe SQLite persistence, deterministic review scoring, SRS, gamification idempotency, RAG chunking contracts, frontend state/error handling, mocked E2E coverage, dependency audits, Docker config validation, and CI quality gates.
 
 ## Reliability Notes
 

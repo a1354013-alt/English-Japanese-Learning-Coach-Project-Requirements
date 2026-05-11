@@ -70,20 +70,11 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import TaskHistory from '@/components/TaskHistory.vue'
 import { importApi, lessonApi } from '@/services/api'
-import type { Language } from '@/types'
+import type { Language, LessonListItem } from '@/types'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false,
 })
-
-interface LessonListItem {
-  lesson_id: string
-  language: Language
-  level: string
-  topic: string
-  generated_at: string
-  key_points: string[] | string
-}
 
 const { t } = useI18n()
 const router = useRouter()

@@ -23,9 +23,12 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r requirements.txt -r requirements-dev.txt
+          pip install pip-audit
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
       - name: Compile
         run: python -m compileall -q .
         env:
@@ -51,6 +54,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
+      - name: Production dependency audit
+        run: npm audit --omit=dev
+      - name: Typecheck
+        run: npm run typecheck
       - name: Test
         run: npm run test:ci
       - name: Build
@@ -72,6 +79,8 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+      - name: Production dependency audit
+        run: npm audit --omit=dev
 
       - name: Install Playwright (Chromium only)
         run: npx playwright install --with-deps chromium
@@ -116,3 +125,10 @@ jobs:
 
       - name: Run full-stack e2e acceptance
         run: npm run e2e:fullstack -- --project=chromium
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker compose
+        run: docker compose config

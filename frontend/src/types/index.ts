@@ -119,6 +119,19 @@ export interface LessonEvidence {
   chunk_index: number
 }
 
+export interface LessonListItem {
+  lesson_id: string
+  user_id: string
+  language: Language
+  level: string
+  topic: string
+  generated_at: string
+  estimated_duration_minutes?: number | null
+  key_points?: string[] | string | null
+  file_path: string
+  created_at?: string | null
+}
+
 export interface LanguageProgress {
   language: Language
   current_level: string

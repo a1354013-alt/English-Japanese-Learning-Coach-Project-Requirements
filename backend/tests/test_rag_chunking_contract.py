@@ -174,5 +174,13 @@ def test_split_into_chunks_handles_cjk_without_spaces():
     assert chunks[0][-8:] == chunks[1][:8]
 
 
+def test_split_into_chunks_handles_very_long_paragraph_without_spaces():
+    text = "x" * 250
+    chunks = split_into_chunks(text, max_chunk_size=80, overlap=10)
+    assert len(chunks) == 4
+    assert chunks[0] == "x" * 80
+    assert chunks[0][-10:] == chunks[1][:10]
+
+
 def test_split_into_chunks_empty_text_is_empty():
     assert split_into_chunks("   ", max_chunk_size=20, overlap=5) == []

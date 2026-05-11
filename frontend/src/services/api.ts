@@ -25,6 +25,7 @@ import type {
   SrsDueResponse,
   ErrorType,
   DemoResetResponse,
+  LessonListItem,
 } from '@/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim()
@@ -91,7 +92,7 @@ export const lessonApi = {
     limit?: number
     offset?: number
   }) {
-    const response = await api.get<{ success: boolean; count: number; lessons: Array<{ lesson_id: string; language: Language; level: string; topic: string; generated_at: string; key_points: string | string[] }> }>('/lessons', { params })
+    const response = await api.get<{ success: boolean; count: number; lessons: LessonListItem[] }>('/lessons', { params })
     return response.data
   },
 
