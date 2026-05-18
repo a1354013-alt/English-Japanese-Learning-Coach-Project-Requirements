@@ -33,6 +33,8 @@ npm run dev
 
 Frontend note: the current dependency tree requires `Node.js 22.18.0+`. Using Node 20 can fail during `npm ci`, typecheck, test, or build.
 
+Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite files, generated lessons, audio, exports, and Chroma data should stay untracked under `data/` or another `DATA_DIR`.
+
 ## End-to-End Functional Check
 
 1. Onboarding
@@ -131,8 +133,8 @@ Mocked acceptance suite:
 
 ```bash
 cd frontend
-npm ci
 node -v   # should be 22.18.0 or newer
+npm ci
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
@@ -146,8 +148,8 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-npm ci
 node -v   # should be 22.18.0 or newer
+npm ci
 npx playwright install --with-deps chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```

@@ -71,7 +71,7 @@ Backend environment variables:
 
 Frontend environment variables:
 
-- `VITE_API_BASE_URL` defaults to `http://localhost:8000/api`
+- `VITE_API_BASE_URL` defaults to `/api`, so local development uses the Vite proxy in `frontend/vite.config.ts`
 - `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
 
 Runtime requirements:
@@ -79,6 +79,8 @@ Runtime requirements:
 - Frontend tooling requires `Node.js 22.18.0+` because the current Vite/Vitest dependency tree includes packages that no longer support Node 20.
 
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
+
+Runtime data such as local SQLite files, generated lessons, audio, exports, and Chroma persistence must stay out of git. The repository keeps only `data/.gitkeep`; create runtime content locally under `data/` or a custom `DATA_DIR`.
 
 ## Local Setup
 
@@ -151,6 +153,7 @@ npm run build
 ```bash
 cd frontend
 node -v   # should be 22.18.0 or newer
+npm ci
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
@@ -171,6 +174,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 ```bash
 cd frontend
 node -v   # should be 22.18.0 or newer
+npm ci
 npx playwright install --with-deps chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```

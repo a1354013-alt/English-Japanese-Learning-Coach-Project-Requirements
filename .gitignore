@@ -27,6 +27,10 @@ data/*.db-shm
 data/*.db-wal
 data/*.sqlite
 data/*.sqlite3
+data/lessons/
+data/audio/
+data/exports/
+data/chroma_db/
 tmp_chroma_test/
 tmp_chroma_test2/
 .chroma/

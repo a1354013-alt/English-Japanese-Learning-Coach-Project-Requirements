@@ -6,22 +6,24 @@ const mocks = vi.hoisted(() => ({
   postMock: vi.fn(),
   deleteMock: vi.fn(),
   patchMock: vi.fn(),
+  createMock: vi.fn(),
 }))
 
 vi.mock('axios', async () => {
   const actual = await vi.importActual<typeof import('axios')>('axios')
+  mocks.createMock.mockImplementation(() => ({
+    get: mocks.getMock,
+    post: mocks.postMock,
+    delete: mocks.deleteMock,
+    patch: mocks.patchMock,
+    interceptors: { response: { use: vi.fn() } },
+  }))
   return {
     ...actual,
     default: {
       ...actual.default,
       isAxiosError: () => true,
-      create: () => ({
-        get: mocks.getMock,
-        post: mocks.postMock,
-        delete: mocks.deleteMock,
-        patch: mocks.patchMock,
-        interceptors: { response: { use: vi.fn() } },
-      }),
+      create: mocks.createMock,
     },
   }
 })
@@ -30,6 +32,14 @@ import { importApi, reviewApi } from './api'
 import type { ReviewAnswer } from '@/types'
 
 describe('api client', () => {
+  it('defaults the API base URL to the Vite proxy path', () => {
+    expect(mocks.createMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseURL: '/api',
+      }),
+    )
+  })
+
   it('calls SRS endpoints with query params', async () => {
     mocks.getMock.mockResolvedValueOnce({ data: { success: true, items: [] } })
     await reviewApi.getDueSrs('EN')
