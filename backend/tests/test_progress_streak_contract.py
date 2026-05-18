@@ -1,6 +1,10 @@
 """Integration coverage for the shared streak/progress source of truth."""
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import database as database_module
+import demo_seed as demo_seed_module
 import gamification_engine as gamification_module
 import lesson_generator as lesson_generator_module
 import services.lesson_ops as lesson_ops_module
@@ -97,4 +101,28 @@ def test_demo_reset_restores_reasonable_streak_state(tmp_path, monkeypatch):
     assert streak["current_streak"] == 3
     assert streak["today_completed"] is True
     assert progress["streak"]["current_streak"] == streak["current_streak"]
+    assert progress["progress"]["rpg_stats"]["streak_days"] == streak["current_streak"]
+
+
+def test_demo_reset_uses_local_timezone_for_streak_seed(tmp_path, monkeypatch):
+    _wire_test_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "timezone", "Asia/Taipei", raising=False)
+    monkeypatch.setattr(
+        demo_seed_module,
+        "_local_now",
+        lambda: datetime(2026, 5, 18, 16, 22, tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(settings.timezone)),
+        raising=True,
+    )
+    client = TestClient(_make_app())
+
+    reset = client.post("/api/demo/reset")
+    assert reset.status_code == 200
+
+    streak = client.get("/api/streak").json()
+    progress = client.get("/api/progress").json()
+
+    assert streak["current_streak"] == 3
+    assert streak["today_completed"] is True
+    assert progress["streak"]["current_streak"] == streak["current_streak"]
+    assert progress["streak"]["today_completed"] is True
     assert progress["progress"]["rpg_stats"]["streak_days"] == streak["current_streak"]

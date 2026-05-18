@@ -6,6 +6,7 @@ import json
 import shutil
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from config import settings
 from database import Database
@@ -13,12 +14,18 @@ from models import UserRPGStats
 from srs import srs_engine
 
 
+def _local_now() -> datetime:
+    """Return the current time in the app's configured timezone."""
+    return datetime.now(ZoneInfo(settings.timezone))
+
+
 def reset_demo_dataset(db: Database) -> dict[str, Any]:
     user_id = settings.default_user_id
     _clear_runtime_artifacts()
     _clear_database(db, user_id)
 
-    now = datetime.now()
+    now = _local_now()
+    local_today = now.date()
     today_lesson_id = _seed_lesson(
         db,
         user_id=user_id,
@@ -224,9 +231,24 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
             "created_at": now.isoformat(),
         }
     )
-    db.record_learning_activity(user_id=user_id, activity_type="generate_lesson", activity_date=(now - timedelta(days=2)).date().isoformat())
-    db.record_learning_activity(user_id=user_id, activity_type="review", activity_date=(now - timedelta(days=1)).date().isoformat())
-    db.record_learning_activity(user_id=user_id, activity_type="review", activity_date=now.date().isoformat())
+    db.record_learning_activity(
+        user_id=user_id,
+        activity_type="generate_lesson",
+        activity_date=(local_today - timedelta(days=2)).isoformat(),
+        created_at=(now - timedelta(days=2)).isoformat(),
+    )
+    db.record_learning_activity(
+        user_id=user_id,
+        activity_type="review",
+        activity_date=(local_today - timedelta(days=1)).isoformat(),
+        created_at=(now - timedelta(days=1)).isoformat(),
+    )
+    db.record_learning_activity(
+        user_id=user_id,
+        activity_type="review",
+        activity_date=local_today.isoformat(),
+        created_at=now.isoformat(),
+    )
 
     return {
         "lessons": 2,
