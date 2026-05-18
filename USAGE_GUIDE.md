@@ -105,10 +105,11 @@ Frontend note: the current dependency tree requires `Node.js 22.18.0+`. Using No
 ## Tests
 
 ```bash
-cd backend
-python -m compileall .
-pip-audit -r requirements.txt
-ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest -q
+python -m compileall backend
+ruff check backend tests
+mypy backend
+pip-audit -r backend/requirements.txt
+ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 pytest
 ```
 
 ```bash
@@ -118,6 +119,8 @@ npm ci
 npm audit
 npm audit --omit=dev
 npm run typecheck
+npm run lint
+npm run format:check
 npm run test:ci
 npm run build
 ```
@@ -131,7 +134,7 @@ cd frontend
 npm ci
 node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
-RUN_E2E=1 npm run e2e -- --project=chromium
+RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
 
 Full-stack suite:
@@ -146,7 +149,11 @@ cd frontend
 npm ci
 node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
-npm run e2e:fullstack -- --project=chromium
+npm run test:e2e:fullstack -- --project=chromium
 ```
 
-The full-stack test uses deterministic fallback lesson generation plus `/api/demo/reset`, so it does not depend on a live LLM response.
+### Mocked vs Full-Stack E2E
+
+- `npm run test:e2e` is the default CI path. It runs only the frontend dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs. Use it for fast regression checks.
+- `npm run test:e2e:fullstack` starts the real FastAPI backend and real Vite frontend. It calls `POST /api/demo/reset` before the scenario to rebuild deterministic demo data, then validates the real `lesson generate -> review submit -> progress updated` flow.
+- The full-stack suite is better for release smoke tests or `workflow_dispatch`; the mocked suite is better for every PR because it is faster and less sensitive to process startup timing.

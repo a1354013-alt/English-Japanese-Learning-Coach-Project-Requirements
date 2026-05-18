@@ -7,24 +7,26 @@
           <option value="EN">{{ t('common.english') }}</option>
           <option value="JP">{{ t('common.japanese') }}</option>
         </select>
-        <button class="secondary" @click="load" :disabled="loading">{{ t('common.refresh') }}</button>
+        <button class="secondary" :disabled="loading" @click="load">
+          {{ t('common.refresh') }}
+        </button>
       </div>
     </div>
 
-    <div class="panel" v-if="loading && items.length === 0">
+    <div v-if="loading && items.length === 0" class="panel">
       <p>{{ t('review.loading') }}</p>
     </div>
 
-    <div class="panel" v-else-if="error">
+    <div v-else-if="error" class="panel">
       <p style="color: #d32f2f">{{ error }}</p>
       <button class="secondary" @click="load">{{ t('common.retry') }}</button>
     </div>
 
-    <div class="panel" v-else-if="items.length === 0">
+    <div v-else-if="items.length === 0" class="panel">
       <p>{{ t('review.empty') }}</p>
     </div>
 
-    <div class="panel" v-else>
+    <div v-else class="panel">
       <table style="width: 100%; border-collapse: collapse">
         <thead>
           <tr>
@@ -40,9 +42,27 @@
             <td>{{ item.definition_zh ?? '' }}</td>
             <td>{{ formatNextReview(item.next_review) }}</td>
             <td class="row gap-sm">
-              <button class="secondary" @click="review(item.word, 5)" :disabled="submitting">{{ t('review.easy') }}</button>
-              <button class="secondary" @click="review(item.word, 3)" :disabled="submitting">{{ t('review.hard') }}</button>
-              <button class="secondary" @click="review(item.word, 1)" :disabled="submitting">{{ t('review.forgot') }}</button>
+              <button
+                class="secondary"
+                :disabled="submitting"
+                @click="review(item.word, 5)"
+              >
+                {{ t('review.easy') }}
+              </button>
+              <button
+                class="secondary"
+                :disabled="submitting"
+                @click="review(item.word, 3)"
+              >
+                {{ t('review.hard') }}
+              </button>
+              <button
+                class="secondary"
+                :disabled="submitting"
+                @click="review(item.word, 1)"
+              >
+                {{ t('review.forgot') }}
+              </button>
             </td>
           </tr>
         </tbody>
@@ -71,7 +91,8 @@ const loading = ref(false)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
-const formatNextReview = (value: string | null) => (value ? new Date(value).toLocaleString() : '-')
+const formatNextReview = (value: string | null) =>
+  value ? new Date(value).toLocaleString() : '-'
 
 const load = async () => {
   loading.value = true

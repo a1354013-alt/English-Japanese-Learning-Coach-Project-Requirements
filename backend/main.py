@@ -5,10 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
+from typing import AsyncIterator
 
 from api_errors import (
     http_exception_handler,
@@ -16,10 +13,12 @@ from api_errors import (
     validation_exception_handler,
 )
 from config import settings
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from logging_config import configure_logging
 from ollama_client import ollama_client
-from routers import ai_tools, imports, lessons, review, system, streak, wrong_answers
+from routers import ai_tools, imports, lessons, review, streak, system, wrong_answers
 from scheduler import lesson_scheduler
 
 APP_VERSION = "1.2.0"
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings.data_path.mkdir(parents=True, exist_ok=True)
     settings.lessons_dir.mkdir(parents=True, exist_ok=True)
     settings.audio_dir.mkdir(parents=True, exist_ok=True)

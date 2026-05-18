@@ -12,7 +12,6 @@ from database import db
 from models import ReviewAnswer
 from srs import srs_engine
 
-
 _ANSWER_PUNCTUATION_MAP = str.maketrans(
     {
         "\u3002": ".",
@@ -86,8 +85,8 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
         answer_map[(answer.exercise_type, answer.question_index)] = answer
 
     for idx, exercise in enumerate(grammar_exercises):
-        answer = answer_map.get(("grammar", idx))
-        if answer is None:
+        submitted = answer_map.get(("grammar", idx))
+        if submitted is None:
             incorrect_items.append(
                 {
                     "question": str(exercise.get("question", "")),
@@ -98,21 +97,21 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
             )
             continue
 
-        if is_answer_correct(answer.user_answer, exercise):
+        if is_answer_correct(submitted.user_answer, exercise):
             correct_count += 1
         else:
             incorrect_items.append(
                 {
                     "question": str(exercise.get("question", "")),
-                    "user_answer": str(answer.user_answer),
+                    "user_answer": str(submitted.user_answer),
                     "correct_answer": str(exercise.get("correct_answer", "")),
                     "explanation": str(exercise.get("explanation", "")),
                 }
             )
 
     for idx, question in enumerate(reading_questions):
-        answer = answer_map.get(("reading", idx))
-        if answer is None:
+        submitted = answer_map.get(("reading", idx))
+        if submitted is None:
             incorrect_items.append(
                 {
                     "question": str(question.get("question", "")),
@@ -123,13 +122,13 @@ def score_answers(lesson_data: Dict[str, Any], answers: List[ReviewAnswer]) -> D
             )
             continue
 
-        if is_answer_correct(answer.user_answer, question):
+        if is_answer_correct(submitted.user_answer, question):
             correct_count += 1
         else:
             incorrect_items.append(
                 {
                     "question": str(question.get("question", "")),
-                    "user_answer": str(answer.user_answer),
+                    "user_answer": str(submitted.user_answer),
                     "correct_answer": str(question.get("correct_answer", "")),
                     "explanation": str(question.get("explanation", "")),
                 }

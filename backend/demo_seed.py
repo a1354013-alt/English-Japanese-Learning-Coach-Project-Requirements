@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from config import settings
@@ -148,7 +147,7 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
         },
     )
 
-    imported_words = [
+    imported_words: list[dict[str, Any]] = [
         {
             "language": "EN",
             "word": "retrospective",

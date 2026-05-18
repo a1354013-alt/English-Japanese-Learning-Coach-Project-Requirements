@@ -2,15 +2,17 @@
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
       <h2 style="margin: 0">{{ t('lesson.title') }}</h2>
-      <button class="secondary" @click="$router.push('/archive')">{{ t('lesson.backToArchive') }}</button>
+      <button class="secondary" @click="$router.push('/archive')">
+        {{ t('lesson.backToArchive') }}
+      </button>
     </div>
 
-    <div class="panel" v-if="loading">{{ t('lesson.loading') }}</div>
-    <div class="panel" v-else-if="error">
+    <div v-if="loading" class="panel">{{ t('lesson.loading') }}</div>
+    <div v-else-if="error" class="panel">
       <p class="error-text">{{ error }}</p>
       <button type="button" @click="loadLesson">{{ t('common.retry') }}</button>
     </div>
-    <div class="panel" v-else-if="!lesson">{{ t('lesson.notFound') }}</div>
+    <div v-else-if="!lesson" class="panel">{{ t('lesson.notFound') }}</div>
 
     <div v-else class="grid">
       <section>
@@ -32,13 +34,17 @@
         <h3>{{ t('lesson.grammar') }}</h3>
         <p>{{ lesson.grammar.title }}</p>
         <p>{{ lesson.grammar.explanation }}</p>
-        <div v-if="lesson.grammar.exercises && lesson.grammar.exercises.length > 0">
+        <div
+          v-if="lesson.grammar.exercises && lesson.grammar.exercises.length > 0"
+        >
           <h4>{{ t('lesson.grammarExercises') }}</h4>
           <ul>
             <li v-for="(ex, idx) in lesson.grammar.exercises" :key="idx">
               {{ ex.question }}
               <br />
-              <small>{{ t('lesson.answer', { answer: ex.correct_answer }) }}</small>
+              <small>{{
+                t('lesson.answer', { answer: ex.correct_answer })
+              }}</small>
             </li>
           </ul>
         </div>
@@ -47,12 +53,16 @@
       <section>
         <h3>{{ t('lesson.reading') }}</h3>
         <p style="white-space: pre-wrap">{{ lesson.reading.content }}</p>
-        <div v-if="lesson.reading.questions && lesson.reading.questions.length > 0">
+        <div
+          v-if="lesson.reading.questions && lesson.reading.questions.length > 0"
+        >
           <h4>{{ t('lesson.readingQuestions') }}</h4>
           <ol>
             <li v-for="(q, idx) in lesson.reading.questions" :key="idx">
               <div>{{ q.question }}</div>
-              <small>{{ t('lesson.answer', { answer: q.correct_answer }) }}</small>
+              <small>{{
+                t('lesson.answer', { answer: q.correct_answer })
+              }}</small>
             </li>
           </ol>
         </div>
@@ -61,8 +71,14 @@
       <section v-if="lesson.dialogue">
         <h3>{{ t('lesson.dialogue') }}</h3>
         <p v-if="lesson.dialogue.scenario">{{ lesson.dialogue.scenario }}</p>
-        <p v-if="lesson.dialogue.context" style="color: #64748b">{{ lesson.dialogue.context }}</p>
-        <div v-for="(line, idx) in lesson.dialogue.dialogue" :key="idx" style="margin-bottom: 0.5rem">
+        <p v-if="lesson.dialogue.context" style="color: #64748b">
+          {{ lesson.dialogue.context }}
+        </p>
+        <div
+          v-for="(line, idx) in lesson.dialogue.dialogue"
+          :key="idx"
+          style="margin-bottom: 0.5rem"
+        >
           <strong>{{ line.speaker }}:</strong> {{ line.text }}
         </div>
       </section>

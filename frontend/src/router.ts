@@ -11,16 +11,49 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'TodayLesson', component: TodayLesson },
     { path: '/today', redirect: '/' },
-    { path: '/workspace', name: 'LearningWorkspace', component: LearningWorkspace },
+    {
+      path: '/workspace',
+      name: 'LearningWorkspace',
+      component: LearningWorkspace,
+    },
     { path: '/progress', name: 'Progress', component: Progress },
-    { path: '/archive', name: 'Archive', redirect: { path: '/progress', query: { tab: 'history' } } },
-    { path: '/mistakes', name: 'WrongAnswers', redirect: { path: '/progress', query: { tab: 'mistakes' } } },
-    { path: '/lesson/:id', name: 'LessonDetail', component: LessonDetail, props: true },
-    { path: '/writing', name: 'WritingCenter', redirect: { path: '/workspace', query: { tab: 'writing' } } },
-    { path: '/chat', name: 'ChatTutor', redirect: { path: '/workspace', query: { tab: 'chat' } } },
+    {
+      path: '/archive',
+      name: 'Archive',
+      redirect: { path: '/progress', query: { tab: 'history' } },
+    },
+    {
+      path: '/mistakes',
+      name: 'WrongAnswers',
+      redirect: { path: '/progress', query: { tab: 'mistakes' } },
+    },
+    {
+      path: '/lesson/:id',
+      name: 'LessonDetail',
+      component: LessonDetail,
+      props: true,
+    },
+    {
+      path: '/writing',
+      name: 'WritingCenter',
+      redirect: { path: '/workspace', query: { tab: 'writing' } },
+    },
+    {
+      path: '/chat',
+      name: 'ChatTutor',
+      redirect: { path: '/workspace', query: { tab: 'chat' } },
+    },
     { path: '/analytics', name: 'Analytics', component: Analytics },
-    { path: '/review', name: 'SrsReview', redirect: { path: '/progress', query: { tab: 'review' } } },
-    { path: '/materials', name: 'Materials', redirect: { path: '/workspace', query: { tab: 'materials' } } },
+    {
+      path: '/review',
+      name: 'SrsReview',
+      redirect: { path: '/progress', query: { tab: 'review' } },
+    },
+    {
+      path: '/materials',
+      name: 'Materials',
+      redirect: { path: '/workspace', query: { tab: 'materials' } },
+    },
     { path: '/vocabulary', name: 'Vocabulary', component: Vocabulary },
   ],
 })

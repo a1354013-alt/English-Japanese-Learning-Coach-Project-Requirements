@@ -2,19 +2,30 @@
   <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
     <div v-if="!embedded" class="panel row between center">
       <h2 style="margin: 0">{{ t('archive.title') }}</h2>
-      <button class="secondary" @click="loadLessons" :disabled="loading">{{ t('common.refresh') }}</button>
+      <button class="secondary" :disabled="loading" @click="loadLessons">
+        {{ t('common.refresh') }}
+      </button>
     </div>
 
-    <div class="panel" v-if="loading && lessons.length === 0">
-      <p>{{ t('archive.loading') }}</p>
-    </div>
+    <LoadingState
+      v-if="loading && lessons.length === 0"
+      panel-class="panel"
+      :message="t('archive.loading')"
+    />
 
-    <div class="panel" v-else-if="error">
-      <p style="color: #d32f2f">{{ error }}</p>
-      <button @click="loadLessons" class="secondary">{{ t('common.retry') }}</button>
-    </div>
+    <ErrorState
+      v-else-if="error"
+      panel-class="panel"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="loadLessons"
+    />
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))" v-if="!loading && !error">
+    <div
+      v-if="!loading && !error"
+      class="panel grid"
+      style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))"
+    >
       <div>
         <label>{{ t('common.language') }}</label>
         <select v-model="filters.language">
@@ -25,38 +36,73 @@
       </div>
       <div>
         <label>{{ t('common.topic') }}</label>
-        <input v-model="filters.topic" :placeholder="t('archive.topicPlaceholder')" />
+        <input
+          v-model="filters.topic"
+          :placeholder="t('archive.topicPlaceholder')"
+        />
       </div>
       <div class="row center" style="margin-top: 1.6rem">
-        <button @click="loadLessons" :disabled="loading">{{ t('archive.applyFilters') }}</button>
+        <button :disabled="loading" @click="loadLessons">
+          {{ t('archive.applyFilters') }}
+        </button>
       </div>
     </div>
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))" v-if="lessons.length && !loading && !error">
-      <div class="panel" v-for="lesson in lessons" :key="lesson.lesson_id">
+    <div
+      v-if="lessons.length && !loading && !error"
+      class="panel grid"
+      style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))"
+    >
+      <div v-for="lesson in lessons" :key="lesson.lesson_id" class="panel">
         <h3 style="margin: 0">{{ lesson.topic }}</h3>
         <p>{{ lesson.language }} / {{ lesson.level }}</p>
         <p>{{ new Date(lesson.generated_at).toLocaleString() }}</p>
-        <button class="secondary" @click="viewLesson(lesson.lesson_id)">{{ t('archive.viewLesson') }}</button>
+        <button class="secondary" @click="viewLesson(lesson.lesson_id)">
+          {{ t('archive.viewLesson') }}
+        </button>
       </div>
     </div>
 
-    <div class="panel" v-if="!lessons.length && !loading && !error">
-      <p>{{ t('archive.empty') }}</p>
-    </div>
+    <EmptyState
+      v-if="!lessons.length && !loading && !error"
+      panel-class="panel"
+      :message="t('archive.empty')"
+    />
 
-    <div class="panel grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))" v-if="!loading && !error">
+    <div
+      v-if="!loading && !error"
+      class="panel grid"
+      style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr))"
+    >
       <div>
         <h3>{{ t('archive.excelImport') }}</h3>
-        <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
-        <input type="file" accept=".xlsx" @change="handleExcelUpload" :disabled="!filters.language" />
-        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
+        <p style="font-size: 0.85rem; color: #666">
+          {{ t('archive.selectLanguageBeforeUpload') }}
+        </p>
+        <input
+          type="file"
+          accept=".xlsx"
+          :disabled="!filters.language"
+          @change="handleExcelUpload"
+        />
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">
+          {{ t('archive.selectLanguageFirst') }}
+        </p>
       </div>
       <div>
         <h3>{{ t('archive.ragUpload') }}</h3>
-        <p style="font-size: 0.85rem; color: #666">{{ t('archive.selectLanguageBeforeUpload') }}</p>
-        <input type="file" accept=".txt,.md,.csv,.pdf" @change="handleRagUpload" :disabled="!filters.language" />
-        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">{{ t('archive.selectLanguageFirst') }}</p>
+        <p style="font-size: 0.85rem; color: #666">
+          {{ t('archive.selectLanguageBeforeUpload') }}
+        </p>
+        <input
+          type="file"
+          accept=".txt,.md,.csv,.pdf"
+          :disabled="!filters.language"
+          @change="handleRagUpload"
+        />
+        <p v-if="!filters.language" style="font-size: 0.75rem; color: #d32f2f">
+          {{ t('archive.selectLanguageFirst') }}
+        </p>
       </div>
     </div>
 
@@ -69,6 +115,9 @@ import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import TaskHistory from '@/components/TaskHistory.vue'
+import EmptyState from '@/components/state/EmptyState.vue'
+import ErrorState from '@/components/state/ErrorState.vue'
+import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi, lessonApi } from '@/services/api'
 import type { Language, LessonListItem } from '@/types'
 

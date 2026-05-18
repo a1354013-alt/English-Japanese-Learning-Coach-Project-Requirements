@@ -5,7 +5,6 @@ import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
 from zoneinfo import ZoneInfo
 
 from config import settings

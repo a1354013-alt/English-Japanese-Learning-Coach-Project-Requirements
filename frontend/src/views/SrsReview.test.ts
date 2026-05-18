@@ -20,7 +20,8 @@ vi.mock('@/services/api', () => ({
   },
 }))
 
-const flushPromises = () => new Promise((resolve) => window.setTimeout(resolve, 0))
+const flushPromises = () =>
+  new Promise((resolve) => window.setTimeout(resolve, 0))
 
 describe('SrsReview.vue', () => {
   it('renders a safe fallback when next_review is null', async () => {

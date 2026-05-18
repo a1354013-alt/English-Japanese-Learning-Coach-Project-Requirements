@@ -2,13 +2,12 @@
 
 from datetime import datetime
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import database as database_module
 import gamification_engine as gamification_module
 import services.lesson_ops as lesson_ops_module
 from database import Database
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from models import UserRPGStats, WordCard
 from routers import imports as imports_router
 from srs import srs_engine

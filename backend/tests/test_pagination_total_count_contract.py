@@ -1,13 +1,12 @@
 """List APIs with limit/offset must return total count, not page length."""
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import database as database_module
 import gamification_engine as gamification_module
 import lesson_generator as lesson_generator_module
 import services.lesson_ops as lesson_ops_module
 from database import Database
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from routers import lessons as lessons_router
 from routers import system as system_router
 from routers import wrong_answers as wrong_answers_router

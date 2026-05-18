@@ -18,26 +18,26 @@ export default defineConfig({
         DATA_DIR: '.playwright-data',
         DB_PATH: '.playwright-data/language_coach.db',
         CHROMA_DB_PATH: '.playwright-data/chroma_db',
-        CORS_ORIGINS: 'http://127.0.0.1:4173',
+        CORS_ORIGINS: 'http://127.0.0.1:4273',
       },
       url: 'http://127.0.0.1:8000/api/health',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
       timeout: 120_000,
     },
     {
-      command: 'npm run dev -- --host 127.0.0.1 --port 4173 --strictPort',
+      command: 'npm run dev -- --host 127.0.0.1 --port 4273 --strictPort',
       env: {
         ...process.env,
         VITE_API_TARGET: 'http://127.0.0.1:8000',
         VITE_WS_TARGET: 'ws://127.0.0.1:8000',
       },
-      url: 'http://127.0.0.1:4173',
-      reuseExistingServer: !process.env.CI,
+      url: 'http://127.0.0.1:4273',
+      reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === '1',
       timeout: 120_000,
     },
   ],
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: 'http://127.0.0.1:4273',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -49,4 +49,3 @@ export default defineConfig({
     },
   ],
 })
-

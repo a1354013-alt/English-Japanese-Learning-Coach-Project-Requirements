@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Coroutine
+from concurrent.futures import Future
 from datetime import datetime
-from typing import Awaitable
+from typing import Any
 
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-
 from config import settings
 from database import db
 from lesson_generator import lesson_generator
@@ -25,7 +26,7 @@ class LessonScheduler:
         self.scheduler = BackgroundScheduler()
         self.timezone = pytz.timezone(settings.timezone)
 
-    def _run_async_task(self, coro: Awaitable[None]) -> None:
+    def _run_async_task(self, coro: Coroutine[Any, Any, None]) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -33,7 +34,7 @@ class LessonScheduler:
             asyncio.set_event_loop(loop)
 
         if loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            future: Future[None] = asyncio.run_coroutine_threadsafe(coro, loop)
             try:
                 future.result(timeout=300)
             except Exception as err:

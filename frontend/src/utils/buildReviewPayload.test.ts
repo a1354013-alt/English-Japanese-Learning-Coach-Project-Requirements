@@ -20,15 +20,32 @@ describe('buildReviewPayload', () => {
         explanation: 'E',
         examples: [],
         exercises: [
-          { question: 'q1', options: ['A', 'B'], correct_answer: 'A', explanation: 'x' },
-          { question: 'q2', options: ['C', 'D'], correct_answer: 'D', explanation: 'y' },
+          {
+            question: 'q1',
+            options: ['A', 'B'],
+            correct_answer: 'A',
+            explanation: 'x',
+          },
+          {
+            question: 'q2',
+            options: ['C', 'D'],
+            correct_answer: 'D',
+            explanation: 'y',
+          },
         ],
       },
       reading: {
         title: 'R',
         content: 'C',
         word_count: 1,
-        questions: [{ question: 'rq1', options: ['X', 'Y'], correct_answer: 'Y', explanation: 'z' }],
+        questions: [
+          {
+            question: 'rq1',
+            options: ['X', 'Y'],
+            correct_answer: 'Y',
+            explanation: 'z',
+          },
+        ],
       },
       dialogue: { scenario: 'S', context: 'C', dialogue: [], alternatives: [] },
     } as unknown as Lesson
@@ -39,9 +56,20 @@ describe('buildReviewPayload', () => {
     })
 
     expect(payload).toEqual([
-      { lesson_id: 'l1', exercise_type: 'grammar', question_index: 0, user_answer: 'A', correct_answer: 'A' },
-      { lesson_id: 'l1', exercise_type: 'reading', question_index: 0, user_answer: 'X', correct_answer: 'Y' },
+      {
+        lesson_id: 'l1',
+        exercise_type: 'grammar',
+        question_index: 0,
+        user_answer: 'A',
+        correct_answer: 'A',
+      },
+      {
+        lesson_id: 'l1',
+        exercise_type: 'reading',
+        question_index: 0,
+        user_answer: 'X',
+        correct_answer: 'Y',
+      },
     ])
   })
 })
-

@@ -3,7 +3,9 @@
     <div v-if="!embedded" class="panel row between center">
       <div>
         <h2 style="margin: 0">{{ t('mistakes.title') }}</h2>
-        <p style="margin: 0.2rem 0 0; color: #475569">{{ t('mistakes.subtitle') }}</p>
+        <p style="margin: 0.2rem 0 0; color: #475569">
+          {{ t('mistakes.subtitle') }}
+        </p>
       </div>
       <div class="row gap-sm center" style="min-width: 280px">
         <select v-model="statusFilter" :disabled="loading">
@@ -11,34 +13,56 @@
           <option value="mastered">{{ t('mistakes.mastered') }}</option>
           <option value="all">{{ t('mistakes.all') }}</option>
         </select>
-        <button class="secondary" type="button" @click="loadItems" :disabled="loading">
+        <button
+          class="secondary"
+          type="button"
+          :disabled="loading"
+          @click="loadItems"
+        >
           {{ loading ? t('mistakes.loading') : t('common.refresh') }}
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="panel">{{ t('mistakes.loading') }}</div>
+    <LoadingState
+      v-if="loading"
+      panel-class="panel"
+      :message="t('mistakes.loading')"
+    />
 
-    <div v-else-if="error" class="panel">
-      <p style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
-      <button type="button" @click="loadItems">{{ t('common.retry') }}</button>
-    </div>
+    <ErrorState
+      v-else-if="error"
+      panel-class="panel"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="loadItems"
+    />
 
-    <div v-else-if="items.length === 0" class="panel">
-      <p style="margin: 0">{{ t('mistakes.empty') }}</p>
-      <p style="margin: 0.35rem 0 0; color: #475569">
-        {{ t('mistakes.emptyHint') }}
-      </p>
-    </div>
+    <EmptyState
+      v-else-if="items.length === 0"
+      panel-class="panel"
+      :message="t('mistakes.empty')"
+      :hint="t('mistakes.emptyHint')"
+    />
 
     <div v-else class="grid">
-      <article v-for="item in items" :key="item.id" class="panel grid" style="gap: 0.75rem">
+      <article
+        v-for="item in items"
+        :key="item.id"
+        class="panel grid"
+        style="gap: 0.75rem"
+      >
         <div class="row between center" style="gap: 1rem; flex-wrap: wrap">
           <div>
             <strong>{{ item.question_type.toUpperCase() }}</strong>
             <span style="color: #475569"> / {{ item.language }}</span>
-            <span style="color: #475569"> / {{ formatDate(item.created_at) }}</span>
-            <span v-if="item.wrong_count > 1" style="color: #475569"> / {{ t('mistakes.wrongCount', { count: item.wrong_count }) }}</span>
+            <span style="color: #475569">
+              / {{ formatDate(item.created_at) }}</span
+            >
+            <span v-if="item.wrong_count > 1" style="color: #475569">
+              /
+              {{ t('mistakes.wrongCount', { count: item.wrong_count }) }}</span
+            >
           </div>
           <span
             :style="{
@@ -50,40 +74,90 @@
               fontSize: '0.85rem',
             }"
           >
-            {{ item.status === 'mastered' ? t('mistakes.mastered') : t('mistakes.active') }}
+            {{
+              item.status === 'mastered'
+                ? t('mistakes.mastered')
+                : t('mistakes.active')
+            }}
           </span>
         </div>
 
         <div>
-          <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.question') }}</div>
+          <div
+            style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem"
+          >
+            {{ t('mistakes.question') }}
+          </div>
           <div style="white-space: pre-wrap">{{ item.question }}</div>
         </div>
 
-        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+        <div
+          class="grid"
+          style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))"
+        >
           <div>
-            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.yourAnswer') }}</div>
-            <div style="white-space: pre-wrap; color: #b91c1c">{{ item.user_answer }}</div>
+            <div
+              style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem"
+            >
+              {{ t('mistakes.yourAnswer') }}
+            </div>
+            <div style="white-space: pre-wrap; color: #b91c1c">
+              {{ item.user_answer }}
+            </div>
           </div>
           <div>
-            <div style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem">{{ t('mistakes.correctAnswer') }}</div>
-            <div style="white-space: pre-wrap; color: #065f46">{{ item.correct_answer }}</div>
+            <div
+              style="color: #475569; font-size: 0.9rem; margin-bottom: 0.25rem"
+            >
+              {{ t('mistakes.correctAnswer') }}
+            </div>
+            <div style="white-space: pre-wrap; color: #065f46">
+              {{ item.correct_answer }}
+            </div>
           </div>
         </div>
 
-        <div v-if="retryingId === item.id" class="panel" style="background: #f8fafc">
+        <div
+          v-if="retryingId === item.id"
+          class="panel"
+          style="background: #f8fafc"
+        >
           <div class="row gap-sm center" style="flex-wrap: wrap">
-            <input v-model="retryAnswer" :placeholder="t('mistakes.retryPlaceholder')" style="flex: 1 1 240px" />
-            <button type="button" @click="submitRetry(item)" :disabled="submittingRetry">
-              {{ submittingRetry ? t('mistakes.checking') : t('mistakes.retrySubmit') }}
+            <input
+              v-model="retryAnswer"
+              :placeholder="t('mistakes.retryPlaceholder')"
+              style="flex: 1 1 240px"
+            />
+            <button
+              type="button"
+              :disabled="submittingRetry"
+              @click="submitRetry(item)"
+            >
+              {{
+                submittingRetry
+                  ? t('mistakes.checking')
+                  : t('mistakes.retrySubmit')
+              }}
             </button>
-            <button class="secondary" type="button" @click="cancelRetry" :disabled="submittingRetry">{{ t('mistakes.retryCancel') }}</button>
+            <button
+              class="secondary"
+              type="button"
+              :disabled="submittingRetry"
+              @click="cancelRetry"
+            >
+              {{ t('mistakes.retryCancel') }}
+            </button>
           </div>
           <p
             v-if="retryFeedback"
             style="margin: 0.6rem 0 0"
             :style="{ color: retryFeedback.ok ? '#065f46' : '#b91c1c' }"
           >
-            {{ retryFeedback.ok ? t('mistakes.retryCorrect') : t('mistakes.retryIncorrect') }}
+            {{
+              retryFeedback.ok
+                ? t('mistakes.retryCorrect')
+                : t('mistakes.retryIncorrect')
+            }}
           </p>
         </div>
 
@@ -91,19 +165,42 @@
           <button
             class="secondary"
             type="button"
-            @click="startRetry(item)"
             :disabled="retryingId !== null && retryingId !== item.id"
+            @click="startRetry(item)"
           >
             {{ t('mistakes.retry') }}
           </button>
-          <button v-if="item.status === 'active'" type="button" @click="markMastered(item)" :disabled="updatingId === item.id">
-            {{ updatingId === item.id ? t('mistakes.updating') : t('mistakes.markMastered') }}
+          <button
+            v-if="item.status === 'active'"
+            type="button"
+            :disabled="updatingId === item.id"
+            @click="markMastered(item)"
+          >
+            {{
+              updatingId === item.id
+                ? t('mistakes.updating')
+                : t('mistakes.markMastered')
+            }}
           </button>
-          <button class="secondary" type="button" @click="openSourceLesson(item)" :disabled="!item.source_lesson_id">
+          <button
+            class="secondary"
+            type="button"
+            :disabled="!item.source_lesson_id"
+            @click="openSourceLesson(item)"
+          >
             {{ t('mistakes.openSourceLesson') }}
           </button>
-          <button type="button" style="background: #ef4444" @click="removeItem(item)" :disabled="deletingId === item.id">
-            {{ deletingId === item.id ? t('mistakes.deleting') : t('mistakes.delete') }}
+          <button
+            type="button"
+            style="background: #ef4444"
+            :disabled="deletingId === item.id"
+            @click="removeItem(item)"
+          >
+            {{
+              deletingId === item.id
+                ? t('mistakes.deleting')
+                : t('mistakes.delete')
+            }}
           </button>
         </div>
       </article>
@@ -115,6 +212,9 @@
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import EmptyState from '@/components/state/EmptyState.vue'
+import ErrorState from '@/components/state/ErrorState.vue'
+import LoadingState from '@/components/state/LoadingState.vue'
 import { wrongAnswerApi } from '@/services/api'
 import type { WrongAnswer, WrongAnswerStatus } from '@/types'
 
@@ -144,7 +244,8 @@ const loadItems = async () => {
   loading.value = true
   error.value = null
   try {
-    const status: WrongAnswerStatus | undefined = statusFilter.value === 'all' ? undefined : statusFilter.value
+    const status: WrongAnswerStatus | undefined =
+      statusFilter.value === 'all' ? undefined : statusFilter.value
     const res = await wrongAnswerApi.listWrongAnswers({ status })
     items.value = res.items
   } catch (err) {
@@ -235,4 +336,3 @@ watch(statusFilter, () => {
 
 onMounted(loadItems)
 </script>
-

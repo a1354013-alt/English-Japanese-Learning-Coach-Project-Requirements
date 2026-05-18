@@ -2,9 +2,6 @@
 
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import database as database_module
 import export_service as export_service_module
 import gamification_engine as gamification_module
@@ -12,6 +9,8 @@ import lesson_generator as lesson_generator_module
 import services.lesson_ops as lesson_ops_module
 from database import Database
 from export_service import PDFExporter
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from routers import imports as imports_router
 from routers import lessons as lessons_router
 from routers import review as review_router

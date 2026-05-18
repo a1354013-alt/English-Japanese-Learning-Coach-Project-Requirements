@@ -40,17 +40,20 @@ class StudyPlanner:
         start = datetime.now()
         end = self._parse_datetime(data.get("end_date"), start + timedelta(days=90))
 
-        milestones_raw = data.get("milestones") if isinstance(data.get("milestones"), list) else []
+        milestones_value = data.get("milestones")
+        milestones_raw: list[Any] = milestones_value if isinstance(milestones_value, list) else []
         milestones: List[StudyMilestone] = []
         for idx, item in enumerate(milestones_raw):
             if not isinstance(item, dict):
                 continue
+            skills_raw = item.get("required_skills")
+            required_skills = [str(skill) for skill in skills_raw] if isinstance(skills_raw, list) else []
             milestones.append(
                 StudyMilestone(
                     title=str(item.get("title", f"Milestone {idx + 1}")),
                     description=str(item.get("description", "")),
                     target_date=self._parse_datetime(item.get("target_date"), start + timedelta(days=30 * (idx + 1))),
-                    required_skills=[str(s) for s in (item.get("required_skills") or [])],
+                    required_skills=required_skills,
                 )
             )
 
@@ -63,7 +66,8 @@ class StudyPlanner:
         except Exception:
             daily_minutes = 30
 
-        focus = data.get("focus_areas") if isinstance(data.get("focus_areas"), list) else ["Vocabulary", "Grammar", "Review"]
+        focus_raw = data.get("focus_areas")
+        focus: list[Any] = focus_raw if isinstance(focus_raw, list) else ["Vocabulary", "Grammar", "Review"]
 
         return StudyPlan(
             user_id=user_id,

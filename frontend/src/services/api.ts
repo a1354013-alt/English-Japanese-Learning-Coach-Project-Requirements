@@ -28,7 +28,9 @@ import type {
   LessonListItem,
 } from '@/types'
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api').trim()
+const apiBaseUrl = (
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+).trim()
 
 const api = axios.create({
   baseURL: apiBaseUrl,
@@ -41,10 +43,17 @@ function getFriendlyApiMessage(error: unknown): string {
   }
 
   const data = error.response?.data
-  const detail = data !== undefined ? formatApiErrorDetail(data) : error.message || 'Network error'
+  const detail =
+    data !== undefined
+      ? formatApiErrorDetail(data)
+      : error.message || 'Network error'
   const normalized = detail.toLowerCase()
 
-  if (!error.response || normalized.includes('network error') || normalized.includes('failed to fetch')) {
+  if (
+    !error.response ||
+    normalized.includes('network error') ||
+    normalized.includes('failed to fetch')
+  ) {
     return i18n.global.t('errors.serverNotResponding')
   }
 
@@ -69,17 +78,24 @@ api.interceptors.response.use(
 
 export const lessonApi = {
   async generateLesson(request: GenerateLessonRequest) {
-    const response = await api.post<{ success: boolean; lesson: Lesson }>('/generate/lesson', request)
+    const response = await api.post<{ success: boolean; lesson: Lesson }>(
+      '/generate/lesson',
+      request,
+    )
     return response.data
   },
 
   async getTodayLesson(language: Language) {
-    const response = await api.get<{ success: boolean; lesson: Lesson | null }>(`/lessons/today/${language}`)
+    const response = await api.get<{ success: boolean; lesson: Lesson | null }>(
+      `/lessons/today/${language}`,
+    )
     return response.data
   },
 
   async getLesson(lessonId: string) {
-    const response = await api.get<{ success: boolean; lesson: Lesson }>(`/lessons/${lessonId}`)
+    const response = await api.get<{ success: boolean; lesson: Lesson }>(
+      `/lessons/${lessonId}`,
+    )
     return response.data
   },
 
@@ -92,22 +108,35 @@ export const lessonApi = {
     limit?: number
     offset?: number
   }) {
-    const response = await api.get<{ success: boolean; count: number; lessons: LessonListItem[] }>('/lessons', { params })
+    const response = await api.get<{
+      success: boolean
+      count: number
+      lessons: LessonListItem[]
+    }>('/lessons', { params })
     return response.data
   },
 
   async getTasks(limit = 10) {
-    const response = await api.get<{ success: boolean; tasks: GenerationTask[] }>('/tasks', { params: { limit } })
+    const response = await api.get<{
+      success: boolean
+      tasks: GenerationTask[]
+    }>('/tasks', { params: { limit } })
     return response.data
   },
 
   async exportPdf(lessonId: string) {
-    const response = await api.get<Blob>(`/export/pdf/${encodeURIComponent(lessonId)}`, {
-      responseType: 'blob',
-    })
+    const response = await api.get<Blob>(
+      `/export/pdf/${encodeURIComponent(lessonId)}`,
+      {
+        responseType: 'blob',
+      },
+    )
 
     const responseContentType = response.headers['content-type']
-    const contentType = typeof responseContentType === 'string' ? responseContentType : 'application/pdf'
+    const contentType =
+      typeof responseContentType === 'string'
+        ? responseContentType
+        : 'application/pdf'
     const blob = new Blob([response.data], { type: contentType })
     const url = window.URL.createObjectURL(blob)
 
@@ -147,12 +176,18 @@ export const reviewApi = {
   async submitReview(answers: ReviewAnswer[], errorType?: ErrorType) {
     const params: Record<string, string> = {}
     if (errorType) params.error_type = errorType
-    const response = await api.post<ReviewResult>('/review', answers, Object.keys(params).length ? { params } : undefined)
+    const response = await api.post<ReviewResult>(
+      '/review',
+      answers,
+      Object.keys(params).length ? { params } : undefined,
+    )
     return response.data
   },
 
   async getDueSrs(language?: Language) {
-    const response = await api.get<SrsDueResponse>('/srs/due', { params: { language } })
+    const response = await api.get<SrsDueResponse>('/srs/due', {
+      params: { language },
+    })
     return response.data
   },
 
@@ -168,60 +203,97 @@ export const importApi = {
   async uploadRagMaterial(language: Language, file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<{ success: boolean; doc_id: string }>('/rag/upload', formData, {
-      params: { language },
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const response = await api.post<{ success: boolean; doc_id: string }>(
+      '/rag/upload',
+      formData,
+      {
+        params: { language },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
     return response.data
   },
 
   async importExcel(language: Language, file: File) {
     const formData = new FormData()
     formData.append('file', file)
-    const response = await api.post<{ success: boolean; count: number }>('/import/excel', formData, {
-      params: { language },
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const response = await api.post<{ success: boolean; count: number }>(
+      '/import/excel',
+      formData,
+      {
+        params: { language },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
     return response.data
   },
 
   async listRagMaterials(language?: Language) {
-    const response = await api.get<RagMaterialsResponse>('/rag/materials', { params: { language } })
+    const response = await api.get<RagMaterialsResponse>('/rag/materials', {
+      params: { language },
+    })
     return response.data
   },
 
   async deleteRagMaterial(docId: string) {
-    const response = await api.delete<{ success: boolean }>(`/rag/materials/${docId}`)
+    const response = await api.delete<{ success: boolean }>(
+      `/rag/materials/${docId}`,
+    )
     return response.data
   },
 
-  async listImportedVocabulary(params: { language?: Language; q?: string; limit?: number; offset?: number } = {}) {
-    const response = await api.get<ImportedVocabularyListResponse>('/imported-vocabulary', { params })
+  async listImportedVocabulary(
+    params: {
+      language?: Language
+      q?: string
+      limit?: number
+      offset?: number
+    } = {},
+  ) {
+    const response = await api.get<ImportedVocabularyListResponse>(
+      '/imported-vocabulary',
+      { params },
+    )
     return response.data
   },
 
   async deleteImportedVocabulary(itemId: number) {
-    const response = await api.delete<{ success: boolean }>(`/imported-vocabulary/${itemId}`)
+    const response = await api.delete<{ success: boolean }>(
+      `/imported-vocabulary/${itemId}`,
+    )
     return response.data
   },
 }
 
 export const aiTutorApi = {
   async analyzeWriting(submission: WritingSubmission) {
-    const response = await api.post<{ success: boolean; analysis: WritingAnalysis }>('/writing/analyze', submission)
+    const response = await api.post<{
+      success: boolean
+      analysis: WritingAnalysis
+    }>('/writing/analyze', submission)
     return response.data
   },
 
   async generateStudyPlan(targetGoal: string, language: Language) {
-    const response = await api.post<{ success: boolean; plan: StudyPlan }>('/study-plan/generate', null, {
-      params: { target_goal: targetGoal, language },
-    })
+    const response = await api.post<{ success: boolean; plan: StudyPlan }>(
+      '/study-plan/generate',
+      null,
+      {
+        params: { target_goal: targetGoal, language },
+      },
+    )
     return response.data
   },
 }
 
 export const wrongAnswerApi = {
-  async listWrongAnswers(params: { status?: WrongAnswerStatus; limit?: number; offset?: number } = {}) {
+  async listWrongAnswers(
+    params: {
+      status?: WrongAnswerStatus
+      limit?: number
+      offset?: number
+    } = {},
+  ) {
     const response = await api.get<WrongAnswerListResponse>('/wrong-answers', {
       params: {
         status: params.status,
@@ -240,22 +312,33 @@ export const wrongAnswerApi = {
     correct_answer: string
     source_lesson_id?: string | null
   }) {
-    const response = await api.post<WrongAnswerItemResponse>('/wrong-answers', payload)
+    const response = await api.post<WrongAnswerItemResponse>(
+      '/wrong-answers',
+      payload,
+    )
     return response.data
   },
 
   async updateStatus(id: number, status: WrongAnswerStatus) {
-    const response = await api.patch<WrongAnswerItemResponse>(`/wrong-answers/${id}`, { status })
+    const response = await api.patch<WrongAnswerItemResponse>(
+      `/wrong-answers/${id}`,
+      { status },
+    )
     return response.data
   },
 
   async deleteWrongAnswer(id: number) {
-    const response = await api.delete<{ success: boolean }>(`/wrong-answers/${id}`)
+    const response = await api.delete<{ success: boolean }>(
+      `/wrong-answers/${id}`,
+    )
     return response.data
   },
 
   async retry(id: number, userAnswer: string) {
-    const response = await api.post<WrongAnswerRetryResponse>(`/wrong-answers/${id}/retry`, { user_answer: userAnswer })
+    const response = await api.post<WrongAnswerRetryResponse>(
+      `/wrong-answers/${id}/retry`,
+      { user_answer: userAnswer },
+    )
     return response.data
   },
 }

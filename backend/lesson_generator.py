@@ -12,7 +12,14 @@ from uuid import uuid4
 
 from config import settings
 from database import db
-from models import DialogueSection, GrammarSection, Lesson, LessonMetadata, ReadingSection, VocabularyItem
+from models import (
+    DialogueSection,
+    GrammarSection,
+    Lesson,
+    LessonMetadata,
+    ReadingSection,
+    VocabularyItem,
+)
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 

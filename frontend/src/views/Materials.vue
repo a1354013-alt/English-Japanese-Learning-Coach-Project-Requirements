@@ -8,33 +8,49 @@
           <option value="EN">{{ t('common.english') }}</option>
           <option value="JP">{{ t('common.japanese') }}</option>
         </select>
-        <button class="secondary" @click="load" :disabled="loading">{{ t('common.refresh') }}</button>
+        <button class="secondary" :disabled="loading" @click="load">
+          {{ t('common.refresh') }}
+        </button>
       </div>
     </div>
 
     <div class="panel">
       <h3 style="margin-top: 0">{{ t('materials.upload') }}</h3>
-      <p style="font-size: 0.85rem; color: #666">{{ t('materials.supported') }}</p>
-      <input type="file" accept=".txt,.md,.csv,.pdf" @change="handleUpload" :disabled="!language" />
+      <p style="font-size: 0.85rem; color: #666">
+        {{ t('materials.supported') }}
+      </p>
+      <input
+        type="file"
+        accept=".txt,.md,.csv,.pdf"
+        :disabled="!language"
+        @change="handleUpload"
+      />
       <p v-if="!language" style="font-size: 0.75rem; color: #d32f2f">
         {{ t('materials.selectLanguageBeforeUpload') }}
       </p>
     </div>
 
-    <div class="panel" v-if="loading && materials.length === 0">
-      <p>{{ t('materials.loading') }}</p>
-    </div>
+    <LoadingState
+      v-if="loading && materials.length === 0"
+      panel-class="panel"
+      :message="t('materials.loading')"
+    />
 
-    <div class="panel" v-else-if="error">
-      <p style="color: #d32f2f">{{ error }}</p>
-      <button class="secondary" @click="load">{{ t('common.retry') }}</button>
-    </div>
+    <ErrorState
+      v-else-if="error"
+      panel-class="panel"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="load"
+    />
 
-    <div class="panel" v-else-if="materials.length === 0">
-      <p>{{ t('materials.empty') }}</p>
-    </div>
+    <EmptyState
+      v-else-if="materials.length === 0"
+      panel-class="panel"
+      :message="t('materials.empty')"
+    />
 
-    <div class="panel" v-else>
+    <div v-else class="panel">
       <table style="width: 100%; border-collapse: collapse">
         <thead>
           <tr>
@@ -49,10 +65,20 @@
           <tr v-for="m in materials" :key="m.doc_id">
             <td>{{ m.title || m.source }}</td>
             <td>{{ m.language }}</td>
-            <td>{{ m.uploaded_at ? new Date(m.uploaded_at).toLocaleString() : '' }}</td>
+            <td>
+              {{
+                m.uploaded_at ? new Date(m.uploaded_at).toLocaleString() : ''
+              }}
+            </td>
             <td>{{ m.total_chunks ?? '' }}</td>
             <td>
-              <button class="secondary" @click="remove(m.doc_id)" :disabled="deletingId === m.doc_id">{{ t('materials.delete') }}</button>
+              <button
+                class="secondary"
+                :disabled="deletingId === m.doc_id"
+                @click="remove(m.doc_id)"
+              >
+                {{ t('materials.delete') }}
+              </button>
             </td>
           </tr>
         </tbody>
@@ -67,6 +93,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyState from '@/components/state/EmptyState.vue'
+import ErrorState from '@/components/state/ErrorState.vue'
+import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi } from '@/services/api'
 import type { Language, RagMaterial } from '@/types'
 

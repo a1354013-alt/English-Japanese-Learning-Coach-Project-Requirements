@@ -1,9 +1,8 @@
 """Shared API dependencies (single-tenant demo user scoping)."""
 
-from fastapi import Query
-
 from api_errors import api_error
 from config import settings
+from fastapi import Query
 
 
 def require_demo_user_id(user_id: str = Query(default=settings.default_user_id)) -> str:

@@ -82,7 +82,9 @@ const currentTab = computed<WorkspaceTab>(() => {
   return 'materials'
 })
 
-const currentTabMeta = computed(() => tabs.value.find((tab) => tab.key === currentTab.value) ?? tabs.value[0])
+const currentTabMeta = computed(
+  () => tabs.value.find((tab) => tab.key === currentTab.value) ?? tabs.value[0],
+)
 
 const setTab = (tab: WorkspaceTab) => {
   void router.replace({ path: '/workspace', query: { tab } })

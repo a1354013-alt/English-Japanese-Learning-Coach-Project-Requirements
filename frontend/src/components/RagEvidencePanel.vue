@@ -1,14 +1,22 @@
 <template>
-  <section class="evidence-panel" v-if="evidence && evidence.length > 0">
+  <section v-if="evidence && evidence.length > 0" class="evidence-panel">
     <h4>{{ t('evidence.title') }}</h4>
     <ul class="evidence-list">
-      <li v-for="(item, idx) in evidence" :key="`${item.material_id}-${item.chunk_index}-${idx}`" class="evidence-item">
+      <li
+        v-for="(item, idx) in evidence"
+        :key="`${item.material_id}-${item.chunk_index}-${idx}`"
+        class="evidence-item"
+      >
         <div class="evidence-topline">
           <span class="source-badge">{{ item.title || item.source }}</span>
-          <span class="chunk-info">{{ t('evidence.chunk', { index: item.chunk_index + 1 }) }} / {{ item.total_chunks }}</span>
+          <span class="chunk-info"
+            >{{ t('evidence.chunk', { index: item.chunk_index + 1 }) }} /
+            {{ item.total_chunks }}</span
+          >
         </div>
         <p class="evidence-meta">
-          {{ item.language || 'N/A' }} · {{ item.source_type || 'text' }} · {{ item.material_id }}
+          {{ item.language || 'N/A' }} · {{ item.source_type || 'text' }} ·
+          {{ item.material_id }}
         </p>
         <p class="evidence-text">{{ item.text }}</p>
       </li>

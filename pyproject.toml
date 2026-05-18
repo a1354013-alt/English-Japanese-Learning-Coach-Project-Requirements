@@ -1,0 +1,49 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+  "frontend/dist",
+  "frontend/node_modules",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/*.py" = []
+
+[tool.mypy]
+python_version = "3.11"
+files = ["backend"]
+exclude = [
+  "^backend/tests/",
+]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = [
+  "apscheduler.*",
+  "pandas",
+  "pytz",
+  "reportlab.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "export_service",
+  "lesson_generator",
+  "routers.imports",
+  "scheduler",
+]
+ignore_errors = true

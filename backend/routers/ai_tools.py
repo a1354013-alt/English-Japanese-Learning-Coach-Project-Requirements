@@ -1,18 +1,24 @@
 """Study plan, writing analysis, TTS, audio files, and chat WebSocket."""
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, WebSocket
-from fastapi.responses import FileResponse
-
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from chat_handler import chat_manager
 from config import settings
 from database import db
-from models import LanguageCode, StudyPlanResponse, TtsResponse, WritingAnalysisResponse, WritingSubmission
-from routers.deps import require_demo_user_id
+from fastapi import APIRouter, Depends, WebSocket
+from fastapi.responses import FileResponse
+from models import (
+    LanguageCode,
+    StudyPlanResponse,
+    TtsResponse,
+    WritingAnalysisResponse,
+    WritingSubmission,
+)
 from study_planner import study_planner
 from tts_service import tts_service
 from writing_assistant import writing_assistant
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["ai-tools"], responses=COMMON_ERROR_RESPONSES)
 

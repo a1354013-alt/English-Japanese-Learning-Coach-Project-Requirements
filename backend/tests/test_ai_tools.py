@@ -7,7 +7,6 @@ without relying on a real Ollama server.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
-
 from main import app
 
 client = TestClient(app)

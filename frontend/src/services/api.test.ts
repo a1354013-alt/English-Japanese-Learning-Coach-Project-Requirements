@@ -33,17 +33,23 @@ describe('api client', () => {
   it('calls SRS endpoints with query params', async () => {
     mocks.getMock.mockResolvedValueOnce({ data: { success: true, items: [] } })
     await reviewApi.getDueSrs('EN')
-    expect(mocks.getMock).toHaveBeenCalledWith('/srs/due', { params: { language: 'EN' } })
+    expect(mocks.getMock).toHaveBeenCalledWith('/srs/due', {
+      params: { language: 'EN' },
+    })
 
     mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
     await reviewApi.submitSrsReview('hello', 'EN', 5)
-    expect(mocks.postMock).toHaveBeenCalledWith('/srs/review', null, { params: { word: 'hello', language: 'EN', quality: 5 } })
+    expect(mocks.postMock).toHaveBeenCalledWith('/srs/review', null, {
+      params: { word: 'hello', language: 'EN', quality: 5 },
+    })
   })
 
   it('calls RAG list/delete endpoints', async () => {
     mocks.getMock.mockResolvedValueOnce({ data: { success: true, items: [] } })
     await importApi.listRagMaterials('JP')
-    expect(mocks.getMock).toHaveBeenCalledWith('/rag/materials', { params: { language: 'JP' } })
+    expect(mocks.getMock).toHaveBeenCalledWith('/rag/materials', {
+      params: { language: 'JP' },
+    })
 
     mocks.deleteMock.mockResolvedValueOnce({ data: { success: true } })
     await importApi.deleteRagMaterial('doc1')
@@ -51,7 +57,15 @@ describe('api client', () => {
   })
 
   it('does not send demo user_id query params from the frontend client', async () => {
-    const answers: ReviewAnswer[] = [{ lesson_id: 'l1', exercise_type: 'grammar', question_index: 0, user_answer: 'A', correct_answer: 'A' }]
+    const answers: ReviewAnswer[] = [
+      {
+        lesson_id: 'l1',
+        exercise_type: 'grammar',
+        question_index: 0,
+        user_answer: 'A',
+        correct_answer: 'A',
+      },
+    ]
 
     mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
     await reviewApi.submitReview(answers)

@@ -1,10 +1,10 @@
 """Wrong Answer Notebook CRUD + retry API."""
 
-from fastapi import APIRouter, Depends, Query
-
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
+from fastapi import APIRouter, Depends, Query
 from models import (
+    SuccessResponse,
     WrongAnswer,
     WrongAnswerCreate,
     WrongAnswerItemResponse,
@@ -13,8 +13,8 @@ from models import (
     WrongAnswerRetryResponse,
     WrongAnswerStatus,
     WrongAnswerUpdate,
-    SuccessResponse,
 )
+
 from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["wrong-answers"], responses=COMMON_ERROR_RESPONSES)

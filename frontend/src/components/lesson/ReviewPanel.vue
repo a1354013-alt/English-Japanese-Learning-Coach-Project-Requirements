@@ -3,10 +3,7 @@
     <div class="section-header">
       <div>
         <h2>{{ t('today.reviewResult') }}</h2>
-        <p
-          class="section-description"
-          data-testid="review-score"
-        >
+        <p class="section-description" data-testid="review-score">
           {{
             t('today.score', {
               correct: result.correct_count,
@@ -30,7 +27,11 @@
     </div>
 
     <div v-if="result.incorrect_items.length" class="page-stack">
-      <article v-for="(item, idx) in result.incorrect_items" :key="idx" class="surface-muted result-card">
+      <article
+        v-for="(item, idx) in result.incorrect_items"
+        :key="idx"
+        class="surface-muted result-card"
+      >
         <strong>{{ item.question }}</strong>
         <p>{{ t('today.correctAnswer', { answer: item.correct_answer }) }}</p>
         <p>{{ item.explanation }}</p>

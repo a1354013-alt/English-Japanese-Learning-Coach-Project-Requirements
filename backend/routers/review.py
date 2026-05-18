@@ -1,10 +1,9 @@
 """Exercise review, SRS due items, and generation task history."""
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
-
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
+from fastapi import APIRouter, Depends, Query
 from gamification_engine import gamification_engine
 from models import (
     ErrorType,
@@ -16,7 +15,6 @@ from models import (
     TasksResponse,
     UserRPGStats,
 )
-from routers.deps import require_demo_user_id
 from services.lesson_ops import (
     is_answer_correct,
     load_lesson_payload,
@@ -25,6 +23,8 @@ from services.lesson_ops import (
     update_srs_after_review,
 )
 from srs import srs_engine
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["review"], responses=COMMON_ERROR_RESPONSES)
 
@@ -172,7 +172,8 @@ async def get_due_items(
     raw = db.get_due_srs_items(user_id, language=language)
     items = []
     for r in raw:
-        data = r.get("data") if isinstance(r.get("data"), dict) else {}
+        data_value = r.get("data")
+        data: dict[str, object] = data_value if isinstance(data_value, dict) else {}
         items.append(
             {
                 "word": r.get("word"),
@@ -207,7 +208,7 @@ async def submit_srs_review(
         prev_ease_factor=float(prev["ease_factor"]) if prev else 2.5,
         repetition=int(prev["srs_level"]) if prev else 0,
     )
-    vocab_info = prev.get("data") or {}
+    vocab_info = prev["data"] if isinstance(prev.get("data"), dict) else {}
     db.update_srs_item(user_id, word, language, srs_data, vocab_info)
     db.record_learning_activity(user_id=user_id, activity_type="srs_review")
     return {"success": True}

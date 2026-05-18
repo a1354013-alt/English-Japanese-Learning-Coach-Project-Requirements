@@ -2,7 +2,8 @@
 Spaced Repetition System (SRS) implementation using SM-2 algorithm
 """
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Any, Dict
+
 
 class SM2:
     """SuperMemo-2 algorithm implementation"""

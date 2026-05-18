@@ -222,7 +222,12 @@ export interface WritingAnalysis {
   style_score: number
   overall_score: number
   estimated_level: string
-  corrections: Array<{ original: string; corrected: string; explanation: string; type: string }>
+  corrections: Array<{
+    original: string
+    corrected: string
+    explanation: string
+    type: string
+  }>
   suggestions: string[]
   feedback: string
 }
@@ -258,7 +263,13 @@ export interface GenerateLessonRequest {
 export interface GenerationTask {
   task_id: string
   user_id: string
-  status: 'pending' | 'running' | 'success' | 'fallback_success' | 'failed' | 'retried'
+  status:
+    | 'pending'
+    | 'running'
+    | 'success'
+    | 'fallback_success'
+    | 'failed'
+    | 'retried'
   model_used: string
   duration_ms: number
   error_message?: string

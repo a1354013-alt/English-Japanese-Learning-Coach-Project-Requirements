@@ -124,10 +124,11 @@ The API is exposed at [http://localhost:8000](http://localhost:8000). Health is 
 ### Backend
 
 ```bash
-cd backend
-python -m compileall -q .
-pip-audit -r requirements.txt
-ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
+python -m compileall backend
+ruff check backend tests
+mypy backend
+pip-audit -r backend/requirements.txt
+ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 pytest
 ```
 
 ### Frontend
@@ -139,6 +140,8 @@ npm ci
 npm audit
 npm audit --omit=dev
 npm run typecheck
+npm run lint
+npm run format:check
 npm run test:ci
 npm run build
 ```
@@ -149,30 +152,41 @@ npm run build
 cd frontend
 node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
-RUN_E2E=1 npm run e2e -- --project=chromium
+RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
 
 Playwright mocked E2E starts only the Vite dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
 
-- No backend startup is required for `cd frontend && npm run e2e -- --project=chromium`
+- No backend startup is required for `cd frontend && npm run test:e2e -- --project=chromium`
 - No Ollama, ChromaDB, network access, or other external services are required
 - The E2E lesson flow uses stable mocked lesson/review responses instead of relying on live generation
 
 ### Full-Stack E2E
 
 ```bash
+cd backend
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+```bash
 cd frontend
 node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
-npm run e2e:fullstack -- --project=chromium
+npm run test:e2e:fullstack -- --project=chromium
 ```
 
 The full-stack Playwright suite starts:
 
 - a real FastAPI backend on `http://127.0.0.1:8000`
-- a real Vite frontend on `http://127.0.0.1:4173`
+- a real Vite frontend on `http://127.0.0.1:4273`
 
-It uses `POST /api/demo/reset` to seed deterministic data, exercises the real review/progress/wrong-answer/PDF flows, and keeps `ENABLE_RAG=false` so the run does not depend on ChromaDB.
+It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, exercises the real `lesson generate -> review submit -> progress updated` path plus wrong-answer/PDF flows, and keeps `ENABLE_RAG=false` so the run does not depend on ChromaDB.
+
+### CI E2E Policy
+
+- `npm run test:e2e` is the default CI-safe acceptance check because it is API-mocked and deterministic.
+- `npm run test:e2e:fullstack` is reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises real persistence.
+- Both suites share the same user-facing lesson flow, but only the full-stack suite validates backend persistence and demo reset behavior.
 
 ### Docker
 
@@ -208,6 +222,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - Re-submitted lesson reviews do not duplicate XP or completed lesson count; progress keeps the best per-lesson score while SRS reflects the latest attempt.
 - When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.
 - Playwright E2E is intentionally mocked at the API layer so CI does not depend on backend process startup, demo seed state, or real LLM/Ollama availability.
+- The separate full-stack Playwright suite validates the real seed-reset and persistence path without making every PR wait on a two-process browser test.
 - Lesson generation can fall back to deterministic sample content when the model path fails.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
 

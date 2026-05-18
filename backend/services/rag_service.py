@@ -9,7 +9,6 @@ from typing import Any, Dict
 
 from pypdf import PdfReader
 
-
 TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "big5")
 
 

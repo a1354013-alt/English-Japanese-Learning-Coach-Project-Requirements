@@ -91,7 +91,8 @@ vi.mock('@/services/api', () => ({
   },
 }))
 
-const flushPromises = () => new Promise((resolve) => window.setTimeout(resolve, 0))
+const flushPromises = () =>
+  new Promise((resolve) => window.setTimeout(resolve, 0))
 
 const streak = (overrides: Partial<StreakResponse> = {}): StreakResponse => ({
   success: true,
@@ -147,7 +148,9 @@ const progressPayload = (): ProgressResponse => ({
   streak: streak(),
 })
 
-const analyticsPayload = (overrides: Partial<AnalyticsResponse['analytics']> = {}): AnalyticsResponse => ({
+const analyticsPayload = (
+  overrides: Partial<AnalyticsResponse['analytics']> = {},
+): AnalyticsResponse => ({
   success: true,
   analytics: {
     total_xp: 140,
@@ -158,20 +161,32 @@ const analyticsPayload = (overrides: Partial<AnalyticsResponse['analytics']> = {
     hardest_words: [{ word: 'こんにちは', mistakes: 2 }],
     weakest_category: { category: 'grammar', active_items: 1 },
     accuracy_trend: [
-      { lesson_id: null, accuracy_rate: 75, submitted_at: '2026-05-10T00:00:00' },
-      { lesson_id: 'lesson-2', accuracy_rate: 100, submitted_at: '2026-05-11T00:00:00' },
+      {
+        lesson_id: null,
+        accuracy_rate: 75,
+        submitted_at: '2026-05-10T00:00:00',
+      },
+      {
+        lesson_id: 'lesson-2',
+        accuracy_rate: 100,
+        submitted_at: '2026-05-11T00:00:00',
+      },
     ],
     today_completed: true,
     ...overrides,
   },
 })
 
-const materialsPayload = (items: RagMaterialsResponse['items']): RagMaterialsResponse => ({
+const materialsPayload = (
+  items: RagMaterialsResponse['items'],
+): RagMaterialsResponse => ({
   success: true,
   items,
 })
 
-const wrongAnswersPayload = (items: WrongAnswerListResponse['items']): WrongAnswerListResponse => ({
+const wrongAnswersPayload = (
+  items: WrongAnswerListResponse['items'],
+): WrongAnswerListResponse => ({
   success: true,
   count: items.length,
   items,
@@ -256,7 +271,9 @@ describe('Progress.vue', () => {
     expect(wrapper.text()).toContain('Careful Learner')
     expect(wrapper.text()).toContain('140')
     expect(wrapper.text()).toContain('3')
-    expect(wrapper.get('[data-testid="progress-en-completed"]').text()).toBe('4')
+    expect(wrapper.get('[data-testid="progress-en-completed"]').text()).toBe(
+      '4',
+    )
   })
 
   it('does not crash when the API fails', async () => {
@@ -305,7 +322,9 @@ describe('Analytics.vue', () => {
   })
 
   it('renders loading and error states', async () => {
-    apiMocks.getAnalytics.mockImplementationOnce(() => new Promise(() => undefined))
+    apiMocks.getAnalytics.mockImplementationOnce(
+      () => new Promise(() => undefined),
+    )
     const loadingWrapper = mount(Analytics)
     expect(loadingWrapper.text()).toContain('analytics.loading')
 
@@ -355,7 +374,9 @@ describe('Materials.vue', () => {
   })
 
   it('renders API error state without crashing', async () => {
-    apiMocks.listRagMaterials.mockRejectedValueOnce(new Error('rag unavailable'))
+    apiMocks.listRagMaterials.mockRejectedValueOnce(
+      new Error('rag unavailable'),
+    )
 
     const wrapper = mount(Materials)
     await flushPromises()
@@ -420,15 +441,27 @@ describe('WrongAnswers.vue', () => {
       created_at: '2026-05-11T00:00:00',
       updated_at: '2026-05-11T00:00:00',
     }
-    const retryResponse: WrongAnswerRetryResponse = { success: true, correct: false, item: { ...item, wrong_count: 2 } }
+    const retryResponse: WrongAnswerRetryResponse = {
+      success: true,
+      correct: false,
+      item: { ...item, wrong_count: 2 },
+    }
     apiMocks.listWrongAnswers.mockResolvedValueOnce(wrongAnswersPayload([item]))
     apiMocks.retryWrongAnswer.mockResolvedValueOnce(retryResponse)
 
     const wrapper = mount(WrongAnswers)
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text() === 'mistakes.retry')?.trigger('click')
-    await wrapper.find('input[placeholder="mistakes.retryPlaceholder"]').setValue('are')
-    await wrapper.findAll('button').find((button) => button.text() === 'mistakes.retrySubmit')?.trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'mistakes.retry')
+      ?.trigger('click')
+    await wrapper
+      .find('input[placeholder="mistakes.retryPlaceholder"]')
+      .setValue('are')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'mistakes.retrySubmit')
+      ?.trigger('click')
     await flushPromises()
 
     expect(apiMocks.retryWrongAnswer).toHaveBeenCalledWith(1, 'are')
@@ -444,7 +477,10 @@ describe('TodayLesson.vue', () => {
   })
 
   it('renders vocabulary, grammar, and reading sections', async () => {
-    apiMocks.getTodayLesson.mockResolvedValueOnce({ success: true, lesson: lessonPayload() })
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
     apiMocks.getStreak.mockResolvedValue(streak())
 
     const wrapper = mount(TodayLesson)
@@ -464,7 +500,10 @@ describe('TodayLesson.vue', () => {
       incorrect_items: [],
       gamification: { xp_added: 20, leveled_up: false },
     }
-    apiMocks.getTodayLesson.mockResolvedValueOnce({ success: true, lesson: lessonPayload() })
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
     apiMocks.getStreak.mockResolvedValue(streak())
     apiMocks.submitReview.mockResolvedValueOnce(reviewResult)
 
@@ -476,18 +515,35 @@ describe('TodayLesson.vue', () => {
     await flushPromises()
 
     expect(apiMocks.submitReview).toHaveBeenCalledWith([
-      { lesson_id: 'lesson-1', exercise_type: 'grammar', question_index: 0, user_answer: 'am', correct_answer: 'am' },
-      { lesson_id: 'lesson-1', exercise_type: 'reading', question_index: 0, user_answer: 'Cafe', correct_answer: 'Cafe' },
+      {
+        lesson_id: 'lesson-1',
+        exercise_type: 'grammar',
+        question_index: 0,
+        user_answer: 'am',
+        correct_answer: 'am',
+      },
+      {
+        lesson_id: 'lesson-1',
+        exercise_type: 'reading',
+        question_index: 0,
+        user_answer: 'Cafe',
+        correct_answer: 'Cafe',
+      },
     ])
     expect(wrapper.text()).toContain('today.reviewResult')
   })
 
   it('renders no lesson and error states', async () => {
-    apiMocks.getTodayLesson.mockResolvedValueOnce({ success: true, lesson: null })
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
     apiMocks.getStreak.mockResolvedValue(streak({ today_completed: false }))
     const emptyWrapper = mount(TodayLesson)
     await flushPromises()
-    expect(emptyWrapper.find('[data-testid="generate-panel"]').exists()).toBe(true)
+    expect(emptyWrapper.find('[data-testid="generate-panel"]').exists()).toBe(
+      true,
+    )
 
     apiMocks.getTodayLesson.mockRejectedValueOnce(new Error('offline'))
     const errorWrapper = mount(TodayLesson)

@@ -49,7 +49,8 @@ class WritingAssistant:
                 }
             )
 
-        suggestions = data.get("suggestions") if isinstance(data.get("suggestions"), list) else []
+        suggestions_raw = data.get("suggestions")
+        suggestions = suggestions_raw if isinstance(suggestions_raw, list) else []
 
         def clamp_score(key: str) -> int:
             raw = data.get(key, 0)

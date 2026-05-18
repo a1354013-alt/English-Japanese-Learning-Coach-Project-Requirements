@@ -3,10 +3,14 @@ Gamification Engine for Language Coach
 Handles XP calculation, leveling, and achievements
 """
 from datetime import datetime, time
-from typing import List, Dict, Any, Optional
-from models import UserRPGStats, Achievement, WordCard
+from typing import Any, Dict, List, Literal
+
 from database import db
+from models import Achievement, UserRPGStats, WordCard
 from services.streak_service import get_streak_snapshot
+
+AchievementRarity = Literal["common", "rare", "epic", "legendary"]
+WordCardRarity = Literal["C", "B", "A", "S", "SS"]
 
 class GamificationEngine:
     """Logic for RPG-style progression"""
@@ -69,7 +73,7 @@ class GamificationEngine:
         if not progress:
             return []
             
-        unlocked_now = []
+        unlocked_now: list[Achievement] = []
         streak = get_streak_snapshot(user_id)
 
         # get_streak_snapshot mirrors the canonical streak into rpg_stats, so use a
@@ -96,7 +100,16 @@ class GamificationEngine:
             
         return unlocked_now
 
-    def _unlock_achievement(self, rpg_stats: UserRPGStats, id: str, title: str, desc: str, icon: str, rarity: str, unlocked_list: list):
+    def _unlock_achievement(
+        self,
+        rpg_stats: UserRPGStats,
+        id: str,
+        title: str,
+        desc: str,
+        icon: str,
+        rarity: AchievementRarity,
+        unlocked_list: list[Achievement],
+    ) -> None:
         """Helper to unlock an achievement if not already unlocked"""
         if not any(a.id == id for a in rpg_stats.achievements):
             new_achievement = Achievement(
@@ -110,14 +123,14 @@ class GamificationEngine:
         """Public method to check and unlock achievements (called from routers)"""
         return self.check_achievements(user_id)
 
-    def collect_word_cards(self, user_id: str, words: List[str], language: str) -> List[WordCard]:
+    def collect_word_cards(self, user_id: str, words: List[str], language: Literal["EN", "JP"]) -> List[WordCard]:
         """Convert learned words into collectible cards with rarity"""
         rpg_stats_data = db.get_rpg_stats(user_id) or {}
         rpg_stats = UserRPGStats(**rpg_stats_data)
-        new_cards = []
+        new_cards: list[WordCard] = []
         
         import random
-        rarities = ["C", "B", "A", "S", "SS"]
+        rarities: list[WordCardRarity] = ["C", "B", "A", "S", "SS"]
         weights = [0.5, 0.3, 0.15, 0.04, 0.01] # Rarity distribution
         
         for word in words:

@@ -1,7 +1,17 @@
 import { expect, test, type Page, type Route } from '@playwright/test'
-import type { AnalyticsPayload, Lesson, ReviewAnswer, ReviewResult, StreakResponse, UserProgress } from '../src/types'
+import type {
+  AnalyticsPayload,
+  Lesson,
+  ReviewAnswer,
+  ReviewResult,
+  StreakResponse,
+  UserProgress,
+} from '../src/types'
 
-test.skip(process.env.RUN_E2E === '0', 'RUN_E2E=0 disables browser e2e in CI and local quick checks.')
+test.skip(
+  process.env.RUN_E2E === '0',
+  'RUN_E2E=0 disables browser e2e in CI and local quick checks.',
+)
 
 const TIMESTAMP = '2026-05-06T08:00:00.000Z'
 
@@ -34,7 +44,8 @@ function buildLesson(topic: string): Lesson {
     ],
     grammar: {
       title: 'Present simple for updates',
-      explanation: 'Use the present simple to report status and near-term plans in a standup.',
+      explanation:
+        'Use the present simple to report status and near-term plans in a standup.',
       examples: [
         {
           sentence: 'I review pull requests every morning.',
@@ -50,20 +61,27 @@ function buildLesson(topic: string): Lesson {
             'I finished the API docs tomorrow.',
           ],
           correct_answer: 'I finish the API docs today.',
-          explanation: 'This demo uses the simple present as a concise standup status update.',
+          explanation:
+            'This demo uses the simple present as a concise standup status update.',
         },
       ],
     },
     reading: {
       title: 'Demo standup note',
-      content: 'Our team reviews the checklist, fixes one blocker, and ships the lesson flow before noon.',
+      content:
+        'Our team reviews the checklist, fixes one blocker, and ships the lesson flow before noon.',
       word_count: 14,
       questions: [
         {
           question: 'What does the team do before noon?',
-          options: ['Ships the lesson flow', 'Cancels the release', 'Writes a novel'],
+          options: [
+            'Ships the lesson flow',
+            'Cancels the release',
+            'Writes a novel',
+          ],
           correct_answer: 'Ships the lesson flow',
-          explanation: 'The note says the team ships the lesson flow before noon.',
+          explanation:
+            'The note says the team ships the lesson flow before noon.',
         },
       ],
     },
@@ -88,7 +106,10 @@ function buildLesson(topic: string): Lesson {
   }
 }
 
-function buildProgress(isOnboarded: boolean, completedLessons: number): UserProgress {
+function buildProgress(
+  isOnboarded: boolean,
+  completedLessons: number,
+): UserProgress {
   return {
     user_id: 'default_user',
     english_progress: {
@@ -120,20 +141,22 @@ function buildProgress(isOnboarded: boolean, completedLessons: number): UserProg
       title: completedLessons > 0 ? 'Focused Learner' : 'Novice Explorer',
       unlocked_skills: completedLessons > 0 ? ['lesson_flow'] : [],
       achievements: [],
-      word_cards: completedLessons > 0
-        ? [
-            {
-              word: 'blocker',
-              rarity: 'B',
-              collected_at: TIMESTAMP,
-              language: 'EN',
-              phonetic: '/ˈblɒk.ər/',
-              definition_zh: '阻礙問題',
-              example_sentence: 'I still have one blocker in the deployment step.',
-              example_translation: '我在部署步驟仍然有一個阻礙問題。',
-            },
-          ]
-        : [],
+      word_cards:
+        completedLessons > 0
+          ? [
+              {
+                word: 'blocker',
+                rarity: 'B',
+                collected_at: TIMESTAMP,
+                language: 'EN',
+                phonetic: '/ˈblɒk.ər/',
+                definition_zh: '阻礙問題',
+                example_sentence:
+                  'I still have one blocker in the deployment step.',
+                example_translation: '我在部署步驟仍然有一個阻礙問題。',
+              },
+            ]
+          : [],
       streak_days: completedLessons > 0 ? 1 : 0,
       difficulty_mode: 'normal',
       is_onboarded: isOnboarded,
@@ -150,9 +173,20 @@ function buildAnalytics(completedLessons: number): AnalyticsPayload {
     streak: completedLessons > 0 ? 1 : 0,
     longest_streak: completedLessons > 0 ? 1 : 0,
     lessons_completed: completedLessons,
-    hardest_words: completedLessons > 0 ? [{ word: 'blocker', mistakes: 1 }] : [],
-    weakest_category: completedLessons > 0 ? { category: 'grammar', active_items: 1 } : null,
-    accuracy_trend: completedLessons > 0 ? [{ lesson_id: 'e2e-demo-lesson', accuracy_rate: 100, submitted_at: TIMESTAMP }] : [],
+    hardest_words:
+      completedLessons > 0 ? [{ word: 'blocker', mistakes: 1 }] : [],
+    weakest_category:
+      completedLessons > 0 ? { category: 'grammar', active_items: 1 } : null,
+    accuracy_trend:
+      completedLessons > 0
+        ? [
+            {
+              lesson_id: 'e2e-demo-lesson',
+              accuracy_rate: 100,
+              submitted_at: TIMESTAMP,
+            },
+          ]
+        : [],
     today_completed: completedLessons > 0,
   }
 }
@@ -193,7 +227,10 @@ async function installMockApi(page: Page) {
     }
 
     if (path === '/api/onboard' && method === 'POST') {
-      progress = buildProgress(true, progress.english_progress.completed_lessons)
+      progress = buildProgress(
+        true,
+        progress.english_progress.completed_lessons,
+      )
       await fulfillJson(route, { success: true })
       return
     }
@@ -279,7 +316,9 @@ async function installMockApi(page: Page) {
   })
 }
 
-test('lesson flow - generate, review, and see progress update', async ({ page }) => {
+test('lesson flow - generate, review, and see progress update', async ({
+  page,
+}) => {
   await installMockApi(page)
 
   await page.addInitScript(() => {
@@ -289,9 +328,21 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
     await dialog.accept()
   })
 
-  const progressResponse = page.waitForResponse((response) => response.url().includes('/api/progress') && response.request().method() === 'GET')
-  const todayLessonResponse = page.waitForResponse((response) => response.url().includes('/api/lessons/today/EN') && response.request().method() === 'GET')
-  const streakResponse = page.waitForResponse((response) => response.url().includes('/api/streak') && response.request().method() === 'GET')
+  const progressResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/progress') &&
+      response.request().method() === 'GET',
+  )
+  const todayLessonResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/lessons/today/EN') &&
+      response.request().method() === 'GET',
+  )
+  const streakResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/streak') &&
+      response.request().method() === 'GET',
+  )
 
   await page.goto('/')
   await Promise.all([progressResponse, todayLessonResponse, streakResponse])
@@ -300,20 +351,29 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
 
   const onboarding = page.getByTestId('onboarding-dialog')
   if (await onboarding.isVisible({ timeout: 3_000 }).catch(() => false)) {
-    const onboardResponse = page.waitForResponse((response) => response.url().includes('/api/onboard') && response.request().method() === 'POST')
+    const onboardResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/onboard') &&
+        response.request().method() === 'POST',
+    )
     await page.getByTestId('onboarding-start').click()
     await onboardResponse
     await expect(onboarding).toBeHidden()
   }
 
   await expect(page.getByTestId('today-lesson-title')).toBeVisible()
-  await expect(page.getByText("Unable to load today's lesson. Please try again later.")).toHaveCount(0)
+  await expect(
+    page.getByText("Unable to load today's lesson. Please try again later."),
+  ).toHaveCount(0)
 
   const generatePanel = page.getByTestId('generate-panel')
   await expect(generatePanel).toBeVisible()
 
   const generatedLessonResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/generate/lesson') && response.request().method() === 'POST' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/generate/lesson') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200,
   )
   await page.getByTestId('generate-topic').fill('PW stable flow')
   await page.getByTestId('generate-button').click()
@@ -327,7 +387,9 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   if (await g00.isVisible().catch(() => false)) {
     await g00.check()
   } else {
-    await page.getByTestId('grammar-input-0').fill('I finish the API docs today.')
+    await page
+      .getByTestId('grammar-input-0')
+      .fill('I finish the API docs today.')
   }
 
   const r00 = page.getByTestId('reading-option-0-0')
@@ -335,19 +397,30 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await r00.check()
 
   const reviewResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/review') && response.request().method() === 'POST' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/review') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200,
   )
   const reviewedStreakResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/streak') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/streak') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   await page.getByTestId('submit-review').click()
   await Promise.all([reviewResponse, reviewedStreakResponse])
 
   await expect(page.getByTestId('review-result')).toBeVisible()
-  await expect(page.getByTestId('review-score')).toHaveText(/^\s*Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)\s*$/)
+  await expect(page.getByTestId('review-score')).toHaveText(
+    /^\s*Score:\s+\d+\s+\/\s+\d+\s+\(\d+(\.\d+)?%\)\s*$/,
+  )
 
   const progressPageResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/progress') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/progress') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   await page.getByTestId('nav-progress').click()
   await progressPageResponse
@@ -355,26 +428,47 @@ test('lesson flow - generate, review, and see progress update', async ({ page })
   await expect(page.getByTestId('progress-en-completed')).toHaveText(/[1-9]\d*/)
 
   const revisitProgressResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/progress') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/progress') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   const revisitTodayResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/lessons/today/EN') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/lessons/today/EN') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   const revisitStreakResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/streak') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/streak') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   await page.goto('/')
-  await Promise.all([revisitProgressResponse, revisitTodayResponse, revisitStreakResponse])
+  await Promise.all([
+    revisitProgressResponse,
+    revisitTodayResponse,
+    revisitStreakResponse,
+  ])
   await expect(page.getByTestId('lesson-vocabulary')).toBeVisible()
 
   const pdfResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/export/pdf/') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/export/pdf/') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   await page.getByRole('button', { name: 'Export PDF' }).click()
-  expect((await pdfResponse).headers()['content-type']).toContain('application/pdf')
+  expect((await pdfResponse).headers()['content-type']).toContain(
+    'application/pdf',
+  )
 
   const analyticsResponse = page.waitForResponse(
-    (response) => response.url().includes('/api/analytics') && response.request().method() === 'GET' && response.status() === 200,
+    (response) =>
+      response.url().includes('/api/analytics') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
   )
   await page.goto('/analytics')
   await analyticsResponse

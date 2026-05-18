@@ -10,9 +10,6 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -22,20 +19,24 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
           pip install pip-audit
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Dependency audit
-        run: pip-audit -r requirements.txt
+        run: pip-audit -r backend/requirements.txt
       - name: Compile
-        run: python -m compileall -q .
+        run: python -m compileall backend
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+      - name: Ruff
+        run: ruff check backend tests
+      - name: Mypy
+        run: mypy backend
       - name: Pytest
-        run: pytest tests -q
+        run: pytest
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -58,6 +59,10 @@ jobs:
         run: npm audit --omit=dev
       - name: Typecheck
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
       - name: Test
         run: npm run test:ci
       - name: Build
@@ -88,8 +93,8 @@ jobs:
       - name: Run frontend-only mocked e2e acceptance
         env:
           RUN_E2E: "1"
-          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
-        run: npm run e2e -- --project=chromium
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4273
+        run: npm run test:e2e -- --project=chromium
 
   e2e-fullstack:
     if: github.event_name == 'workflow_dispatch'
@@ -124,7 +129,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run full-stack e2e acceptance
-        run: npm run e2e:fullstack -- --project=chromium
+        run: npm run test:e2e:fullstack -- --project=chromium
 
   docker:
     runs-on: ubuntu-latest

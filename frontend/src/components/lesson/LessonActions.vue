@@ -2,13 +2,28 @@
   <div class="bottom-action-bar">
     <div>
       <strong>{{ t('today.bottomBarTitle') }}</strong>
-      <p>{{ t('today.bottomBarDescription', { answered: answeredQuestions, total: totalQuestions }) }}</p>
+      <p>
+        {{
+          t('today.bottomBarDescription', {
+            answered: answeredQuestions,
+            total: totalQuestions,
+          })
+        }}
+      </p>
     </div>
     <div class="toolbar">
-      <button data-testid="submit-review" :disabled="submitting" @click="$emit('submit-review')">
+      <button
+        data-testid="submit-review"
+        :disabled="submitting"
+        @click="$emit('submit-review')"
+      >
         {{ submitting ? t('today.submitting') : t('today.submitReview') }}
       </button>
-      <button class="secondary" :disabled="exportDisabled || exportingPdf" @click="$emit('export-pdf')">
+      <button
+        class="secondary"
+        :disabled="exportDisabled || exportingPdf"
+        @click="$emit('export-pdf')"
+      >
         {{ exportingPdf ? t('today.exportingPdf') : t('today.exportPdf') }}
       </button>
     </div>

@@ -3,9 +3,13 @@ import { formatApiErrorDetail } from './apiErrorDetail'
 
 describe('formatApiErrorDetail', () => {
   it('prefers structured message/code payloads', () => {
-    expect(formatApiErrorDetail({ error: true, message: 'Material not found', code: 'rag_material_not_found' })).toBe(
-      'Material not found',
-    )
+    expect(
+      formatApiErrorDetail({
+        error: true,
+        message: 'Material not found',
+        code: 'rag_material_not_found',
+      }),
+    ).toBe('Material not found')
   })
 
   it('returns string detail from FastAPI', () => {

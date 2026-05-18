@@ -12,7 +12,6 @@ import logging
 from typing import Any, Dict, Literal, Optional, Union
 
 import httpx
-
 from config import settings
 
 logger = logging.getLogger(__name__)

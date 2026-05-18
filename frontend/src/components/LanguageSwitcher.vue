@@ -20,10 +20,7 @@ function switchLang(lang: string) {
 
     <span class="divider">|</span>
 
-    <button
-      :class="{ active: locale === 'en' }"
-      @click="switchLang('en')"
-    >
+    <button :class="{ active: locale === 'en' }" @click="switchLang('en')">
       {{ t('language.en') }}
     </button>
   </div>

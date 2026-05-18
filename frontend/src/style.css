@@ -1,5 +1,5 @@
 :root {
-  font-family: "Noto Sans TC", "Segoe UI", sans-serif;
+  font-family: 'Noto Sans TC', 'Segoe UI', sans-serif;
   color: #0f172a;
   background: #f8fafc;
   line-height: 1.5;
@@ -16,7 +16,11 @@ html {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 26%),
+    radial-gradient(
+      circle at top left,
+      rgba(37, 99, 235, 0.08),
+      transparent 26%
+    ),
     linear-gradient(180deg, #f8fafc 0%, #f8fafc 100%);
 }
 
@@ -88,7 +92,9 @@ a {
   color: #334155;
   padding: 0.65rem 0.9rem;
   border-radius: 999px;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 a.router-link-active {
@@ -291,7 +297,10 @@ button {
   background: #2563eb;
   color: #fff;
   font-weight: 600;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.2s ease;
 }
 
 button.secondary {

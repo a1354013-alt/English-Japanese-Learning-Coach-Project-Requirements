@@ -2,9 +2,8 @@
 import json
 from typing import Any, Dict, List
 
-from fastapi import WebSocket, WebSocketDisconnect
-
 from config import settings
+from fastapi import WebSocket, WebSocketDisconnect
 from ollama_client import ollama_client
 
 

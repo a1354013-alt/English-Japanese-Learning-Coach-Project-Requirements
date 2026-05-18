@@ -3,7 +3,9 @@
     <div class="section-header">
       <div>
         <h2>{{ t('today.vocabulary') }}</h2>
-        <p class="section-description">{{ t('today.vocabularyDescription') }}</p>
+        <p class="section-description">
+          {{ t('today.vocabularyDescription') }}
+        </p>
       </div>
     </div>
 

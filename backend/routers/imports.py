@@ -2,27 +2,27 @@
 import io
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, Query, UploadFile
-from fastapi.responses import FileResponse
-
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from config import settings
 from database import db
 from export_service import pdf_exporter
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import FileResponse
 from gamification_engine import gamification_engine
 from models import (
-    ImportExcelResponse,
     ImportedVocabularyListResponse,
+    ImportExcelResponse,
     LanguageCode,
     RagMaterialsResponse,
     RagUploadResponse,
     SuccessResponse,
 )
 from rag_manager import rag_manager
-from routers.deps import require_demo_user_id
-from srs import srs_engine
 from services.lesson_ops import load_lesson_payload
 from services.rag_service import build_material_metadata, extract_text_from_upload
+from srs import srs_engine
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["imports"], responses=COMMON_ERROR_RESPONSES)
 

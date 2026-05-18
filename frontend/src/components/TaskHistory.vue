@@ -2,11 +2,16 @@
   <section>
     <div class="row between center" style="margin-bottom: 0.75rem">
       <h3 style="margin: 0">{{ t('taskHistory.title') }}</h3>
-      <button class="secondary" @click="loadTasks" :disabled="loading">{{ loading ? t('taskHistory.loading') : t('common.refresh') }}</button>
+      <button class="secondary" :disabled="loading" @click="loadTasks">
+        {{ loading ? t('taskHistory.loading') : t('common.refresh') }}
+      </button>
     </div>
     <p v-if="error" style="color: #b91c1c; margin: 0 0 0.75rem">{{ error }}</p>
     <p v-if="loading && tasks.length === 0">{{ t('taskHistory.loading') }}</p>
-    <table v-else-if="tasks.length" style="width: 100%; border-collapse: collapse">
+    <table
+      v-else-if="tasks.length"
+      style="width: 100%; border-collapse: collapse"
+    >
       <thead>
         <tr>
           <th align="left">{{ t('taskHistory.time') }}</th>
@@ -24,7 +29,9 @@
           </td>
           <td>{{ task.model_used }}</td>
           <td>{{ task.duration_ms }} ms</td>
-          <td style="color:#666; font-size:0.85rem">{{ task.error_message ?? '' }}</td>
+          <td style="color: #666; font-size: 0.85rem">
+            {{ task.error_message ?? '' }}
+          </td>
         </tr>
       </tbody>
     </table>

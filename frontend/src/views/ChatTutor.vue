@@ -15,16 +15,28 @@
 
     <div class="panel">
       <div class="chat-container">
-        <div class="messages" ref="messagesContainer">
+        <div ref="messagesContainer" class="messages">
           <div v-if="connectionStatus === 'connecting'" class="system-message">
             {{ t('chat.connecting') }}
           </div>
-          <div v-else-if="connectionStatus === 'reconnecting'" class="system-message">
+          <div
+            v-else-if="connectionStatus === 'reconnecting'"
+            class="system-message"
+          >
             {{ t('chat.reconnecting') }}
           </div>
-          <div v-else-if="connectionStatus === 'error'" class="system-message error">
+          <div
+            v-else-if="connectionStatus === 'error'"
+            class="system-message error"
+          >
             {{ t('chat.connectionFailed') }}
-            <button @click="reconnect" class="secondary" style="margin-left: 0.5rem">{{ t('chat.reconnect') }}</button>
+            <button
+              class="secondary"
+              style="margin-left: 0.5rem"
+              @click="reconnect"
+            >
+              {{ t('chat.reconnect') }}
+            </button>
           </div>
 
           <div
@@ -32,12 +44,16 @@
             :key="idx"
             :class="['message', msg.role]"
           >
-            <strong>{{ msg.role === 'user' ? t('chat.you') : t('chat.tutor') }}:</strong>
+            <strong
+              >{{
+                msg.role === 'user' ? t('chat.you') : t('chat.tutor')
+              }}:</strong
+            >
             <span>{{ msg.text }}</span>
           </div>
         </div>
 
-        <form @submit.prevent="sendMessage" class="chat-input-row">
+        <form class="chat-input-row" @submit.prevent="sendMessage">
           <input
             v-model="inputText"
             type="text"
@@ -45,7 +61,10 @@
             :disabled="connectionStatus !== 'connected'"
             style="flex: 1; padding: 0.5rem"
           />
-          <button type="submit" :disabled="!inputText.trim() || connectionStatus !== 'connected'">
+          <button
+            type="submit"
+            :disabled="!inputText.trim() || connectionStatus !== 'connected'"
+          >
             {{ t('chat.send') }}
           </button>
         </form>
@@ -63,7 +82,12 @@ interface Message {
   text: string
 }
 
-type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'error' | 'disconnected'
+type ConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'error'
+  | 'disconnected'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false,
@@ -80,7 +104,10 @@ const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 5
 const wsBaseUrl = (
   import.meta.env.VITE_WS_BASE_URL ||
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '').replace(/^http/i, 'ws') ||
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '').replace(
+    /^http/i,
+    'ws',
+  ) ||
   'ws://localhost:8000'
 ).trim()
 
@@ -92,7 +119,8 @@ const scrollToBottom = () => {
   })
 }
 
-const languageLabel = () => (selectedLanguage.value === 'EN' ? t('common.english') : t('common.japanese'))
+const languageLabel = () =>
+  selectedLanguage.value === 'EN' ? t('common.english') : t('common.japanese')
 
 const connect = () => {
   if (ws.value) {
@@ -108,14 +136,20 @@ const connect = () => {
     ws.value.onopen = () => {
       connectionStatus.value = 'connected'
       reconnectAttempts.value = 0
-      messages.value.push({ role: 'system', text: t('chat.connectedToTutor', { language: languageLabel() }) })
+      messages.value.push({
+        role: 'system',
+        text: t('chat.connectedToTutor', { language: languageLabel() }),
+      })
     }
 
     ws.value.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
         if (data.text) {
-          messages.value.push({ role: data.role || 'assistant', text: data.text })
+          messages.value.push({
+            role: data.role || 'assistant',
+            text: data.text,
+          })
           scrollToBottom()
         }
       } catch {
@@ -142,7 +176,10 @@ const connect = () => {
 const handleReconnect = () => {
   if (reconnectAttempts.value >= maxReconnectAttempts) {
     connectionStatus.value = 'error'
-    messages.value.push({ role: 'system', text: t('chat.maxReconnectAttempts') })
+    messages.value.push({
+      role: 'system',
+      text: t('chat.maxReconnectAttempts'),
+    })
     return
   }
 

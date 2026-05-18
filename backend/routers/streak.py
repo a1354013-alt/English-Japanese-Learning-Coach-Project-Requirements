@@ -1,13 +1,11 @@
 """Daily learning streak API (derived from user_learning_activity)."""
 
-from fastapi import APIRouter, Depends
-
 from api_errors import COMMON_ERROR_RESPONSES
-from config import settings
-from database import db
+from fastapi import APIRouter, Depends
 from models import StreakResponse
-from routers.deps import require_demo_user_id
 from services.streak_service import get_streak_snapshot
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["streak"], responses=COMMON_ERROR_RESPONSES)
 

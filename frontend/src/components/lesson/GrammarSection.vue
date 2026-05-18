@@ -18,8 +18,10 @@
         class="question-card"
         :data-testid="`grammar-exercise-${index}`"
       >
-        <p class="question-title"><strong>{{ index + 1 }}. {{ exercise.question }}</strong></p>
-        <div class="choice-list" v-if="exercise.options?.length">
+        <p class="question-title">
+          <strong>{{ index + 1 }}. {{ exercise.question }}</strong>
+        </p>
+        <div v-if="exercise.options?.length" class="choice-list">
           <label
             v-for="(option, optionIndex) in exercise.options"
             :key="option"

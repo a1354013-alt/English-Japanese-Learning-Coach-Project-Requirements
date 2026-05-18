@@ -7,22 +7,34 @@
           <option value="EN">{{ t('common.english') }}</option>
           <option value="JP">{{ t('common.japanese') }}</option>
         </select>
-        <input v-model="submission.topic" :placeholder="t('writing.topicPlaceholder')" />
-        <textarea v-model="submission.text" rows="10" :placeholder="t('writing.textPlaceholder')"></textarea>
-        <button :disabled="loading || !submission.text.trim()" @click="analyze">{{ loading ? t('writing.analyzing') : t('writing.analyze') }}</button>
+        <input
+          v-model="submission.topic"
+          :placeholder="t('writing.topicPlaceholder')"
+        />
+        <textarea
+          v-model="submission.text"
+          rows="10"
+          :placeholder="t('writing.textPlaceholder')"
+        ></textarea>
+        <button :disabled="loading || !submission.text.trim()" @click="analyze">
+          {{ loading ? t('writing.analyzing') : t('writing.analyze') }}
+        </button>
       </div>
     </div>
 
-    <div class="panel" v-if="error">
-      <p style="color: #b91c1c; margin: 0">{{ error }}</p>
-      <button style="margin-top: 0.75rem" class="secondary" :disabled="loading || !submission.text.trim()" @click="analyze">
-        {{ t('common.retry') }}
-      </button>
-    </div>
+    <ErrorState
+      v-if="error"
+      panel-class="panel"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="analyze"
+    />
 
-    <div class="panel" v-else-if="analysis">
+    <div v-else-if="analysis" class="panel">
       <h3>{{ t('writing.result') }}</h3>
-      <p>{{ t('writing.estimatedLevel', { level: analysis.estimated_level }) }}</p>
+      <p>
+        {{ t('writing.estimatedLevel', { level: analysis.estimated_level }) }}
+      </p>
       <p>{{ t('writing.overallScore', { score: analysis.overall_score }) }}</p>
       <p>{{ analysis.feedback }}</p>
       <h4>{{ t('writing.corrections') }}</h4>
@@ -33,19 +45,21 @@
       </ul>
       <h4>{{ t('writing.suggestions') }}</h4>
       <ul>
-        <li v-for="(item, idx) in analysis.suggestions" :key="idx">{{ item }}</li>
+        <li v-for="(item, idx) in analysis.suggestions" :key="idx">
+          {{ item }}
+        </li>
       </ul>
     </div>
 
-    <div class="panel" v-else>
-      <p style="margin: 0; color: #475569">{{ t('writing.empty') }}</p>
-    </div>
+    <EmptyState v-else panel-class="panel" :message="t('writing.empty')" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EmptyState from '@/components/state/EmptyState.vue'
+import ErrorState from '@/components/state/ErrorState.vue'
 import { aiTutorApi } from '@/services/api'
 import type { WritingAnalysis, WritingSubmission } from '@/types'
 

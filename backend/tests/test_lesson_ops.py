@@ -1,6 +1,5 @@
 """Unit tests for services.lesson_ops (scoring and invariants)."""
 import pytest
-
 from models import ReviewAnswer
 from services.lesson_ops import normalize_answer, score_answers
 

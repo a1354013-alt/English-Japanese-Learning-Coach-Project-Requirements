@@ -4,19 +4,32 @@
       <div class="page-header">
         <div>
           <span class="page-eyebrow">{{ t('today.eyebrow') }}</span>
-          <h1 class="page-title" data-testid="today-lesson-title">{{ t('today.title') }}</h1>
+          <h1 class="page-title" data-testid="today-lesson-title">
+            {{ t('today.title') }}
+          </h1>
           <p class="page-subtitle">
             {{ lesson?.metadata.topic || t('today.noLesson') }}
           </p>
         </div>
 
         <div class="toolbar today-toolbar">
-          <select :value="language" :aria-label="t('common.language')" @change="emitLanguage">
+          <select
+            :value="language"
+            :aria-label="t('common.language')"
+            @change="emitLanguage"
+          >
             <option value="EN">{{ t('common.english') }}</option>
             <option value="JP">{{ t('common.japanese') }}</option>
           </select>
-          <button type="button" class="secondary" @click="$emit('reset-demo')" :disabled="resettingDemo">
-            {{ resettingDemo ? t('today.resettingDemo') : t('today.resetDemo') }}
+          <button
+            type="button"
+            class="secondary"
+            :disabled="resettingDemo"
+            @click="$emit('reset-demo')"
+          >
+            {{
+              resettingDemo ? t('today.resettingDemo') : t('today.resetDemo')
+            }}
           </button>
           <button type="button" class="secondary" @click="$emit('refresh')">
             {{ t('common.refresh') }}
@@ -29,10 +42,18 @@
           <h2>{{ t('today.summaryTitle') }}</h2>
           <p class="summary-meta">
             {{ lesson.metadata.language }} / {{ lesson.metadata.level }} /
-            {{ t('today.estimatedDuration', { minutes: lesson.metadata.estimated_duration_minutes }) }}
+            {{
+              t('today.estimatedDuration', {
+                minutes: lesson.metadata.estimated_duration_minutes,
+              })
+            }}
           </p>
           <div class="summary-pills">
-            <span v-for="(point, index) in lesson.metadata.key_points" :key="`${point}-${index}`" class="summary-pill">
+            <span
+              v-for="(point, index) in lesson.metadata.key_points"
+              :key="`${point}-${index}`"
+              class="summary-pill"
+            >
               {{ point }}
             </span>
           </div>
@@ -66,7 +87,9 @@
       <article class="stat-card">
         <p class="stat-label">{{ t('today.streakDays') }}</p>
         <p class="stat-value">{{ streak?.current_streak ?? 0 }}</p>
-        <p class="stat-hint">{{ t('today.bestStreak', { longest: streak?.longest_streak ?? 0 }) }}</p>
+        <p class="stat-hint">
+          {{ t('today.bestStreak', { longest: streak?.longest_streak ?? 0 }) }}
+        </p>
       </article>
       <article class="stat-card">
         <p class="stat-label">{{ t('today.completedTodayLabel') }}</p>

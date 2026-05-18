@@ -5,12 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends
-
 from api_errors import COMMON_ERROR_RESPONSES
 from config import settings
 from database import db
 from demo_seed import reset_demo_dataset
+from fastapi import APIRouter, Depends
 from models import (
     AnalyticsResponse,
     DemoResetResponse,
@@ -20,8 +19,9 @@ from models import (
 )
 from ollama_client import ollama_client
 from rag_manager import rag_manager
-from routers.deps import require_demo_user_id
 from services.streak_service import get_streak_snapshot
+
+from routers.deps import require_demo_user_id
 
 APP_VERSION = "1.2.0"
 

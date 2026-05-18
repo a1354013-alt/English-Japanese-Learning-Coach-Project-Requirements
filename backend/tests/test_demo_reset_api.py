@@ -1,11 +1,10 @@
 """Demo reset API should rebuild a fully presentable dataset."""
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import database as database_module
 from config import settings
 from database import Database
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from routers import system as system_router
 
 

@@ -3,13 +3,12 @@
 import json
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 import database as database_module
 import gamification_engine as gamification_module
 import services.lesson_ops as lesson_ops_module
 from database import Database
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from routers import review as review_router
 
 

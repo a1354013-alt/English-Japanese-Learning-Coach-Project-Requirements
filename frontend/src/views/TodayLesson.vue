@@ -16,41 +16,68 @@
       @reset-demo="resetDemo"
     />
 
-    <div class="section-card" v-if="loading && !lesson">
-      <p>{{ t('today.loadingLesson') }}</p>
-    </div>
+    <LoadingState
+      v-if="loading && !lesson"
+      :message="t('today.loadingLesson')"
+    />
 
-    <div class="section-card" v-else-if="error && !lesson">
-      <p class="error-text">{{ error }}</p>
-      <button type="button" class="secondary" @click="loadTodayLesson">{{ t('common.retry') }}</button>
-    </div>
+    <ErrorState
+      v-else-if="error && !lesson"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="loadTodayLesson"
+    />
 
-    <div v-else-if="!lesson && !loading && !error" class="section-card page-stack" data-testid="generate-panel">
+    <div
+      v-else-if="!lesson && !loading && !error"
+      class="section-card page-stack"
+      data-testid="generate-panel"
+    >
       <div class="section-header">
         <div>
           <h2>{{ t('today.generateLesson') }}</h2>
-          <p class="section-description">{{ t('today.generateDescription') }}</p>
+          <p class="section-description">
+            {{ t('today.generateDescription') }}
+          </p>
         </div>
       </div>
       <div class="generate-grid">
-        <input v-model="request.topic" :placeholder="t('today.optionalTopic')" data-testid="generate-topic" />
+        <input
+          v-model="request.topic"
+          :placeholder="t('today.optionalTopic')"
+          data-testid="generate-topic"
+        />
         <select v-model="request.difficulty">
-          <option v-for="level in currentLevels" :key="level" :value="level">{{ level }}</option>
+          <option v-for="level in currentLevels" :key="level" :value="level">
+            {{ level }}
+          </option>
         </select>
-        <button data-testid="generate-button" :disabled="loadingGenerate" @click="generateLesson">
+        <button
+          data-testid="generate-button"
+          :disabled="loadingGenerate"
+          @click="generateLesson"
+        >
           {{ loadingGenerate ? t('today.generating') : t('today.generate') }}
         </button>
       </div>
     </div>
 
     <template v-else-if="lesson">
-      <div class="section-card warning-card" v-if="error && lesson">
+      <div v-if="error && lesson" class="section-card warning-card">
         <p class="error-text">{{ error }}</p>
       </div>
 
       <VocabularySection :vocabulary="lesson.vocabulary" />
-      <GrammarSection :grammar="lesson.grammar" :answers="answers.grammar" @update-answer="setGrammarAnswer" />
-      <ReadingSection :reading="lesson.reading" :answers="answers.reading" @update-answer="setReadingAnswer" />
+      <GrammarSection
+        :grammar="lesson.grammar"
+        :answers="answers.grammar"
+        @update-answer="setGrammarAnswer"
+      />
+      <ReadingSection
+        :reading="lesson.reading"
+        :answers="answers.reading"
+        @update-answer="setReadingAnswer"
+      />
       <LessonActions
         :answered-questions="answeredQuestions"
         :total-questions="totalQuestions"
@@ -68,6 +95,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ErrorState from '@/components/state/ErrorState.vue'
+import LoadingState from '@/components/state/LoadingState.vue'
 import GrammarSection from '@/components/lesson/GrammarSection.vue'
 import LessonActions from '@/components/lesson/LessonActions.vue'
 import LessonHeader from '@/components/lesson/LessonHeader.vue'
@@ -80,7 +109,11 @@ import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
 const { t } = useI18n()
 
-const request = reactive<{ language: Language; topic: string; difficulty: string }>({
+const request = reactive<{
+  language: Language
+  topic: string
+  difficulty: string
+}>({
   language: 'EN',
   topic: '',
   difficulty: 'A1',
@@ -96,13 +129,18 @@ const streak = ref<StreakResponse | null>(null)
 const resettingDemo = ref(false)
 const exportingPdf = ref(false)
 
-const answers = reactive<{ grammar: Record<number, string>; reading: Record<number, string> }>({
+const answers = reactive<{
+  grammar: Record<number, string>
+  reading: Record<number, string>
+}>({
   grammar: {},
   reading: {},
 })
 
 const currentLevels = computed(() =>
-  request.language === 'EN' ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] : ['N5', 'N4', 'N3', 'N2', 'N1'],
+  request.language === 'EN'
+    ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+    : ['N5', 'N4', 'N3', 'N2', 'N1'],
 )
 
 const vocabularyCount = computed(() => lesson.value?.vocabulary.length ?? 0)

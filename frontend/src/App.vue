@@ -1,6 +1,10 @@
 <template>
   <div class="app-shell">
-    <div v-if="apiErrorMessage" class="api-error-banner row between center" role="alert">
+    <div
+      v-if="apiErrorMessage"
+      class="api-error-banner row between center"
+      role="alert"
+    >
       <span>{{ apiErrorMessage }}</span>
       <button type="button" class="secondary" @click="clearApiError">
         {{ t('common.dismiss') }}

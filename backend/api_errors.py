@@ -13,7 +13,7 @@ from models import ApiErrorPayload
 logger = logging.getLogger(__name__)
 
 
-COMMON_ERROR_RESPONSES = {
+COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiErrorPayload, "description": "Bad request"},
     404: {"model": ApiErrorPayload, "description": "Not found"},
     413: {"model": ApiErrorPayload, "description": "Payload too large"},
@@ -45,7 +45,9 @@ def api_error(status_code: int, message: str, code: str) -> HTTPException:
     return ApiHTTPException(status_code=status_code, message=message, code=code)
 
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, HTTPException):
+        return await unhandled_exception_handler(_, exc)
     detail = exc.detail
     if isinstance(exc, ApiHTTPException):
         payload = error_payload(exc.message, exc.code, detail=exc.message)
@@ -62,7 +64,9 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(status_code=exc.status_code, content=payload)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, RequestValidationError):
+        return await unhandled_exception_handler(_, exc)
     errors = exc.errors()
     message = "; ".join(str(item.get("msg", "Validation error")) for item in errors) or "Validation failed"
     return JSONResponse(

@@ -1,16 +1,14 @@
 """Lesson generation, listing, detail, today's lesson, and onboarding."""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
-
 from api_errors import COMMON_ERROR_RESPONSES
-from config import settings
 from database import db
+from fastapi import APIRouter, Depends, Query
 from gamification_engine import gamification_engine
 from lesson_generator import lesson_generator
 from models import (
-    GenerateLessonRequest,
     GeneratedLessonResponse,
+    GenerateLessonRequest,
     LanguageCode,
     LessonDetailResponse,
     LessonListResponse,
@@ -18,8 +16,9 @@ from models import (
     TodayLessonResponse,
     UserRPGStats,
 )
-from routers.deps import require_demo_user_id
 from services.lesson_ops import load_lesson_payload
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["lessons"], responses=COMMON_ERROR_RESPONSES)
 

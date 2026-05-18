@@ -20,7 +20,9 @@
           class="question-card"
           :data-testid="`reading-question-${index}`"
         >
-          <p class="question-title"><strong>{{ index + 1 }}. {{ question.question }}</strong></p>
+          <p class="question-title">
+            <strong>{{ index + 1 }}. {{ question.question }}</strong>
+          </p>
           <div class="choice-list">
             <label
               v-for="(option, optionIndex) in question.options"

@@ -17,7 +17,9 @@ const nodeModulesBin = path.join(process.cwd(), 'node_modules', '.bin')
 function resolveEsbuildBinary() {
   if (!isWindows) return null
   try {
-    return require.resolve('@esbuild/win32-x64/esbuild.exe', { paths: [process.cwd()] })
+    return require.resolve('@esbuild/win32-x64/esbuild.exe', {
+      paths: [process.cwd()],
+    })
   } catch {
     return null
   }
@@ -54,12 +56,19 @@ function enrichPath(env) {
 }
 
 function resolveCommand(command) {
-  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+  if (
+    path.isAbsolute(command) ||
+    command.includes('/') ||
+    command.includes('\\')
+  ) {
     return command
   }
 
   const candidates = isWindows
-    ? [path.join(nodeModulesBin, `${command}.cmd`), path.join(nodeModulesBin, `${command}.exe`)]
+    ? [
+        path.join(nodeModulesBin, `${command}.cmd`),
+        path.join(nodeModulesBin, `${command}.exe`),
+      ]
     : [path.join(nodeModulesBin, command)]
 
   return candidates.find((candidate) => fs.existsSync(candidate)) || command
@@ -80,15 +89,20 @@ if (tempEsbuild) {
 const cmd = resolveCommand(args[0])
 const cmdArgs = args.slice(1)
 
-const child = isWindows && /\.(cmd|bat)$/i.test(cmd)
-  ? spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', [cmd, ...cmdArgs].map(escapeCmdArg).join(' ')], {
-      stdio: 'inherit',
-      env,
-    })
-  : spawn(cmd, cmdArgs, {
-      stdio: 'inherit',
-      env,
-    })
+const child =
+  isWindows && /\.(cmd|bat)$/i.test(cmd)
+    ? spawn(
+        process.env.ComSpec || 'cmd.exe',
+        ['/d', '/s', '/c', [cmd, ...cmdArgs].map(escapeCmdArg).join(' ')],
+        {
+          stdio: 'inherit',
+          env,
+        },
+      )
+    : spawn(cmd, cmdArgs, {
+        stdio: 'inherit',
+        env,
+      })
 
 child.on('exit', (code) => {
   process.exit(code ?? 1)

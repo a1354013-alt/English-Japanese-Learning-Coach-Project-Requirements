@@ -2,7 +2,9 @@
   <section>
     <div class="row between center">
       <h3>{{ t('studyPlan.title') }}</h3>
-      <button class="secondary" @click="plan = null" v-if="plan">{{ t('studyPlan.clear') }}</button>
+      <button v-if="plan" class="secondary" @click="plan = null">
+        {{ t('studyPlan.clear') }}
+      </button>
     </div>
 
     <div class="grid" style="margin-top: 0.75rem">
@@ -19,7 +21,13 @@
     </p>
 
     <div v-if="plan" style="margin-top: 1rem" class="grid">
-      <p>{{ t('studyPlan.dailyCommitment', { minutes: plan.daily_commitment_minutes }) }}</p>
+      <p>
+        {{
+          t('studyPlan.dailyCommitment', {
+            minutes: plan.daily_commitment_minutes,
+          })
+        }}
+      </p>
       <p>{{ t('studyPlan.endDate', { date: formatDate(plan.end_date) }) }}</p>
       <ul>
         <li v-for="(milestone, idx) in plan.milestones" :key="idx">
@@ -50,7 +58,10 @@ const generatePlan = async () => {
   loading.value = true
   error.value = null
   try {
-    const response = await aiTutorApi.generateStudyPlan(targetGoal.value, props.language)
+    const response = await aiTutorApi.generateStudyPlan(
+      targetGoal.value,
+      props.language,
+    )
     if (response.success) {
       plan.value = response.plan
     }

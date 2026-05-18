@@ -5,7 +5,10 @@ export type ReviewAnswerDraft = {
   reading: Record<number, string>
 }
 
-export function buildReviewPayload(lesson: Lesson, answers: ReviewAnswerDraft): ReviewAnswer[] {
+export function buildReviewPayload(
+  lesson: Lesson,
+  answers: ReviewAnswerDraft,
+): ReviewAnswer[] {
   const payload: ReviewAnswer[] = []
 
   lesson.grammar.exercises.forEach((exercise, index) => {
@@ -36,4 +39,3 @@ export function buildReviewPayload(lesson: Lesson, answers: ReviewAnswerDraft): 
 
   return payload
 }
-

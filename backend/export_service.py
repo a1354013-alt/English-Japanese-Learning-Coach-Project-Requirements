@@ -3,14 +3,13 @@ from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import escape
 
+from config import settings
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-
-from config import settings
 
 
 class PDFExporter:

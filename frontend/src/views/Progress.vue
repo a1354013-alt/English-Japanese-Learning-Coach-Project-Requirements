@@ -23,12 +23,14 @@
       </div>
     </div>
 
-    <div v-if="loading" class="section-card">{{ t('progress.loading') }}</div>
+    <LoadingState v-if="loading" :message="t('progress.loading')" />
 
-    <div v-else-if="error" class="section-card">
-      <p class="error-text">{{ error }}</p>
-      <button type="button" @click="loadProgress">{{ t('common.retry') }}</button>
-    </div>
+    <ErrorState
+      v-else-if="error"
+      :message="error"
+      :retry-label="t('common.retry')"
+      @retry="loadProgress"
+    />
 
     <template v-else-if="progress">
       <div v-if="currentTab === 'overview'" class="page-stack">
@@ -42,18 +44,35 @@
             <p class="stat-label">{{ t('progressCenter.totalXp') }}</p>
             <p class="stat-value">{{ progress.rpg_stats.total_xp }}</p>
             <p class="stat-hint">
-              {{ t('progressCenter.currentXp', { current: progress.rpg_stats.current_xp, next: progress.rpg_stats.next_level_xp }) }}
+              {{
+                t('progressCenter.currentXp', {
+                  current: progress.rpg_stats.current_xp,
+                  next: progress.rpg_stats.next_level_xp,
+                })
+              }}
             </p>
           </article>
           <article class="stat-card">
             <p class="stat-label">{{ t('progressCenter.streakDays') }}</p>
             <p class="stat-value">{{ streak?.current_streak ?? 0 }}</p>
-            <p class="stat-hint">{{ t('progressCenter.updatedAt', { time: formatDateTime(progress.updated_at) }) }}</p>
+            <p class="stat-hint">
+              {{
+                t('progressCenter.updatedAt', {
+                  time: formatDateTime(progress.updated_at),
+                })
+              }}
+            </p>
           </article>
           <article class="stat-card">
             <p class="stat-label">{{ t('progressCenter.wordCardsCount') }}</p>
             <p class="stat-value">{{ progress.rpg_stats.word_cards.length }}</p>
-            <p class="stat-hint">{{ t('progressCenter.unlockedSkills', { count: progress.rpg_stats.unlocked_skills.length }) }}</p>
+            <p class="stat-hint">
+              {{
+                t('progressCenter.unlockedSkills', {
+                  count: progress.rpg_stats.unlocked_skills.length,
+                })
+              }}
+            </p>
           </article>
         </div>
 
@@ -61,25 +80,65 @@
           <div class="section-header">
             <div>
               <h2>{{ t('progressCenter.languageProgress') }}</h2>
-              <p class="section-description">{{ t('progressCenter.languageProgressDescription') }}</p>
+              <p class="section-description">
+                {{ t('progressCenter.languageProgressDescription') }}
+              </p>
             </div>
           </div>
 
           <div class="language-progress-grid">
             <article class="progress-language-card">
               <h3>{{ t('progress.titleEnglish') }}</h3>
-              <p>{{ t('progress.currentLevel', { level: progress.english_progress.current_level }) }}</p>
               <p>
-                {{ t('progress.completedLessons', { count: progress.english_progress.completed_lessons }) }}
-                <span data-testid="progress-en-completed" style="display: none">{{ progress.english_progress.completed_lessons }}</span>
+                {{
+                  t('progress.currentLevel', {
+                    level: progress.english_progress.current_level,
+                  })
+                }}
               </p>
-              <p>{{ t('progress.accuracy', { rate: progress.english_progress.accuracy_rate.toFixed(1) }) }}</p>
+              <p>
+                {{
+                  t('progress.completedLessons', {
+                    count: progress.english_progress.completed_lessons,
+                  })
+                }}
+                <span
+                  data-testid="progress-en-completed"
+                  style="display: none"
+                  >{{ progress.english_progress.completed_lessons }}</span
+                >
+              </p>
+              <p>
+                {{
+                  t('progress.accuracy', {
+                    rate: progress.english_progress.accuracy_rate.toFixed(1),
+                  })
+                }}
+              </p>
             </article>
             <article class="progress-language-card">
               <h3>{{ t('progress.titleJapanese') }}</h3>
-              <p>{{ t('progress.currentLevel', { level: progress.japanese_progress.current_level }) }}</p>
-              <p>{{ t('progress.completedLessons', { count: progress.japanese_progress.completed_lessons }) }}</p>
-              <p>{{ t('progress.accuracy', { rate: progress.japanese_progress.accuracy_rate.toFixed(1) }) }}</p>
+              <p>
+                {{
+                  t('progress.currentLevel', {
+                    level: progress.japanese_progress.current_level,
+                  })
+                }}
+              </p>
+              <p>
+                {{
+                  t('progress.completedLessons', {
+                    count: progress.japanese_progress.completed_lessons,
+                  })
+                }}
+              </p>
+              <p>
+                {{
+                  t('progress.accuracy', {
+                    rate: progress.japanese_progress.accuracy_rate.toFixed(1),
+                  })
+                }}
+              </p>
             </article>
           </div>
         </div>
@@ -88,11 +147,16 @@
           <div class="section-header">
             <div>
               <h2>{{ t('progress.collectedWordCards') }}</h2>
-              <p class="section-description">{{ t('progressCenter.wordCardsDescription') }}</p>
+              <p class="section-description">
+                {{ t('progressCenter.wordCardsDescription') }}
+              </p>
             </div>
           </div>
 
-          <div v-if="progress.rpg_stats.word_cards.length > 0" class="word-card-grid">
+          <div
+            v-if="progress.rpg_stats.word_cards.length > 0"
+            class="word-card-grid"
+          >
             <article
               v-for="card in progress.rpg_stats.word_cards"
               :key="`${card.language}-${card.word}`"
@@ -102,7 +166,9 @@
                 <strong>{{ card.word }}</strong>
                 <span>{{ card.rarity }}</span>
               </div>
-              <p>{{ card.definition_zh || t('progressCenter.noDefinition') }}</p>
+              <p>
+                {{ card.definition_zh || t('progressCenter.noDefinition') }}
+              </p>
               <small>{{ card.example_sentence || '' }}</small>
             </article>
           </div>
@@ -118,7 +184,9 @@
         <div class="section-header">
           <div>
             <h2>{{ t('progressCenter.tabs.mistakes') }}</h2>
-            <p class="section-description">{{ t('progressCenter.tabDescriptions.mistakes') }}</p>
+            <p class="section-description">
+              {{ t('progressCenter.tabDescriptions.mistakes') }}
+            </p>
           </div>
         </div>
         <WrongAnswers embedded />
@@ -128,7 +196,9 @@
         <div class="section-header">
           <div>
             <h2>{{ t('progressCenter.tabs.review') }}</h2>
-            <p class="section-description">{{ t('progressCenter.tabDescriptions.review') }}</p>
+            <p class="section-description">
+              {{ t('progressCenter.tabDescriptions.review') }}
+            </p>
           </div>
         </div>
         <SrsReview embedded />
@@ -138,7 +208,9 @@
         <div class="section-header">
           <div>
             <h2>{{ t('progressCenter.tabs.history') }}</h2>
-            <p class="section-description">{{ t('progressCenter.tabDescriptions.history') }}</p>
+            <p class="section-description">
+              {{ t('progressCenter.tabDescriptions.history') }}
+            </p>
           </div>
         </div>
         <Archive embedded />
@@ -152,6 +224,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import StudyBlueprint from '@/components/StudyBlueprint.vue'
+import ErrorState from '@/components/state/ErrorState.vue'
+import LoadingState from '@/components/state/LoadingState.vue'
 import { progressApi } from '@/services/api'
 import type { Language, StreakResponse, UserProgress } from '@/types'
 import Archive from '@/views/Archive.vue'
@@ -177,7 +251,12 @@ const tabs = computed(() => [
 
 const currentTab = computed<ProgressTab>(() => {
   const tab = route.query.tab
-  if (tab === 'mistakes' || tab === 'review' || tab === 'history' || tab === 'overview') {
+  if (
+    tab === 'mistakes' ||
+    tab === 'review' ||
+    tab === 'history' ||
+    tab === 'overview'
+  ) {
     return tab
   }
   return 'overview'
@@ -185,7 +264,10 @@ const currentTab = computed<ProgressTab>(() => {
 
 const preferredLanguage = computed<Language>(() => {
   if (!progress.value) return 'EN'
-  return progress.value.english_progress.accuracy_rate >= progress.value.japanese_progress.accuracy_rate ? 'EN' : 'JP'
+  return progress.value.english_progress.accuracy_rate >=
+    progress.value.japanese_progress.accuracy_rate
+    ? 'EN'
+    : 'JP'
 })
 
 const formatDateTime = (value: string) => new Date(value).toLocaleString()

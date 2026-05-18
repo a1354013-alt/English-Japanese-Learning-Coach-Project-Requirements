@@ -1,9 +1,10 @@
 """Data models for Language Coach application."""
-from pydantic import BaseModel, Field, StrictInt, StrictStr
-from typing import List, Optional, Literal, Any, Dict, TypeAlias
 from datetime import datetime
-from uuid import uuid4
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional, TypeAlias
+from uuid import uuid4
+
+from pydantic import BaseModel, Field, StrictInt, StrictStr
 
 LanguageCode: TypeAlias = Literal["EN", "JP"]
 

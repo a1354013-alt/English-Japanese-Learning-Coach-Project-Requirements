@@ -8,7 +8,6 @@ import logging
 from typing import Any, Optional
 
 import redis
-
 from config import settings
 
 logger = logging.getLogger(__name__)
