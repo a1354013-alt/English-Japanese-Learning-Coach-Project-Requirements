@@ -9,7 +9,7 @@ openpyxl==3.1.5
 redis==5.2.1
 reportlab==4.5.1
 apscheduler==3.11.2
-pytz==2024.2
+pytz==2026.2
 websockets==13.1
 python-multipart==0.0.29
 pypdf==6.11.0
