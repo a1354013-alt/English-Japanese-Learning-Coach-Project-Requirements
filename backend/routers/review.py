@@ -8,6 +8,7 @@ from database import db
 from gamification_engine import gamification_engine
 from models import (
     ErrorType,
+    LanguageCode,
     ReviewAnswer,
     ReviewSubmitResponse,
     SrsDueResponse,
@@ -165,7 +166,7 @@ async def submit_review(
 
 @router.get("/srs/due", response_model=SrsDueResponse)
 async def get_due_items(
-    language: Optional[str] = None,
+    language: Optional[LanguageCode] = None,
     user_id: str = Depends(require_demo_user_id),
 ):
     raw = db.get_due_srs_items(user_id, language=language)
@@ -189,7 +190,7 @@ async def get_due_items(
 @router.post("/srs/review", response_model=SuccessResponse)
 async def submit_srs_review(
     word: str,
-    language: str,
+    language: LanguageCode,
     quality: int = Query(ge=0, le=5),
     user_id: str = Depends(require_demo_user_id),
 ):

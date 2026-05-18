@@ -207,6 +207,7 @@ class Database:
         conn = self._connection
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user ON lessons(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user_date ON lessons(user_id, generated_at DESC)")
+        self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
             "ON exercise_results(user_id, lesson_id, exercise_type)"
@@ -216,6 +217,32 @@ class Database:
             conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_correct_count INTEGER")
         if "latest_accuracy_rate" not in cols:
             conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_accuracy_rate REAL")
+
+    def _cleanup_exercise_result_duplicates(self, conn: sqlite3.Connection) -> None:
+        """Keep the newest row per unique exercise-result key before unique index creation."""
+        conn.execute(
+            """
+            DELETE FROM exercise_results
+            WHERE id IN (
+                SELECT duplicate_id
+                FROM (
+                    SELECT older.id AS duplicate_id
+                    FROM exercise_results AS older
+                    JOIN exercise_results AS newer
+                      ON newer.user_id = older.user_id
+                     AND newer.lesson_id = older.lesson_id
+                     AND newer.exercise_type = older.exercise_type
+                     AND (
+                        COALESCE(newer.submitted_at, '') > COALESCE(older.submitted_at, '')
+                        OR (
+                            COALESCE(newer.submitted_at, '') = COALESCE(older.submitted_at, '')
+                            AND newer.id > older.id
+                        )
+                     )
+                )
+            )
+            """
+        )
 
     def _local_date_str(self, dt: Optional[datetime] = None) -> str:
         tz = ZoneInfo(settings.timezone)

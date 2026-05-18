@@ -3,13 +3,16 @@
   "private": true,
   "version": "1.2.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
-    "dev": "node scripts/run-with-esbuild-temp.mjs vite",
-    "typecheck": "node scripts/run-with-esbuild-temp.mjs vue-tsc --noEmit",
-    "build": "node scripts/run-with-esbuild-temp.mjs vue-tsc && node scripts/run-with-esbuild-temp.mjs vite build",
-    "preview": "node scripts/run-with-esbuild-temp.mjs vite preview",
-    "test": "node scripts/run-with-esbuild-temp.mjs vitest run",
-    "test:ci": "node scripts/run-with-esbuild-temp.mjs vitest run --pool=forks --no-file-parallelism --testTimeout=5000 --teardownTimeout=5000",
+    "dev": "vite",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:ci": "vitest run --pool=forks --no-file-parallelism --testTimeout=5000 --teardownTimeout=5000",
     "e2e": "playwright test",
     "e2e:fullstack": "playwright test -c playwright.fullstack.config.ts"
   },

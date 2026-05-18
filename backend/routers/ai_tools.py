@@ -1,6 +1,5 @@
 """Study plan, writing analysis, TTS, audio files, and chat WebSocket."""
 from pathlib import Path
-from typing import Literal
 
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import FileResponse
@@ -9,7 +8,7 @@ from api_errors import COMMON_ERROR_RESPONSES, api_error
 from chat_handler import chat_manager
 from config import settings
 from database import db
-from models import StudyPlanResponse, TtsResponse, WritingAnalysisResponse, WritingSubmission
+from models import LanguageCode, StudyPlanResponse, TtsResponse, WritingAnalysisResponse, WritingSubmission
 from routers.deps import require_demo_user_id
 from study_planner import study_planner
 from tts_service import tts_service
@@ -24,7 +23,7 @@ chat_ws_router = APIRouter(tags=["ai-tools"])
 @router.post("/study-plan/generate", response_model=StudyPlanResponse)
 async def generate_study_plan(
     target_goal: str,
-    language: Literal["EN", "JP"],
+    language: LanguageCode,
     user_id: str = Depends(require_demo_user_id),
 ):
     progress = db.get_progress(user_id)

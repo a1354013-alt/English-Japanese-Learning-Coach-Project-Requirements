@@ -74,6 +74,10 @@ Frontend environment variables:
 - `VITE_API_BASE_URL` defaults to `http://localhost:8000/api`
 - `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
 
+Runtime requirements:
+
+- Frontend tooling requires `Node.js 22.18.0+` because the current Vite/Vitest dependency tree includes packages that no longer support Node 20.
+
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
 ## Local Setup
@@ -98,6 +102,7 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npm ci
 npm run dev
 ```
@@ -129,6 +134,7 @@ ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest tests -q
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npm ci
 npm audit
 npm audit --omit=dev
@@ -141,6 +147,7 @@ npm run build
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run e2e -- --project=chromium
 ```
@@ -155,6 +162,7 @@ Playwright mocked E2E starts only the Vite dev server and mocks lesson, review, 
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
 npm run e2e:fullstack -- --project=chromium
 ```

@@ -1,5 +1,5 @@
 """Lesson generation, listing, detail, today's lesson, and onboarding."""
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
@@ -11,6 +11,7 @@ from lesson_generator import lesson_generator
 from models import (
     GenerateLessonRequest,
     GeneratedLessonResponse,
+    LanguageCode,
     LessonDetailResponse,
     LessonListResponse,
     SuccessResponse,
@@ -52,7 +53,7 @@ async def generate_lesson(request: GenerateLessonRequest, user_id: str = Depends
 
 @router.get("/lessons", response_model=LessonListResponse)
 async def list_lessons(
-    language: Optional[Literal["EN", "JP"]] = None,
+    language: Optional[LanguageCode] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     level: Optional[str] = None,
@@ -66,7 +67,7 @@ async def list_lessons(
 
 
 @router.get("/lessons/today/{language}", response_model=TodayLessonResponse)
-async def get_today_lesson(language: Literal["EN", "JP"], user_id: str = Depends(require_demo_user_id)):
+async def get_today_lesson(language: LanguageCode, user_id: str = Depends(require_demo_user_id)):
     lesson_meta = db.get_today_lesson(user_id, language)
     if not lesson_meta:
         return {"success": True, "lesson": None}
@@ -79,7 +80,7 @@ async def get_lesson(lesson_id: str, user_id: str = Depends(require_demo_user_id
 
 
 @router.post("/onboard", response_model=SuccessResponse)
-async def onboard_user(language: Literal["EN", "JP"], level: str, difficulty: str, user_id: str = Depends(require_demo_user_id)):
+async def onboard_user(language: LanguageCode, level: str, difficulty: str, user_id: str = Depends(require_demo_user_id)):
     progress = db.get_progress(user_id)
     key = "english_progress" if language == "EN" else "japanese_progress"
     progress[key]["current_level"] = level

@@ -26,9 +26,12 @@ curl http://127.0.0.1:8000/api/health
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npm ci
 npm run dev
 ```
+
+Frontend note: the current dependency tree requires `Node.js 22.18.0+`. Using Node 20 can fail during `npm ci`, typecheck, test, or build.
 
 ## End-to-End Functional Check
 
@@ -110,6 +113,7 @@ ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 python -m pytest -q
 
 ```bash
 cd frontend
+node -v   # should be 22.18.0 or newer
 npm ci
 npm audit
 npm audit --omit=dev
@@ -125,6 +129,7 @@ Mocked acceptance suite:
 ```bash
 cd frontend
 npm ci
+node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run e2e -- --project=chromium
 ```
@@ -139,6 +144,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 ```bash
 cd frontend
 npm ci
+node -v   # should be 22.18.0 or newer
 npx playwright install --with-deps chromium
 npm run e2e:fullstack -- --project=chromium
 ```

@@ -1,0 +1,76 @@
+{
+  "metadata": {
+    "lesson_id": "1337bb44-6891-41ed-900b-15963b1bebad",
+    "language": "JP",
+    "level": "N5",
+    "topic": "学習習慣 (Fallback)",
+    "generated_at": "2026-05-18T14:32:07.928902",
+    "estimated_duration_minutes": 15,
+    "key_points": [
+      "Fallback lesson",
+      "Core practice"
+    ]
+  },
+  "vocabulary": [
+    {
+      "word": "継続",
+      "reading": "けいぞく",
+      "phonetic": null,
+      "definition_zh": "持續；堅持",
+      "example_sentence": "毎日少しずつ勉強することが継続のコツです。",
+      "example_translation": "每天一點一點地學習，就是持續下去的訣竅。",
+      "synonyms": null,
+      "antonyms": null,
+      "srs_level": 0,
+      "next_review": null,
+      "ease_factor": 2.5,
+      "interval": 0
+    }
+  ],
+  "grammar": {
+    "title": "基本形",
+    "explanation": "基本形可用來表達習慣、日常行為與一般事實。",
+    "examples": [],
+    "exercises": [
+      {
+        "question": "請選出最適合描述日常習慣的句子：",
+        "options": [
+          "私は毎日少しずつ勉強します。",
+          "私は毎日少しずつ勉強してです。",
+          "私は昨日毎日少しずつ勉強しました。"
+        ],
+        "correct_answer": "私は毎日少しずつ勉強します。",
+        "explanation": "描述習慣時，使用動詞的基本敬體形式最自然。",
+        "exercise_type": "multiple_choice",
+        "scrambled_words": null,
+        "audio_url": null
+      }
+    ]
+  },
+  "reading": {
+    "title": "Short Reading",
+    "content": "毎日少しずつ勉強すると、自信を積み重ねることができます。",
+    "word_count": 1,
+    "questions": [
+      {
+        "question": "這段文章的重點是什麼？",
+        "options": [
+          "每天學習",
+          "完全不學習",
+          "每週只學一次"
+        ],
+        "correct_answer": "每天學習",
+        "explanation": "文章鼓勵學習者每天穩定練習，逐步建立自信。"
+      }
+    ]
+  },
+  "dialogue": {
+    "scenario": "Practice",
+    "context": "Daily study",
+    "dialogue": [],
+    "alternatives": []
+  },
+  "tts_scripts": null,
+  "evidence": null,
+  "gamification": null
+}

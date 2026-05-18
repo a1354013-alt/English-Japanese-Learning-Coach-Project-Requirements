@@ -1,9 +1,11 @@
 """Data models for Language Coach application."""
 from pydantic import BaseModel, Field, StrictInt, StrictStr
-from typing import List, Optional, Literal, Any, Dict
+from typing import List, Optional, Literal, Any, Dict, TypeAlias
 from datetime import datetime
 from uuid import uuid4
 from enum import Enum
+
+LanguageCode: TypeAlias = Literal["EN", "JP"]
 
 
 # ============ Vocabulary Models ============
@@ -97,7 +99,7 @@ class LessonEvidence(BaseModel):
     text: str = ""
     source: str
     title: str
-    language: Optional[str] = None
+    language: Optional[LanguageCode] = None
     source_type: Optional[str] = None
     uploaded_at: Optional[str] = None
     total_chunks: int = 1
@@ -107,7 +109,7 @@ class LessonEvidence(BaseModel):
 class LessonMetadata(BaseModel):
     """Metadata for a lesson"""
     lesson_id: str = Field(default_factory=lambda: str(uuid4()))
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     level: str  # CEFR (A1-C2) for EN, JLPT (N5-N1) for JP
     topic: str
     generated_at: datetime = Field(default_factory=datetime.now)
@@ -167,7 +169,7 @@ class WordCard(BaseModel):
     word: str
     rarity: Literal["C", "B", "A", "S", "SS"]
     collected_at: datetime
-    language: str
+    language: LanguageCode
     reading: Optional[str] = None
     phonetic: Optional[str] = None
     definition_zh: Optional[str] = None
@@ -198,7 +200,7 @@ class UserRPGStats(BaseModel):
 # ============ Progress Models ============
 class LanguageProgress(BaseModel):
     """Progress tracking for a specific language"""
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     current_level: str
     target_level: str
     completed_lessons: int
@@ -248,7 +250,7 @@ WrongAnswerStatus = Literal["active", "mastered"]
 
 
 class WrongAnswerCreate(BaseModel):
-    language: str
+    language: LanguageCode
     question_type: str
     question: str
     user_answer: str
@@ -267,7 +269,7 @@ class WrongAnswerRetryRequest(BaseModel):
 class WrongAnswer(BaseModel):
     id: int
     user_id: str
-    language: str
+    language: LanguageCode
     question_type: str
     question: str
     user_answer: str
@@ -310,7 +312,7 @@ class WritingAnalysis(BaseModel):
 
 class WritingSubmission(BaseModel):
     """User writing submission"""
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     text: str
     topic: Optional[str] = None
     target_level: Optional[str] = None
@@ -329,7 +331,7 @@ class StudyPlan(BaseModel):
     plan_id: str = Field(default_factory=lambda: str(uuid4()))
     user_id: str = "default_user"
     target_goal: str  # e.g., "TOEIC 800", "JLPT N2"
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     start_date: datetime = Field(default_factory=datetime.now)
     end_date: datetime
     milestones: List[StudyMilestone]
@@ -340,7 +342,7 @@ class StudyPlan(BaseModel):
 # ============ API Request Models ============
 class GenerateLessonRequest(BaseModel):
     """Request to generate a new lesson"""
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     topic: Optional[str] = None
     difficulty: Optional[str] = None  # If not provided, use current progress level
     interest_context: Optional[str] = None  # User uploaded article or interest
@@ -348,7 +350,7 @@ class GenerateLessonRequest(BaseModel):
 
 class LessonQueryParams(BaseModel):
     """Query parameters for lesson listing"""
-    language: Optional[Literal["EN", "JP"]] = None
+    language: Optional[LanguageCode] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     level: Optional[str] = None
@@ -391,7 +393,7 @@ class GeneratedLessonResponse(SuccessResponse):
 class LessonListItem(BaseModel):
     lesson_id: str
     user_id: str
-    language: Literal["EN", "JP"]
+    language: LanguageCode
     level: str
     topic: str
     generated_at: datetime
@@ -424,7 +426,7 @@ class ReviewSubmitResponse(SuccessResponse):
 
 class SrsDueItem(BaseModel):
     word: str
-    language: str
+    language: LanguageCode
     definition_zh: Optional[str] = None
     next_review: Optional[datetime] = None
     interval: int
@@ -467,7 +469,7 @@ class RagMaterial(BaseModel):
     doc_id: str
     source: str
     title: str
-    language: str
+    language: LanguageCode
     source_type: Optional[str] = None
     uploaded_at: Optional[str] = None
     total_chunks: int = 1

@@ -163,3 +163,15 @@ def test_review_rejects_blank_user_answer(tmp_path, monkeypatch):
     assert r.status_code == 400
     assert "user_answer must be non-empty" in r.json()["detail"]
 
+
+def test_srs_endpoints_reject_invalid_language(tmp_path, monkeypatch):
+    client = _setup_isolated_app(tmp_path, monkeypatch)
+
+    due_response = client.get("/api/srs/due", params={"language": "FR"})
+    assert due_response.status_code == 422
+
+    review_response = client.post(
+        "/api/srs/review",
+        params={"word": "hello", "language": "FR", "quality": 3},
+    )
+    assert review_response.status_code == 422

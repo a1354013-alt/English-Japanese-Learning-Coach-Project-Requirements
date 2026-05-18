@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from models import StudyMilestone, StudyPlan
+from models import LanguageCode, StudyMilestone, StudyPlan
 from ollama_client import ollama_client
 
 
@@ -14,7 +14,7 @@ class StudyPlanner:
         self,
         user_id: str,
         target_goal: str,
-        language: str,
+        language: LanguageCode,
         current_progress: Dict[str, Any],
     ) -> StudyPlan:
         result = await self.client.generate(
@@ -36,7 +36,7 @@ class StudyPlanner:
         except Exception:
             return self._fallback(user_id, target_goal, language)
 
-    def _build_plan(self, user_id: str, target_goal: str, language: str, data: Dict[str, Any]) -> StudyPlan:
+    def _build_plan(self, user_id: str, target_goal: str, language: LanguageCode, data: Dict[str, Any]) -> StudyPlan:
         start = datetime.now()
         end = self._parse_datetime(data.get("end_date"), start + timedelta(days=90))
 
@@ -108,7 +108,7 @@ class StudyPlanner:
             ),
         ]
 
-    def _fallback(self, user_id: str, target_goal: str, language: str) -> StudyPlan:
+    def _fallback(self, user_id: str, target_goal: str, language: LanguageCode) -> StudyPlan:
         start = datetime.now()
         return StudyPlan(
             user_id=user_id,
@@ -121,7 +121,7 @@ class StudyPlanner:
             focus_areas=["Vocabulary", "Grammar", "Review"],
         )
 
-    def _get_plan_prompt(self, target_goal: str, language: str, progress: Dict[str, Any]) -> str:
+    def _get_plan_prompt(self, target_goal: str, language: LanguageCode, progress: Dict[str, Any]) -> str:
         return f"""
 Create a realistic study plan.
 Language: {language}

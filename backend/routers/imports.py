@@ -1,6 +1,5 @@
 """Vocabulary import, RAG material upload, and lesson PDF export."""
 import io
-from typing import Literal
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Query, UploadFile
@@ -14,6 +13,7 @@ from gamification_engine import gamification_engine
 from models import (
     ImportExcelResponse,
     ImportedVocabularyListResponse,
+    LanguageCode,
     RagMaterialsResponse,
     RagUploadResponse,
     SuccessResponse,
@@ -69,7 +69,7 @@ async def _read_upload_with_size_limit(file: UploadFile) -> bytes:
 
 @router.post("/import/excel", response_model=ImportExcelResponse)
 async def import_excel(
-    language: Literal["EN", "JP"] = "EN",
+    language: LanguageCode = "EN",
     file: UploadFile = File(...),
     user_id: str = Depends(require_demo_user_id),
 ):
@@ -132,7 +132,7 @@ async def import_excel(
 
 @router.post("/rag/upload", response_model=RagUploadResponse)
 async def upload_rag_material(
-    language: Literal["EN", "JP"],
+    language: LanguageCode,
     file: UploadFile = File(...),
     user_id: str = Depends(require_demo_user_id),
 ):
@@ -160,7 +160,7 @@ async def upload_rag_material(
 
 @router.get("/rag/materials", response_model=RagMaterialsResponse)
 async def list_rag_materials(
-    language: Literal["EN", "JP"] | None = None,
+    language: LanguageCode | None = None,
     user_id: str = Depends(require_demo_user_id),
 ):
     if not rag_manager.enabled and not getattr(rag_manager, "disabled_by_config", False):
@@ -184,7 +184,7 @@ async def delete_rag_material(doc_id: str, user_id: str = Depends(require_demo_u
 
 @router.get("/imported-vocabulary", response_model=ImportedVocabularyListResponse)
 async def list_imported_vocabulary(
-    language: Literal["EN", "JP"] | None = None,
+    language: LanguageCode | None = None,
     q: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),

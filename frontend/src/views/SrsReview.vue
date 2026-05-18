@@ -38,7 +38,7 @@
           <tr v-for="item in items" :key="item.language + ':' + item.word">
             <td style="font-weight: 600">{{ item.word }}</td>
             <td>{{ item.definition_zh ?? '' }}</td>
-            <td>{{ new Date(item.next_review).toLocaleString() }}</td>
+            <td>{{ formatNextReview(item.next_review) }}</td>
             <td class="row gap-sm">
               <button class="secondary" @click="review(item.word, 5)" :disabled="submitting">{{ t('review.easy') }}</button>
               <button class="secondary" @click="review(item.word, 3)" :disabled="submitting">{{ t('review.hard') }}</button>
@@ -70,6 +70,8 @@ const items = ref<SrsItem[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const error = ref<string | null>(null)
+
+const formatNextReview = (value: string | null) => (value ? new Date(value).toLocaleString() : '-')
 
 const load = async () => {
   loading.value = true

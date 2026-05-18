@@ -346,7 +346,7 @@ export interface TtsResponse {
   available: boolean
   audio_url: string | null
   mode: 'live' | 'preview'
-  message?: string
+  message?: string | null
 }
 
 export interface RagMaterial {
@@ -354,9 +354,9 @@ export interface RagMaterial {
   doc_id: string
   source: string
   title: string
-  language: string
+  language: Language
   source_type?: string | null
-  uploaded_at?: string
+  uploaded_at?: string | null
   total_chunks: number
   text?: string | null
 }
@@ -387,8 +387,8 @@ export interface ImportedVocabularyListResponse {
 export interface SrsItem {
   word: string
   language: Language
-  definition_zh?: string
-  next_review: string
+  definition_zh?: string | null
+  next_review: string | null
   interval: number
   ease_factor: number
   srs_level: number
