@@ -36,6 +36,15 @@ flowchart LR
 
 Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, activity streaks, and analytics in SQLite. RAG is optional and disabled by default; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
 
+## 30-second Demo Flow
+
+1. Reset demo data with `POST /api/demo/reset`.
+2. Generate or open today’s lesson.
+3. Complete one review submission.
+4. Check progress.
+5. Export PDF.
+6. Try materials / RAG if enabled.
+
 ## Demo Flow
 
 1. Open `Today` and generate an English or Japanese lesson.
@@ -126,11 +135,11 @@ The API is exposed at [http://localhost:8000](http://localhost:8000). Health is 
 ### Backend
 
 ```bash
-python -m compileall backend
+python -m compileall -q backend
 ruff check backend tests
 mypy backend
 pip-audit -r backend/requirements.txt
-ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 pytest
+pytest backend/tests -q
 ```
 
 ### Frontend
@@ -186,11 +195,34 @@ The full-stack Playwright suite starts:
 
 It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, exercises the real `lesson generate -> review submit -> progress updated` path plus wrong-answer/PDF flows, and keeps `ENABLE_RAG=false` so the run does not depend on ChromaDB.
 
+### Full-Stack Smoke E2E
+
+```bash
+cd backend
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+```bash
+cd frontend
+node -v   # should be 22.18.0 or newer
+npm ci
+npx playwright install --with-deps chromium
+npm run test:e2e:fullstack:smoke -- --project=chromium
+```
+
+This smoke suite validates the shortest stable real-app path:
+
+- backend starts and serves `/api/health`
+- frontend starts and serves the app shell
+- the frontend loads seeded lesson data from the backend
+- seeded review submission updates progress
+
 ### CI E2E Policy
 
 - `npm run test:e2e` is the default CI-safe acceptance check because it is API-mocked and deterministic.
-- `npm run test:e2e:fullstack` is reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises real persistence.
-- Both suites share the same user-facing lesson flow, but only the full-stack suite validates backend persistence and demo reset behavior.
+- `npm run test:e2e:fullstack:smoke` now runs automatically in CI for pull requests, pushes to `main`/`master`, and the nightly scheduled workflow.
+- `npm run test:e2e:fullstack` remains reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises the broader persistence and PDF/wrong-answer flow.
+- The full-stack smoke and full suite both avoid external AI-provider dependency by relying on deterministic demo data and the backend fallback lesson path.
 
 ### Docker
 
@@ -202,14 +234,14 @@ docker compose up
 
 ## Screenshots
 
-`docs/screenshots/` currently contains a checklist rather than committed screenshots. Capture real images only after running the app locally so the portfolio reflects the actual UI:
+Real demo screenshots are committed under `docs/screenshots/`:
 
-- Dashboard / Home
-- Today Lesson
-- Review Result
-- Progress / Analytics
-- Wrong Answer Notebook
-- Materials / RAG
+- ![Today lesson](docs/screenshots/today-lesson.png)
+- ![Review and SRS](docs/screenshots/review-srs.png)
+- ![Progress dashboard](docs/screenshots/progress-dashboard.png)
+- ![Wrong answers](docs/screenshots/wrong-answers.png)
+- ![Materials and RAG](docs/screenshots/materials-rag.png)
+- ![Writing center](docs/screenshots/writing-center.png)
 
 ## Portfolio Signals
 
@@ -227,8 +259,20 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.
 - Playwright E2E is intentionally mocked at the API layer so CI does not depend on backend process startup, demo seed state, or real LLM/Ollama availability.
 - The separate full-stack Playwright suite validates the real seed-reset and persistence path without making every PR wait on a two-process browser test.
+- The full-stack smoke suite adds a shorter real-app connectivity check for every PR, push to `main`/`master`, and nightly run.
 - Lesson generation can fall back to deterministic sample content when the model path fails.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
+
+## Release Delivery
+
+Use the helper scripts when preparing a handoff build:
+
+```bash
+python scripts/verify_delivery.py
+python scripts/make_release_zip.py
+```
+
+`scripts/verify_delivery.py` runs the backend and frontend release gate commands in sequence. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding `.git`, `node_modules`, virtualenvs, caches, coverage outputs, and other local build artifacts.
 
 ## License
 

@@ -11,6 +11,10 @@ from config import settings
 from models import UserRPGStats
 
 
+def _local_now() -> datetime:
+    return datetime.now(ZoneInfo(settings.timezone))
+
+
 class Database:
     """SQLite database handler with connection pooling."""
 
@@ -245,7 +249,7 @@ class Database:
 
     def _local_date_str(self, dt: Optional[datetime] = None) -> str:
         tz = ZoneInfo(settings.timezone)
-        now = dt.astimezone(tz) if dt else datetime.now(tz)
+        now = dt.astimezone(tz) if dt else _local_now()
         return now.date().isoformat()
 
     def save_lesson(self, lesson_data: Dict[str, Any], file_path: str, user_id: Optional[str] = None) -> str:
@@ -532,19 +536,29 @@ class Database:
             return [dict(row) for row in rows]
 
     def get_today_lesson(self, user_id: str, language: str) -> Optional[Dict[str, Any]]:
-        tz = ZoneInfo(settings.timezone)
-        today = datetime.now(tz).date().isoformat()
+        today = self._local_date_str()
         with self.get_connection() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 """
                 SELECT * FROM lessons
-                WHERE user_id = ? AND language = ? AND DATE(generated_at) = ?
+                WHERE user_id = ? AND language = ?
                 ORDER BY generated_at DESC
-                LIMIT 1
+                LIMIT 20
                 """,
-                (user_id, language, today),
-            ).fetchone()
-            return dict(row) if row else None
+                (user_id, language),
+            ).fetchall()
+
+        for row in rows:
+            generated_at_raw = row["generated_at"]
+            if not generated_at_raw:
+                continue
+            try:
+                generated_at = datetime.fromisoformat(str(generated_at_raw))
+            except ValueError:
+                continue
+            if self._local_date_str(generated_at) == today:
+                return dict(row)
+        return None
 
     def get_srs_item(self, user_id: str, word: str, language: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:

@@ -7,16 +7,18 @@ import random
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 from uuid import uuid4
 
 from config import settings
 from database import db
 from models import (
     DialogueSection,
+    GrammarExercise,
     GrammarSection,
     Lesson,
     LessonMetadata,
+    ReadingQuestion,
     ReadingSection,
     VocabularyItem,
 )
@@ -46,7 +48,9 @@ class LessonGenerator:
         self.ollama = ollama_client
 
     def _get_system_prompt(self, language: Literal["EN", "JP"]) -> str:
-        return "You are an English tutor. Return valid JSON only." if language == "EN" else "You are a Japanese tutor. Return valid JSON only."
+        if language == "EN":
+            return "You are an English tutor. Return valid JSON only."
+        return "You are a Japanese tutor. Return valid JSON only."
 
     def _build_prompt(self, language: Literal["EN", "JP"], level: str, topic: str) -> str:
         if language == "EN":
@@ -69,10 +73,10 @@ class LessonGenerator:
     async def generate_lesson(
         self,
         language: Literal["EN", "JP"],
-        topic: Optional[str] = None,
-        level: Optional[str] = None,
-        interest_context: Optional[str] = None,
-        user_id: Optional[str] = None,
+        topic: str | None = None,
+        level: str | None = None,
+        interest_context: str | None = None,
+        user_id: str | None = None,
     ) -> Lesson:
         task_id = str(uuid4())
         start_time = time.time()
@@ -153,16 +157,21 @@ class LessonGenerator:
         language: Literal["EN", "JP"],
         level: str,
         topic: str,
-        interest_context: Optional[str],
+        interest_context: str | None,
         model: str,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
     ) -> Lesson:
         uid = user_id or settings.default_user_id
         prompt = self._build_prompt(language, level, topic)
         if interest_context:
             prompt += f" Context from user: {interest_context}"
 
-        rag_evidence = rag_manager.query_materials(f"{topic} {level}", user_id=uid, language=language, n_results=3)
+        rag_evidence = rag_manager.query_materials(
+            f"{topic} {level}",
+            user_id=uid,
+            language=language,
+            n_results=3,
+        )
         if rag_evidence:
             context_texts = [
                 item.get("text", "")
@@ -183,10 +192,11 @@ class LessonGenerator:
         if not response.get("success"):
             raise RuntimeError(response.get("error", "generation failed"))
 
-        content = self.ollama.parse_json_response(response["response"])
-        if not content:
+        parsed_content = self.ollama.parse_json_response(response["response"])
+        if not parsed_content:
             raise RuntimeError("model returned non-json content")
 
+        content: dict[str, Any] = dict(parsed_content)
         self._normalize(content)
         metadata = LessonMetadata(
             lesson_id=str(uuid4()),
@@ -198,7 +208,7 @@ class LessonGenerator:
             key_points=[f"Topic: {topic}", f"Level: {level}"],
         )
 
-        full_lesson: Dict[str, Any] = {"metadata": metadata.model_dump(mode="json"), **content}
+        full_lesson: dict[str, Any] = {"metadata": metadata.model_dump(mode="json"), **content}
         if rag_evidence:
             full_lesson["evidence"] = rag_evidence
 
@@ -207,15 +217,37 @@ class LessonGenerator:
         db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=uid)
         return lesson
 
-    def _normalize(self, content: Dict[str, Any]) -> None:
+    def _normalize(self, content: dict[str, Any]) -> None:
         content.setdefault("vocabulary", [])
-        content.setdefault("grammar", {"title": "Grammar", "explanation": "", "examples": [], "exercises": []})
-        content.setdefault("reading", {"title": "Reading", "content": "", "word_count": 0, "questions": []})
-        content.setdefault("dialogue", {"scenario": "Conversation", "context": "Practice", "dialogue": [], "alternatives": []})
+        content.setdefault(
+            "grammar",
+            {"title": "Grammar", "explanation": "", "examples": [], "exercises": []},
+        )
+        content.setdefault(
+            "reading",
+            {"title": "Reading", "content": "", "word_count": 0, "questions": []},
+        )
+        content.setdefault(
+            "dialogue",
+            {
+                "scenario": "Conversation",
+                "context": "Practice",
+                "dialogue": [],
+                "alternatives": [],
+            },
+        )
 
         for section in ("grammar", "reading"):
             key = "exercises" if section == "grammar" else "questions"
-            for item in content.get(section, {}).get(key, []):
+            section_items = content.get(section, {})
+            if not isinstance(section_items, dict):
+                continue
+            raw_items = section_items.get(key, [])
+            if not isinstance(raw_items, list):
+                continue
+            for item in raw_items:
+                if not isinstance(item, dict):
+                    continue
                 options = item.get("options") or []
                 answer = item.get("correct_answer")
                 if isinstance(answer, int) and 0 <= answer < len(options):
@@ -223,7 +255,7 @@ class LessonGenerator:
                 elif answer is None:
                     item["correct_answer"] = ""
 
-    def _save_lesson_file(self, lesson_data: Dict[str, Any]) -> Path:
+    def _save_lesson_file(self, lesson_data: dict[str, Any]) -> Path:
         metadata = lesson_data["metadata"]
         generated_at = datetime.fromisoformat(metadata["generated_at"])
         lesson_dir = settings.lessons_dir / generated_at.strftime("%Y-%m-%d")
@@ -232,30 +264,73 @@ class LessonGenerator:
         file_path.write_text(json.dumps(lesson_data, ensure_ascii=False, indent=2), encoding="utf-8")
         return file_path
 
-    def _safe_lesson(self, language: Literal["EN", "JP"], level: str, topic: str, *, user_id: str) -> Lesson:
-        vocab = (
-            VocabularyItem(
+    def _safe_lesson(
+        self,
+        language: Literal["EN", "JP"],
+        level: str,
+        topic: str,
+        *,
+        user_id: str,
+    ) -> Lesson:
+        if language == "EN":
+            vocab = VocabularyItem(
                 word="resilience",
                 phonetic="/rɪˈzɪl.jəns/",
-                definition_zh="韌性；適應力",
+                definition_zh="韌性",
                 example_sentence="Consistency builds resilience.",
-                example_translation="持續練習會培養韌性。",
+                example_translation="持續練習能建立韌性。",
             )
-            if language == "EN"
-            else VocabularyItem(
+            reading_content = "Study a little every day to build confidence."
+            grammar_title = "Simple Present"
+            grammar_explanation = "Use it for habits and routines."
+            grammar_exercise = GrammarExercise(
+                question="Choose the correct sentence for a daily habit:",
+                options=[
+                    "I study a little every day.",
+                    "I am study a little every day.",
+                    "I studied a little every day yesterday.",
+                ],
+                correct_answer="I study a little every day.",
+                explanation="Use the base form to describe a habit.",
+            )
+            reading_question = ReadingQuestion(
+                question="What is the main idea of the reading?",
+                options=["Study daily", "Never study", "Study only once a week"],
+                correct_answer="Study daily",
+                explanation="The passage recommends steady daily practice.",
+            )
+        else:
+            vocab = VocabularyItem(
                 word="継続",
                 reading="けいぞく",
-                definition_zh="持續；堅持",
-                example_sentence="毎日少しずつ勉強することが継続のコツです。",
-                example_translation="每天一點一點地學習，就是持續下去的訣竅。",
+                definition_zh="持續，持之以恆",
+                example_sentence="毎日少しずつ勉強すると力がつきます。",
+                example_translation="每天一點點地學習就能累積實力。",
             )
-        )
-        reading_content = (
-            "Study a little every day to build confidence."
-            if language == "EN"
-            else "毎日少しずつ勉強すると、自信を積み重ねることができます。"
-        )
-        reading_answer = "Study daily" if language == "EN" else "每天學習"
+            reading_content = "毎日少しずつ勉強すると、自信がついてきます。"
+            grammar_title = "習慣を表す文"
+            grammar_explanation = "習慣や日課を話すときは、基本形をよく使います。"
+            grammar_exercise = GrammarExercise(
+                question="毎日の習慣として自然な文を選んでください。",
+                options=[
+                    "私は毎日少し勉強します。",
+                    "私は毎日少し勉強してです。",
+                    "私は昨日毎日少し勉強します。",
+                ],
+                correct_answer="私は毎日少し勉強します。",
+                explanation="習慣を表すときは自然な基本形を使います。",
+            )
+            reading_question = ReadingQuestion(
+                question="本文の中心的な考えは何ですか。",
+                options=[
+                    "毎日勉強すること",
+                    "全然勉強しないこと",
+                    "週に一度だけ勉強すること",
+                ],
+                correct_answer="毎日勉強すること",
+                explanation="本文は毎日の継続的な練習を勧めています。",
+            )
+
         lesson = Lesson(
             metadata=LessonMetadata(
                 language=language,
@@ -266,48 +341,23 @@ class LessonGenerator:
             ),
             vocabulary=[vocab],
             grammar=GrammarSection(
-                title="Simple Present" if language == "EN" else "基本形",
-                explanation="Use it for habits and routines." if language == "EN" else "基本形可用來表達習慣、日常行為與一般事實。",
+                title=grammar_title,
+                explanation=grammar_explanation,
                 examples=[],
-                exercises=[
-                    {
-                        "question": "Choose the correct sentence for a daily habit:" if language == "EN" else "請選出最適合描述日常習慣的句子：",
-                        "options": (
-                            [
-                                "I study a little every day.",
-                                "I am study a little every day.",
-                                "I studied a little every day yesterday.",
-                            ]
-                            if language == "EN"
-                            else [
-                                "私は毎日少しずつ勉強します。",
-                                "私は毎日少しずつ勉強してです。",
-                                "私は昨日毎日少しずつ勉強しました。",
-                            ]
-                        ),
-                        "correct_answer": "I study a little every day." if language == "EN" else "私は毎日少しずつ勉強します。",
-                        "explanation": "Use the base pattern for habits." if language == "EN" else "描述習慣時，使用動詞的基本敬體形式最自然。",
-                    }
-                ],
+                exercises=[grammar_exercise],
             ),
             reading=ReadingSection(
                 title="Short Reading",
                 content=reading_content,
                 word_count=len(reading_content.split()),
-                questions=[
-                    {
-                        "question": "What is the main idea of the reading?" if language == "EN" else "這段文章的重點是什麼？",
-                        "options": (
-                            ["Study daily", "Never study", "Study only once a week"]
-                            if language == "EN"
-                            else ["每天學習", "完全不學習", "每週只學一次"]
-                        ),
-                        "correct_answer": reading_answer,
-                        "explanation": "The passage recommends steady daily practice." if language == "EN" else "文章鼓勵學習者每天穩定練習，逐步建立自信。",
-                    }
-                ],
+                questions=[reading_question],
             ),
-            dialogue=DialogueSection(scenario="Practice", context="Daily study", dialogue=[], alternatives=[]),
+            dialogue=DialogueSection(
+                scenario="Practice",
+                context="Daily study",
+                dialogue=[],
+                alternatives=[],
+            ),
         )
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
         db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=user_id)

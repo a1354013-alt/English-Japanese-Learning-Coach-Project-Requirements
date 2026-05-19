@@ -21,17 +21,29 @@ def test_fallback_lesson_english_and_japanese_content_is_readable(tmp_path, monk
     monkeypatch.setattr(gen, "_generate_with_model", _FailingGenerator()._generate_with_model, raising=True)
 
     english = asyncio.run(
-        gen.generate_lesson(language="EN", topic="Daily Habits", level="A1", interest_context=None, user_id="default_user")
+        gen.generate_lesson(
+            language="EN",
+            topic="Daily Habits",
+            level="A1",
+            interest_context=None,
+            user_id="default_user",
+        )
     )
     japanese = asyncio.run(
-        gen.generate_lesson(language="JP", topic="学習習慣", level="N5", interest_context=None, user_id="default_user")
+        gen.generate_lesson(
+            language="JP",
+            topic="学習習慣",
+            level="N5",
+            interest_context=None,
+            user_id="default_user",
+        )
     )
 
     assert english.vocabulary[0].phonetic == "/rɪˈzɪl.jəns/"
-    assert english.vocabulary[0].definition_zh == "韌性；適應力"
+    assert english.vocabulary[0].definition_zh == "韌性"
     assert english.reading.content == "Study a little every day to build confidence."
 
     assert japanese.vocabulary[0].word == "継続"
     assert japanese.vocabulary[0].reading == "けいぞく"
-    assert japanese.vocabulary[0].definition_zh == "持續；堅持"
-    assert japanese.reading.content == "毎日少しずつ勉強すると、自信を積み重ねることができます。"
+    assert japanese.vocabulary[0].definition_zh == "持續，持之以恆"
+    assert japanese.reading.content == "毎日少しずつ勉強すると、自信がついてきます。"

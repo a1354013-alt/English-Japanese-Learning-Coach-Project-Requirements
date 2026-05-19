@@ -196,7 +196,7 @@ class _ChromaRAGManager:
 
     def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
         where = self._user_filter(user_id, language)
-        result = self._collection.get(where=where, include=["ids", "documents", "metadatas"])
+        result = self._collection.get(where=where, include=["documents", "metadatas"])
         return self._normalize_get_result(result)
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:

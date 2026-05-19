@@ -38,12 +38,3 @@ module = [
   "reportlab.*",
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-  "export_service",
-  "lesson_generator",
-  "routers.imports",
-  "scheduler",
-]
-ignore_errors = true

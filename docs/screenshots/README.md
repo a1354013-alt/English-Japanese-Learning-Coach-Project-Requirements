@@ -1,12 +1,10 @@
-# Screenshot Checklist
+# Demo Screenshots
 
-Real screenshots are not committed yet. Capture them from a local run before portfolio publication:
+These images come from the real local demo flow and are intended for portfolio and release walkthroughs.
 
-- `dashboard-home.png` - Dashboard / Home
 - `today-lesson.png` - generated Today Lesson with vocabulary, grammar, and reading
-- `review-result.png` - submitted review result
-- `progress-analytics.png` - Progress / Analytics
-- `wrong-answer-notebook.png` - Wrong Answer Notebook
-- `materials-rag.png` - Materials / RAG state
-
-Do not replace this checklist with placeholders that look like real product screenshots.
+- `review-srs.png` - review result plus SRS area
+- `progress-dashboard.png` - progress dashboard and learner stats
+- `wrong-answers.png` - wrong-answer notebook
+- `materials-rag.png` - materials workspace / RAG state
+- `writing-center.png` - writing analysis workspace

@@ -107,10 +107,16 @@ def test_demo_reset_restores_reasonable_streak_state(tmp_path, monkeypatch):
 def test_demo_reset_uses_local_timezone_for_streak_seed(tmp_path, monkeypatch):
     _wire_test_db(tmp_path, monkeypatch)
     monkeypatch.setattr(settings, "timezone", "Asia/Taipei", raising=False)
+    def simulated_now() -> datetime:
+        return datetime(2026, 5, 18, 16, 22, tzinfo=ZoneInfo("UTC")).astimezone(
+            ZoneInfo(settings.timezone)
+        )
+
+    monkeypatch.setattr(database_module, "_local_now", simulated_now, raising=True)
     monkeypatch.setattr(
         demo_seed_module,
         "_local_now",
-        lambda: datetime(2026, 5, 18, 16, 22, tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(settings.timezone)),
+        simulated_now,
         raising=True,
     )
     client = TestClient(_make_app())

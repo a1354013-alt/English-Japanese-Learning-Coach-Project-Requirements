@@ -10,10 +10,11 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 ## 2. Backend verification
 
-- Run `python -m compileall backend`
+- Run `python -m compileall -q backend`
 - Run `ruff check backend tests`
 - Run `mypy backend`
-- Run `ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 pytest`
+- Run `pytest backend/tests -q`
+- Run `ENABLE_RAG=true pytest backend/tests/test_rag_enabled_smoke.py -q` after installing `backend/requirements-rag.txt`
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 
 ## 3. Frontend verification
@@ -29,12 +30,15 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 4. E2E verification
 
 - Run mocked smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && RUN_E2E=1 npm run test:e2e -- --project=chromium`
+- Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack:smoke -- --project=chromium`
 - Run full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack -- --project=chromium`
 - Confirm the full-stack run resets deterministic demo data before the scenario and leaves the demo resettable afterward.
 
 ## 5. Demo and packaging checks
 
 - Call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id.
+- Run `python scripts/verify_delivery.py`
+- Run `python scripts/make_release_zip.py`
 - Run `docker compose config`
 - If shipping containers, also run `docker compose build`
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.

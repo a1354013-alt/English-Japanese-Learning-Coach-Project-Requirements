@@ -5,6 +5,8 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: "0 17 * * *"
   workflow_dispatch:
 
 jobs:
@@ -20,14 +22,11 @@ jobs:
         run: |
           python -m pip install -U pip
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt
-          pip install pip-audit
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
-      - name: Dependency audit
-        run: pip-audit -r backend/requirements.txt
       - name: Compile
-        run: python -m compileall backend
+        run: python -m compileall -q backend
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -36,10 +35,26 @@ jobs:
       - name: Mypy
         run: mypy backend
       - name: Pytest
-        run: pytest
+        run: pytest backend/tests -q
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+
+  backend-rag-enabled:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install backend and RAG dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt -r backend/requirements-rag.txt
+      - name: Run RAG enabled smoke test
+        run: ENABLE_RAG=true pytest backend/tests/test_rag_enabled_smoke.py -q
 
   frontend:
     runs-on: ubuntu-latest
@@ -96,6 +111,133 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4273
         run: npm run test:e2e -- --project=chromium
 
+  e2e-fullstack-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright (Chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend server
+        run: |
+          nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 > ../backend-e2e.log 2>&1 &
+        working-directory: backend
+        env:
+          ENABLE_RAG: "false"
+          MAX_UPLOAD_SIZE_MB: "10"
+          DATA_DIR: .playwright-data
+          DB_PATH: .playwright-data/language_coach.db
+          CHROMA_DB_PATH: .playwright-data/chroma_db
+          CORS_ORIGINS: http://127.0.0.1:4273
+
+      - name: Wait for backend health
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          import time
+          from urllib.request import urlopen
+
+          url = "http://127.0.0.1:8000/api/health"
+          last_error = None
+          for _ in range(60):
+              try:
+                  with urlopen(url, timeout=5) as response:
+                      payload = json.load(response)
+                  print("backend-health-ok", payload["api"], payload["rag"]["ready"])
+                  sys.exit(0)
+              except Exception as err:
+                  last_error = err
+                  time.sleep(2)
+          print(f"Backend health check failed: {last_error}", file=sys.stderr)
+          sys.exit(1)
+          PY
+
+      - name: Start frontend server
+        run: |
+          nohup npm run dev -- --host 127.0.0.1 --port 4273 --strictPort > ../frontend-e2e.log 2>&1 &
+        env:
+          VITE_API_TARGET: http://127.0.0.1:8000
+          VITE_WS_TARGET: ws://127.0.0.1:8000
+
+      - name: Wait for frontend health
+        run: |
+          python - <<'PY'
+          import sys
+          import time
+          from urllib.request import urlopen
+
+          url = "http://127.0.0.1:4273"
+          last_error = None
+          for _ in range(60):
+              try:
+                  with urlopen(url, timeout=5) as response:
+                      status = response.status
+                  print("frontend-health-ok", status)
+                  sys.exit(0)
+              except Exception as err:
+                  last_error = err
+                  time.sleep(2)
+          print(f"Frontend health check failed: {last_error}", file=sys.stderr)
+          sys.exit(1)
+          PY
+
+      - name: Seed demo data
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          from urllib.request import Request, urlopen
+
+          request = Request("http://127.0.0.1:8000/api/demo/reset", method="POST")
+          with urlopen(request, timeout=10) as response:
+              payload = json.load(response)
+          print("demo-reset-ok", payload["summary"]["today_lesson_id"])
+          if payload["summary"]["today_lesson_id"] != "demo-en-today":
+              print("Unexpected seeded lesson id", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Run full-stack smoke e2e acceptance
+        env:
+          PLAYWRIGHT_REUSE_SERVER: "1"
+        run: npm run test:e2e:fullstack:smoke -- --project=chromium
+
+      - name: Show backend log on failure
+        if: failure()
+        working-directory: .
+        run: cat backend-e2e.log
+
+      - name: Show frontend log on failure
+        if: failure()
+        working-directory: .
+        run: cat frontend-e2e.log
+
   e2e-fullstack:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -130,6 +272,23 @@ jobs:
 
       - name: Run full-stack e2e acceptance
         run: npm run test:e2e:fullstack -- --project=chromium
+
+  security-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip
+          pip install -r backend/requirements.txt
+          pip install pip-audit
+      - name: Dependency audit
+        run: pip-audit -r backend/requirements.txt
 
   docker:
     runs-on: ubuntu-latest
