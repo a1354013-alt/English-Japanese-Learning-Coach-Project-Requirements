@@ -31,11 +31,11 @@ jobs:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Ruff
-        run: ruff check backend tests
+        run: python -m ruff check backend tests
       - name: Mypy
-        run: mypy backend
+        run: python -m mypy backend
       - name: Pytest
-        run: pytest backend/tests -q -m "not rag"
+        run: python -m pytest backend/tests -q -m "not rag"
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -54,7 +54,9 @@ jobs:
           python -m pip install -U pip
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt -r backend/requirements-rag.txt
       - name: Run RAG enabled smoke test
-        run: ENABLE_RAG=true pytest backend/tests -q -m rag
+        run: python -m pytest backend/tests -q -m rag
+        env:
+          ENABLE_RAG: "true"
 
   frontend:
     runs-on: ubuntu-latest

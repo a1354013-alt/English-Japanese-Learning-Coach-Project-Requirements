@@ -121,14 +121,14 @@ Standard backend checks:
 python -m compileall backend
 python -m ruff check backend tests
 python -m mypy backend
-pytest backend/tests -q -m "not rag"
+python -m pytest backend/tests -q -m "not rag"
 ```
 
 Optional RAG smoke check:
 
 ```bash
 python -m pip install -r backend/requirements-rag.txt
-pytest backend/tests -q -m rag
+python -m pytest backend/tests -q -m rag
 ```
 
 ```bash

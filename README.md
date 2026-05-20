@@ -150,14 +150,14 @@ Standard backend checks:
 python -m compileall -q backend
 python -m ruff check backend tests
 python -m mypy backend
-pytest backend/tests -q -m "not rag"
+python -m pytest backend/tests -q -m "not rag"
 ```
 
 Optional RAG smoke check:
 
 ```bash
 python -m pip install -r backend/requirements-rag.txt
-pytest backend/tests -q -m rag
+python -m pytest backend/tests -q -m rag
 ```
 
 Test lanes at a glance:
@@ -305,7 +305,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 ## Troubleshooting
 
 - Node version: use `22.18.0+`. The repo also pins this in `.nvmrc` and `.node-version`.
-- Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `pytest -m rag`.
+- Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `python -m pytest backend/tests -q -m rag`.
 - Ollama not running: standard tests and `/api/health` should still work; check `/api/ready` for optional dependency status.
 - Frontend API base URL: `VITE_API_BASE_URL` controls REST calls, and WebSocket URLs are derived from the current host or API origin instead of hardcoded `localhost`.
 - Playwright browser install: run `npx playwright install --with-deps chromium` before E2E if browsers are missing.
@@ -316,11 +316,11 @@ Use the helper scripts when preparing a handoff build:
 
 ```bash
 python scripts/verify_delivery.py
-python scripts/verify_delivery.py --mode rag
+python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` defaults to the standard release gate and excludes optional RAG tests. Use `--mode rag` or `--mode full` only after installing `backend/requirements-rag.txt`. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+`scripts/verify_delivery.py` defaults to the standard release gate and excludes optional RAG tests. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
 
 ## License
 

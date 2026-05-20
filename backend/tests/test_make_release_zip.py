@@ -30,6 +30,7 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     _write_text(repo_root / "frontend" / "playwright-report" / "index.html", "report")
     _write_text(repo_root / "frontend" / "coverage" / "lcov.info", "coverage")
     _write_text(repo_root / "frontend" / "node_modules" / "dep.js", "dep")
+    _write_text(repo_root / "backend" / ".playwright-data" / "language_coach.db", "db")
     _write_text(repo_root / "backend" / ".pytest_cache" / "state", "cache")
     _write_text(repo_root / "__pycache__" / "module.pyc", "pyc")
 
@@ -60,6 +61,7 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     assert not any(name.startswith("frontend/playwright-report/") for name in names)
     assert not any(name.startswith("frontend/coverage/") for name in names)
     assert not any(name.startswith("frontend/node_modules/") for name in names)
+    assert not any(name.startswith("backend/.playwright-data/") for name in names)
 
 
 def test_should_skip_covers_required_artifact_patterns():
@@ -70,6 +72,7 @@ def test_should_skip_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path("frontend/test-results/index.html"))
     assert make_release_zip.should_skip(Path("frontend/playwright-report/index.html"))
     assert make_release_zip.should_skip(Path("frontend/node_modules/pkg/index.js"))
+    assert make_release_zip.should_skip(Path("backend/.playwright-data/language_coach.db"))
     assert make_release_zip.should_skip(Path("backend/.pytest_cache/state"))
     assert make_release_zip.should_skip(Path("__pycache__/module.pyc"))
     assert not make_release_zip.should_skip(Path("data/.gitkeep"))

@@ -13,8 +13,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m compileall -q backend`
 - Run `python -m ruff check backend tests`
 - Run `python -m mypy backend`
-- Run `pytest backend/tests -q -m "not rag"`
-- Run `python -m pip install -r backend/requirements-rag.txt` and then `pytest backend/tests -q -m rag` for the optional RAG smoke gate
+- Run `python -m pytest backend/tests -q -m "not rag"`
+- Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
 
@@ -40,7 +40,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Only for local demo validation, start the backend with `ALLOW_DEMO_RESET=true`, then call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id. Do not enable this in production.
 - Run `python scripts/verify_delivery.py`
-- Optionally run `python scripts/verify_delivery.py --mode rag` after installing `backend/requirements-rag.txt`
+- Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`
 - Run `python scripts/make_release_zip.py`
 - Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 - Run `docker compose config`
