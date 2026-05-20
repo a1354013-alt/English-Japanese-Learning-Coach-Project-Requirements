@@ -35,6 +35,12 @@ class StepFailed(RuntimeError):
     """Raised when a verification step exits unsuccessfully."""
 
 
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+
+
 def _stream_reader(stream, tail: collections.deque[str], sink) -> None:
     try:
         for line in iter(stream.readline, ""):
@@ -68,9 +74,13 @@ def run_step(
 ) -> None:
     print(f"\n==> {label}")
     print(" ".join(command))
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PYTHONUTF8", "1")
     process = subprocess.Popen(
         command,
         cwd=cwd or REPO_ROOT,
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -195,6 +205,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    configure_stdio()
     args = parse_args()
     try:
         if args.mode in {"standard", "full"}:
