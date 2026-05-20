@@ -20,6 +20,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 files = ["backend"]
+mypy_path = [".", "backend"]
 exclude = [
   "^backend/tests/",
 ]

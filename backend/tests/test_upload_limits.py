@@ -19,7 +19,7 @@ from routers import imports as imports_router
 
 class _StubRag:
     enabled = True
-    init_error = None
+    init_error: str | None = None
     disabled_by_config = False
 
     def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id=None) -> str:

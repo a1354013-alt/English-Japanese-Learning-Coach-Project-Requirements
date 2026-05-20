@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  backend:
+  backend-lint-typecheck-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -21,21 +24,21 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          pip install -r requirements.txt -r requirements-dev.txt
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Compile
-        run: python -m compileall -q backend
+        run: python -m compileall -q .
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Ruff
-        run: python -m ruff check backend tests
+        run: python -m ruff check .
       - name: Mypy
-        run: python -m mypy backend
+        run: python -m mypy .
       - name: Pytest
-        run: python -m pytest backend/tests -q -m "not rag"
+        run: python -m pytest -q
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -58,7 +61,7 @@ jobs:
         env:
           ENABLE_RAG: "true"
 
-  frontend:
+  frontend-typecheck-lint-format-test-build:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -85,7 +88,7 @@ jobs:
       - name: Build
         run: npm run build
 
-  delivery:
+  release-delivery-verification:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -104,7 +107,10 @@ jobs:
           python -m pip install -U pip
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt
       - name: Verify delivery bundle
-        run: python scripts/verify_delivery.py
+        run: python scripts/verify_delivery.py --full
+
+      - name: Release package smoke check
+        run: python scripts/make_release_zip.py
 
   e2e:
     runs-on: ubuntu-latest

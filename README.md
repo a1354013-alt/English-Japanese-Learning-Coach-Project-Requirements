@@ -94,7 +94,7 @@ Frontend environment variables:
 
 Runtime requirements:
 
-- Frontend tooling requires `Node.js 22.18.0+` because the current Vite/Vitest dependency tree includes packages that no longer support Node 20.
+- Frontend tooling requires `Node.js >= 22.18.0` because the current Vite/Vitest dependency tree includes packages that no longer support Node 20.
 
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
@@ -122,7 +122,7 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 nvm use   # optional, uses the repo-pinned 22.18.0 from .nvmrc / .node-version
 npm ci
 npm run dev
@@ -147,17 +147,19 @@ The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness i
 Standard backend checks:
 
 ```bash
-python -m compileall -q backend
-python -m ruff check backend tests
-python -m mypy backend
-python -m pytest backend/tests -q -m "not rag"
+cd backend
+python -m compileall -q .
+python -m ruff check .
+python -m mypy .
+python -m pytest -q
 ```
 
 Optional RAG smoke check:
 
 ```bash
-python -m pip install -r backend/requirements-rag.txt
-python -m pytest backend/tests -q -m rag
+cd backend
+python -m pip install -r requirements-rag.txt
+python -m pytest tests -q -m rag
 ```
 
 Test lanes at a glance:
@@ -171,7 +173,7 @@ Test lanes at a glance:
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npm audit
 npm audit --omit=dev
@@ -186,7 +188,7 @@ npm run build
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run test:e2e -- --project=chromium
@@ -207,7 +209,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npx playwright install --with-deps chromium
 npm run test:e2e:fullstack -- --project=chromium
@@ -240,7 +242,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npx playwright install --with-deps chromium
 npm run test:e2e:fullstack:smoke -- --project=chromium
@@ -304,7 +306,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 
 ## Troubleshooting
 
-- Node version: use `22.18.0+`. The repo also pins this in `.nvmrc` and `.node-version`.
+- Node version: use `>= 22.18.0`. The repo also pins this in `.nvmrc` and `.node-version`.
 - Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `python -m pytest backend/tests -q -m rag`.
 - Ollama not running: standard tests and `/api/health` should still work; check `/api/ready` for optional dependency status.
 - Frontend API base URL: `VITE_API_BASE_URL` controls REST calls, and WebSocket URLs are derived from the current host or API origin instead of hardcoded `localhost`.

@@ -13,6 +13,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_DIR = REPO_ROOT / "backend"
 FRONTEND_DIR = REPO_ROOT / "frontend"
 VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 RELEASE_ARCHIVE = REPO_ROOT / "dist" / f"english-japanese-learning-coach-v{VERSION}.zip"
@@ -33,6 +34,10 @@ RELEASE_EXCLUDED_SUFFIXES = (".db", ".db-wal", ".db-shm")
 
 class StepFailed(RuntimeError):
     """Raised when a verification step exits unsuccessfully."""
+
+
+class OptionalStepSkipped(RuntimeError):
+    """Raised when an optional verification step is intentionally skipped."""
 
 
 def configure_stdio() -> None:
@@ -130,12 +135,13 @@ def _print_tail(name: str, tail: collections.deque[str]) -> None:
 
 
 def run_standard_verification() -> None:
-    run_step("Compile backend", [sys.executable, "-m", "compileall", "-q", "backend"])
-    run_step("Ruff backend/tests", [sys.executable, "-m", "ruff", "check", "backend", "tests"])
-    run_step("Mypy backend", [sys.executable, "-m", "mypy", "backend"])
+    run_step("Compile backend", [sys.executable, "-m", "compileall", "-q", "."], cwd=BACKEND_DIR)
+    run_step("Ruff backend", [sys.executable, "-m", "ruff", "check", "."], cwd=BACKEND_DIR)
+    run_step("Mypy backend", [sys.executable, "-m", "mypy", "."], cwd=BACKEND_DIR)
     run_step(
-        "Pytest backend (standard, non-RAG)",
-        [sys.executable, "-m", "pytest", "backend/tests", "-q", "-m", "not rag"],
+        "Pytest backend",
+        [sys.executable, "-m", "pytest", "-q"],
+        cwd=BACKEND_DIR,
     )
 
     npm = npm_command()
@@ -151,9 +157,9 @@ def run_standard_verification() -> None:
 
 def require_rag_dependencies() -> None:
     if importlib.util.find_spec("chromadb") is None:
-        raise SystemExit(
-            "RAG verification requires chromadb. Install optional dependencies first with "
-            "`pip install -r backend/requirements-rag.txt`."
+        raise OptionalStepSkipped(
+            "Optional RAG verification skipped because chromadb is not installed. "
+            "Install it with `pip install -r backend/requirements-rag.txt` to run this lane."
         )
 
 
@@ -161,8 +167,8 @@ def run_rag_verification() -> None:
     require_rag_dependencies()
     run_step(
         "Pytest backend (optional RAG)",
-        [sys.executable, "-m", "pytest", "backend/tests", "-q", "-m", "rag"],
-        cwd=REPO_ROOT,
+        [sys.executable, "-m", "pytest", "tests", "-q", "-m", "rag"],
+        cwd=BACKEND_DIR,
     )
 
 
@@ -189,6 +195,11 @@ def parse_args() -> argparse.Namespace:
         description="Run delivery verification. Standard mode excludes optional RAG tests."
     )
     parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Shortcut for the complete delivery verification flow.",
+    )
+    parser.add_argument(
         "--mode",
         choices=("standard", "rag", "full"),
         default="standard",
@@ -207,11 +218,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     configure_stdio()
     args = parse_args()
+    selected_mode = "full" if args.full else args.mode
     try:
-        if args.mode in {"standard", "full"}:
+        if selected_mode in {"standard", "full"}:
             run_standard_verification()
-        if args.mode in {"rag", "full"} or args.include_rag:
+        if selected_mode in {"rag", "full"} or args.include_rag:
             run_rag_verification()
+    except OptionalStepSkipped as exc:
+        print(f"\n{exc}")
     except StepFailed as exc:
         print(f"\nVerification failed: {exc}", file=sys.stderr)
         return 1

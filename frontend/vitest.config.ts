@@ -7,6 +7,13 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
+    testTimeout: 5000,
+    hookTimeout: 5000,
+    teardownTimeout: 5000,
+    pool: 'forks',
+    fileParallelism: false,
+    isolate: true,
   },
   resolve: {
     alias: {

@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 from zipfile import ZipFile
 
-from scripts import make_release_zip
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_make_release_zip() -> ModuleType:
+    module_path = REPO_ROOT / "scripts" / "make_release_zip.py"
+    spec = importlib.util.spec_from_file_location("make_release_zip", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load release script: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+make_release_zip = _load_make_release_zip()
 
 
 def _write_text(path: Path, content: str = "x") -> None:

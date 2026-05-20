@@ -1,5 +1,7 @@
 """RAG upload/list/delete API contract tests (with a stub manager)."""
 
+from __future__ import annotations
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import imports as imports_router
@@ -8,9 +10,9 @@ from routers import imports as imports_router
 class _StubRag:
     def __init__(self) -> None:
         self.enabled = True
-        self.init_error = None
+        self.init_error: str | None = None
         self.disabled_by_config = False
-        self._items = {}
+        self._items: dict[str, dict[str, str | int]] = {}
 
     def add_material(self, text: str, metadata: dict, *, user_id: str, doc_id=None) -> str:
         doc_id = doc_id or f"d{len(self._items)+1}"
@@ -70,7 +72,7 @@ def test_rag_list_delete_smoke(monkeypatch):
 
 def test_rag_delete_surface_underlying_failure(monkeypatch):
     class _FailingDeleteStub(_StubRag):
-        def delete_material(self, *, user_id: str, doc_id: str) -> bool:  # type: ignore[override]
+        def delete_material(self, *, user_id: str, doc_id: str) -> bool:
             item = self._items.get(doc_id)
             if not item or item["user_id"] != user_id:
                 return False

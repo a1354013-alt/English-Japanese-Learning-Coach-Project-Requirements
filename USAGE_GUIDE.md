@@ -27,13 +27,13 @@ curl http://127.0.0.1:8000/api/ready
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 nvm use   # optional, uses the repo-pinned 22.18.0 from .nvmrc / .node-version
 npm ci
 npm run dev
 ```
 
-Frontend note: the current dependency tree requires `Node.js 22.18.0+`. Using Node 20 can fail during `npm ci`, typecheck, test, or build.
+Frontend note: the current dependency tree requires `Node.js >= 22.18.0`. Using Node 20 can fail during `npm ci`, typecheck, test, or build.
 
 Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite files, generated lessons, audio, exports, and Chroma data should stay untracked under `data/` or another `DATA_DIR`.
 
@@ -118,22 +118,24 @@ Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite fi
 Standard backend checks:
 
 ```bash
-python -m compileall backend
-python -m ruff check backend tests
-python -m mypy backend
-python -m pytest backend/tests -q -m "not rag"
+cd backend
+python -m compileall -q .
+python -m ruff check .
+python -m mypy .
+python -m pytest -q
 ```
 
 Optional RAG smoke check:
 
 ```bash
-python -m pip install -r backend/requirements-rag.txt
-python -m pytest backend/tests -q -m rag
+cd backend
+python -m pip install -r requirements-rag.txt
+python -m pytest tests -q -m rag
 ```
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npm audit
 npm audit --omit=dev
@@ -150,7 +152,7 @@ Mocked acceptance suite:
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npx playwright install --with-deps chromium
 RUN_E2E=1 npm run test:e2e -- --project=chromium
@@ -165,7 +167,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-node -v   # should be 22.18.0 or newer
+node -v   # should be >= 22.18.0
 npm ci
 npx playwright install --with-deps chromium
 npm run test:e2e:fullstack -- --project=chromium
@@ -186,7 +188,7 @@ npm run test:e2e:fullstack -- --project=chromium
 
 ## Troubleshooting
 
-- Node version mismatch: switch to `22.18.0` using `.nvmrc` or `.node-version`.
+- Node version mismatch: switch to `22.18.0` using `.nvmrc` or `.node-version`; the minimum supported version is `>= 22.18.0`.
 - Optional RAG dependency missing: leave `ENABLE_RAG=false` for standard development and test flows.
 - Ollama unavailable: `/api/health` should still pass; use `/api/ready` to inspect readiness details.
 - Frontend API base URL: set `VITE_API_BASE_URL` when the API is not served from the same origin or `/api`.
