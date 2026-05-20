@@ -12,6 +12,7 @@ import pytest
 from config import settings
 from rag_manager import RAGManager
 
+pytestmark = pytest.mark.rag
 pytest.importorskip("chromadb")
 
 

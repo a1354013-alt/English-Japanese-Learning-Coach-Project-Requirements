@@ -76,6 +76,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { resolveWebSocketBaseUrl } from '@/utils/wsUrl'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -102,14 +103,11 @@ const ws = ref<WebSocket | null>(null)
 const messagesContainer = ref<HTMLElement | null>(null)
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 5
-const wsBaseUrl = (
-  import.meta.env.VITE_WS_BASE_URL ||
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '').replace(
-    /^http/i,
-    'ws',
-  ) ||
-  'ws://localhost:8000'
-).trim()
+const wsBaseUrl = resolveWebSocketBaseUrl({
+  wsBaseUrl: import.meta.env.VITE_WS_BASE_URL,
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+  location: window.location,
+})
 
 const scrollToBottom = () => {
   nextTick(() => {

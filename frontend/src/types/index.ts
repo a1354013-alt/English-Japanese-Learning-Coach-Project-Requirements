@@ -1,4 +1,5 @@
 export type Language = 'EN' | 'JP'
+export type DifficultyMode = 'easy' | 'normal' | 'hardcore'
 
 export type ErrorType = 'spelling' | 'grammar' | 'vocabulary' | 'comprehension'
 
@@ -214,6 +215,22 @@ export interface WritingSubmission {
   target_level?: string
 }
 
+export interface TtsRequest {
+  text: string
+  language: string
+}
+
+export interface OnboardRequest {
+  language: Language
+  level: string
+  difficulty: DifficultyMode
+}
+
+export interface StudyPlanGenerateRequest {
+  target_goal: string
+  language: Language
+}
+
 export interface WritingAnalysis {
   original_text: string
   corrected_text: string
@@ -408,6 +425,12 @@ export interface SrsItem {
 export interface SrsDueResponse {
   success: boolean
   items: SrsItem[]
+}
+
+export interface SrsReviewRequest {
+  word: string
+  language: Language
+  quality: number
 }
 
 export interface DemoResetResponse {

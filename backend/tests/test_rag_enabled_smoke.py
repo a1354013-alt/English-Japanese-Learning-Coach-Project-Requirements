@@ -7,10 +7,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.rag
 def test_rag_enabled_smoke(tmp_path):
+    pytest.importorskip("chromadb")
     env = os.environ.copy()
     data_dir = tmp_path / "rag-enabled-data"
     env.update(

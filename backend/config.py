@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     db_path: str = str(DEFAULT_DATA_DIR / "language_coach.db")
     chroma_db_path: str = str(DEFAULT_DATA_DIR / "chroma_db")
     enable_rag: bool = False
+    allow_demo_reset: bool = False
     max_upload_size_mb: int = 10
 
     # Cache

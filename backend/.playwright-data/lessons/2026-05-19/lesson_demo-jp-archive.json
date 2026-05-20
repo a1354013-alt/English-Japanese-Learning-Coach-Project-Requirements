@@ -1,0 +1,86 @@
+{
+  "metadata": {
+    "lesson_id": "demo-jp-archive",
+    "language": "JP",
+    "level": "N4",
+    "topic": "Cafe Ordering Practice",
+    "generated_at": "2026-05-19T10:25:56.207124+08:00",
+    "estimated_duration_minutes": 20,
+    "key_points": [
+      "Cafe Ordering Practice",
+      "N4"
+    ]
+  },
+  "vocabulary": [
+    {
+      "word": "注文",
+      "reading": "ちゅうもん",
+      "definition_zh": "點餐、下單",
+      "example_sentence": "コーヒーを注文します。",
+      "example_translation": "我要點咖啡。"
+    },
+    {
+      "word": "おすすめ",
+      "reading": "おすすめ",
+      "definition_zh": "推薦",
+      "example_sentence": "今日のおすすめは何ですか。",
+      "example_translation": "今天的推薦是什麼？"
+    }
+  ],
+  "grammar": {
+    "title": "〜てもいいですか",
+    "explanation": "Use this pattern to ask for permission politely.",
+    "examples": [
+      {
+        "sentence": "ここに座ってもいいですか。",
+        "translation": "我可以坐這裡嗎？"
+      }
+    ],
+    "exercises": [
+      {
+        "question": "店内で写真を撮ってもいいですか。",
+        "options": [
+          "Yes",
+          "No"
+        ],
+        "correct_answer": "Yes",
+        "explanation": "This is a polite permission request example."
+      }
+    ]
+  },
+  "reading": {
+    "title": "Cafe Memo",
+    "content": "おすすめのケーキは午後三時までです。",
+    "word_count": 15,
+    "questions": [
+      {
+        "question": "おすすめのケーキはいつまでですか。",
+        "options": [
+          "午後一時まで",
+          "午後三時まで",
+          "夜まで"
+        ],
+        "correct_answer": "午後三時まで",
+        "explanation": "The memo says it is available until 3 p.m."
+      }
+    ]
+  },
+  "dialogue": {
+    "scenario": "Cafe counter",
+    "context": "Ordering politely in Japanese.",
+    "dialogue": [
+      {
+        "speaker": "客",
+        "text": "おすすめを一つお願いします。",
+        "translation": "請給我一份推薦餐點。"
+      },
+      {
+        "speaker": "店員",
+        "text": "かしこまりました。",
+        "translation": "好的，沒問題。"
+      }
+    ],
+    "alternatives": []
+  },
+  "evidence": []
+}

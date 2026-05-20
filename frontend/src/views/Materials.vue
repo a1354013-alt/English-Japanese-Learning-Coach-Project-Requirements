@@ -97,6 +97,7 @@ import EmptyState from '@/components/state/EmptyState.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi } from '@/services/api'
+import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type { Language, RagMaterial } from '@/types'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), {
@@ -128,7 +129,7 @@ const handleUpload = async (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   if (!language.value) {
-    window.alert(t('materials.selectLanguageBeforeUpload'))
+    showNotice(t('materials.selectLanguageBeforeUpload'), 'warning')
     ;(event.target as HTMLInputElement).value = ''
     return
   }
@@ -144,6 +145,14 @@ const handleUpload = async (event: Event) => {
 }
 
 const remove = async (docId: string) => {
+  const confirmed = await requestConfirmation({
+    title: t('materials.confirmDeleteTitle'),
+    message: t('materials.confirmDeleteMessage'),
+    confirmLabel: t('common.delete'),
+    cancelLabel: t('common.cancel'),
+  })
+  if (!confirmed) return
+
   deletingId.value = docId
   try {
     await importApi.deleteRagMaterial(docId)

@@ -171,6 +171,6 @@ def test_srs_endpoints_reject_invalid_language(tmp_path, monkeypatch):
 
     review_response = client.post(
         "/api/srs/review",
-        params={"word": "hello", "language": "FR", "quality": 3},
+        json={"word": "hello", "language": "FR", "quality": 3},
     )
     assert review_response.status_code == 422

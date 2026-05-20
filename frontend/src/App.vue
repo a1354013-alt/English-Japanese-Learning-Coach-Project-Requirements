@@ -1,5 +1,23 @@
 <template>
   <div class="app-shell">
+    <div class="notice-stack" aria-live="polite">
+      <div
+        v-for="notice in notices"
+        :key="notice.id"
+        :class="['app-notice', `tone-${notice.tone}`]"
+        role="status"
+      >
+        <span>{{ notice.message }}</span>
+        <button
+          type="button"
+          class="secondary"
+          @click="dismissNotice(notice.id)"
+        >
+          {{ t('common.dismiss') }}
+        </button>
+      </div>
+    </div>
+
     <div
       v-if="apiErrorMessage"
       class="api-error-banner row between center"
@@ -50,6 +68,36 @@
       <Onboarding v-if="showOnboarding" @complete="showOnboarding = false" />
       <RouterView />
     </main>
+
+    <div
+      v-if="confirmState.open"
+      class="feedback-overlay"
+      role="dialog"
+      aria-modal="true"
+      data-testid="app-confirm-dialog"
+    >
+      <div class="feedback-dialog panel">
+        <h2>{{ confirmState.title }}</h2>
+        <p>{{ confirmState.message }}</p>
+        <div class="row gap-sm">
+          <button
+            type="button"
+            class="secondary"
+            data-testid="app-confirm-cancel"
+            @click="resolveConfirmation(false)"
+          >
+            {{ confirmState.cancelLabel }}
+          </button>
+          <button
+            type="button"
+            data-testid="app-confirm-accept"
+            @click="resolveConfirmation(true)"
+          >
+            {{ confirmState.confirmLabel }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -57,6 +105,12 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Onboarding from '@/components/Onboarding.vue'
+import {
+  confirmState,
+  dismissNotice,
+  notices,
+  resolveConfirmation,
+} from '@/services/appFeedback'
 import { apiErrorMessage, clearApiError } from '@/services/apiNotifications'
 import { progressApi } from '@/services/api'
 
@@ -105,9 +159,86 @@ onMounted(async () => {
   color: #cbd5e1;
 }
 
+.notice-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+}
+
+.app-notice {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+}
+
+.app-notice.tone-success {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.app-notice.tone-warning {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.app-notice.tone-error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.app-notice.tone-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.feedback-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.58);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 55;
+}
+
+.feedback-dialog {
+  width: min(460px, 100%);
+}
+
+.feedback-dialog h2 {
+  margin-top: 0;
+}
+
+.feedback-dialog p {
+  margin: 0 0 16px;
+  color: #475569;
+}
+
 @media (max-width: 760px) {
   .language-switcher {
     margin-left: 0;
+  }
+
+  .notice-stack {
+    top: auto;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }
 </style>

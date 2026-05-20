@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List
 
-from api_errors import COMMON_ERROR_RESPONSES
+from api_errors import COMMON_ERROR_RESPONSES, api_error
 from config import settings
 from database import db
 from demo_seed import reset_demo_dataset
@@ -15,6 +15,7 @@ from models import (
     DemoResetResponse,
     HealthCheckResponse,
     ProgressResponse,
+    ReadyCheckResponse,
     RootResponse,
 )
 from ollama_client import ollama_client
@@ -41,6 +42,20 @@ async def root():
 
 @api_router.get("/health", response_model=HealthCheckResponse)
 async def health_check():
+    db_reachable = db.check_connection()
+    return {
+        "api": "healthy",
+        "database": {
+            "configured": bool(settings.db_path),
+            "reachable": db_reachable,
+            "ready": db_reachable,
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@api_router.get("/ready", response_model=ReadyCheckResponse)
+async def readiness_check():
     db_reachable = db.check_connection()
     ollama_small_ready = await ollama_client.check_model_availability(settings.small_model_name)
     ollama_large_ready = await ollama_client.check_model_availability(settings.large_model_name)
@@ -70,6 +85,12 @@ async def health_check():
 
 @api_router.post("/demo/reset", response_model=DemoResetResponse)
 async def demo_reset(user_id: str = Depends(require_demo_user_id)):
+    if not settings.allow_demo_reset:
+        raise api_error(
+            403,
+            "Demo reset is disabled. Set ALLOW_DEMO_RESET=true only for local demo environments.",
+            "demo_reset_disabled",
+        )
     summary = reset_demo_dataset(db)
     return {"success": True, "message": "Demo dataset reset complete.", "summary": summary}
 

@@ -119,6 +119,7 @@ import EmptyState from '@/components/state/EmptyState.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi, lessonApi } from '@/services/api'
+import { showNotice } from '@/services/appFeedback'
 import type { Language, LessonListItem } from '@/types'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), {
@@ -160,7 +161,7 @@ const viewLesson = (id: string) => {
 
 const resolveImportLanguage = (): Language | null => {
   if (!filters.language) {
-    window.alert(t('archive.importLanguageRequired'))
+    showNotice(t('archive.importLanguageRequired'), 'warning')
     return null
   }
   return filters.language

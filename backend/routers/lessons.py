@@ -12,6 +12,7 @@ from models import (
     LanguageCode,
     LessonDetailResponse,
     LessonListResponse,
+    OnboardRequest,
     SuccessResponse,
     TodayLessonResponse,
     UserRPGStats,
@@ -79,14 +80,17 @@ async def get_lesson(lesson_id: str, user_id: str = Depends(require_demo_user_id
 
 
 @router.post("/onboard", response_model=SuccessResponse)
-async def onboard_user(language: LanguageCode, level: str, difficulty: str, user_id: str = Depends(require_demo_user_id)):
+async def onboard_user(
+    request: OnboardRequest,
+    user_id: str = Depends(require_demo_user_id),
+):
     progress = db.get_progress(user_id)
-    key = "english_progress" if language == "EN" else "japanese_progress"
-    progress[key]["current_level"] = level
+    key = "english_progress" if request.language == "EN" else "japanese_progress"
+    progress[key]["current_level"] = request.level
 
     stats = UserRPGStats(**db.get_rpg_stats(user_id))
     stats.is_onboarded = True
-    stats.difficulty_mode = difficulty
+    stats.difficulty_mode = request.difficulty
 
     progress["rpg_stats"] = stats.model_dump(mode="json")
     db.save_progress(progress)

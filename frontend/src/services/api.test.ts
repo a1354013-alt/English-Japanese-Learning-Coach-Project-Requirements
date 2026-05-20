@@ -28,7 +28,7 @@ vi.mock('axios', async () => {
   }
 })
 
-import { importApi, reviewApi } from './api'
+import { aiTutorApi, importApi, lessonApi, progressApi, reviewApi } from './api'
 import type { ReviewAnswer } from '@/types'
 
 describe('api client', () => {
@@ -40,7 +40,7 @@ describe('api client', () => {
     )
   })
 
-  it('calls SRS endpoints with query params', async () => {
+  it('calls SRS endpoints with typed body payloads', async () => {
     mocks.getMock.mockResolvedValueOnce({ data: { success: true, items: [] } })
     await reviewApi.getDueSrs('EN')
     expect(mocks.getMock).toHaveBeenCalledWith('/srs/due', {
@@ -49,8 +49,34 @@ describe('api client', () => {
 
     mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
     await reviewApi.submitSrsReview('hello', 'EN', 5)
-    expect(mocks.postMock).toHaveBeenCalledWith('/srs/review', null, {
-      params: { word: 'hello', language: 'EN', quality: 5 },
+    expect(mocks.postMock).toHaveBeenCalledWith('/srs/review', {
+      word: 'hello',
+      language: 'EN',
+      quality: 5,
+    })
+  })
+
+  it('posts onboarding, study plan, and tts requests as JSON bodies', async () => {
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
+    await progressApi.onboard('EN', 'A1', 'normal')
+    expect(mocks.postMock).toHaveBeenCalledWith('/onboard', {
+      language: 'EN',
+      level: 'A1',
+      difficulty: 'normal',
+    })
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true, plan: {} } })
+    await aiTutorApi.generateStudyPlan('TOEIC 800', 'EN')
+    expect(mocks.postMock).toHaveBeenCalledWith('/study-plan/generate', {
+      target_goal: 'TOEIC 800',
+      language: 'EN',
+    })
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
+    await lessonApi.getTts('Hello world', 'EN')
+    expect(mocks.postMock).toHaveBeenCalledWith('/tts', {
+      text: 'Hello world',
+      language: 'EN',
     })
   })
 

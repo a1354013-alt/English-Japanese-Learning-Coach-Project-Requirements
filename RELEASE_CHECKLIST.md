@@ -11,11 +11,12 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 2. Backend verification
 
 - Run `python -m compileall -q backend`
-- Run `ruff check backend tests`
-- Run `mypy backend`
-- Run `pytest backend/tests -q`
-- Run `ENABLE_RAG=true pytest backend/tests/test_rag_enabled_smoke.py -q` after installing `backend/requirements-rag.txt`
+- Run `python -m ruff check backend tests`
+- Run `python -m mypy backend`
+- Run `pytest backend/tests -q -m "not rag"`
+- Run `python -m pip install -r backend/requirements-rag.txt` and then `pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
+- Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
 
 ## 3. Frontend verification
 
@@ -33,16 +34,19 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack:smoke -- --project=chromium`
 - Run full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack -- --project=chromium`
 - Confirm the full-stack run resets deterministic demo data before the scenario and leaves the demo resettable afterward.
+- Confirm the stable lesson flow coverage still demonstrates `lesson generate -> review submit -> progress updated` without relying on a live Ollama model.
 
 ## 5. Demo and packaging checks
 
-- Call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id.
+- Only for local demo validation, start the backend with `ALLOW_DEMO_RESET=true`, then call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id. Do not enable this in production.
 - Run `python scripts/verify_delivery.py`
+- Optionally run `python scripts/verify_delivery.py --mode rag` after installing `backend/requirements-rag.txt`
 - Run `python scripts/make_release_zip.py`
+- Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 - Run `docker compose config`
 - If shipping containers, also run `docker compose build`
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
-- Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release committed `data/*.db`, `data/lessons/`, `data/audio/`, `data/exports/`, or `data/chroma_db/`.
+- Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
 
 ## 6. Finalize the release
 

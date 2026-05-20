@@ -325,7 +325,7 @@ test('lesson flow - generate, review, and see progress update', async ({
     window.localStorage.setItem('locale', 'en')
   })
   page.on('dialog', async (dialog) => {
-    await dialog.accept()
+    throw new Error(`Unexpected native dialog: ${dialog.message()}`)
   })
 
   const progressResponse = page.waitForResponse(

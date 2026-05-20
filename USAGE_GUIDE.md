@@ -20,6 +20,7 @@ Health check:
 
 ```bash
 curl http://127.0.0.1:8000/api/health
+curl http://127.0.0.1:8000/api/ready
 ```
 
 ### Frontend
@@ -27,6 +28,7 @@ curl http://127.0.0.1:8000/api/health
 ```bash
 cd frontend
 node -v   # should be 22.18.0 or newer
+nvm use   # optional, uses the repo-pinned 22.18.0 from .nvmrc / .node-version
 npm ci
 npm run dev
 ```
@@ -34,6 +36,13 @@ npm run dev
 Frontend note: the current dependency tree requires `Node.js 22.18.0+`. Using Node 20 can fail during `npm ci`, typecheck, test, or build.
 
 Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite files, generated lessons, audio, exports, and Chroma data should stay untracked under `data/` or another `DATA_DIR`.
+
+## Test Lane Guide
+
+- Standard tests: default release gate, no RAG dependency required.
+- Optional RAG tests: only for Chroma-enabled environments after installing `backend/requirements-rag.txt`.
+- Mocked E2E: stable browser coverage with deterministic API mocks.
+- Full-stack smoke: real backend + frontend with demo seed data, but still no live LLM requirement.
 
 ## End-to-End Functional Check
 
@@ -106,12 +115,20 @@ Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite fi
 
 ## Tests
 
+Standard backend checks:
+
 ```bash
 python -m compileall backend
-ruff check backend tests
-mypy backend
-pip-audit -r backend/requirements.txt
-ENABLE_RAG=false MAX_UPLOAD_SIZE_MB=10 pytest
+python -m ruff check backend tests
+python -m mypy backend
+pytest backend/tests -q -m "not rag"
+```
+
+Optional RAG smoke check:
+
+```bash
+python -m pip install -r backend/requirements-rag.txt
+pytest backend/tests -q -m rag
 ```
 
 ```bash
@@ -157,5 +174,20 @@ npm run test:e2e:fullstack -- --project=chromium
 ### Mocked vs Full-Stack E2E
 
 - `npm run test:e2e` is the default CI path. It runs only the frontend dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs. Use it for fast regression checks.
-- `npm run test:e2e:fullstack` starts the real FastAPI backend and real Vite frontend. It calls `POST /api/demo/reset` before the scenario to rebuild deterministic demo data, then validates the real `lesson generate -> review submit -> progress updated` flow.
+- `npm run test:e2e:fullstack` starts the real FastAPI backend and real Vite frontend. The backend process for this flow must set `ALLOW_DEMO_RESET=true` because it calls `POST /api/demo/reset` before the scenario to rebuild deterministic demo data.
 - The full-stack suite is better for release smoke tests or `workflow_dispatch`; the mocked suite is better for every PR because it is faster and less sensitive to process startup timing.
+
+## Demo Seed Workflow
+
+1. Start the backend locally with `ALLOW_DEMO_RESET=true`.
+2. Call `POST /api/demo/reset`.
+3. Walk through Today -> Review -> Progress -> Workspace -> Analytics.
+4. Turn `ALLOW_DEMO_RESET` back off outside local demo use.
+
+## Troubleshooting
+
+- Node version mismatch: switch to `22.18.0` using `.nvmrc` or `.node-version`.
+- Optional RAG dependency missing: leave `ENABLE_RAG=false` for standard development and test flows.
+- Ollama unavailable: `/api/health` should still pass; use `/api/ready` to inspect readiness details.
+- Frontend API base URL: set `VITE_API_BASE_URL` when the API is not served from the same origin or `/api`.
+- Playwright browser missing: run `npx playwright install --with-deps chromium`.

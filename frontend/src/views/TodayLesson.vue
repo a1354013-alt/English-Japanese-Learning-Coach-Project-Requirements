@@ -104,6 +104,7 @@ import ReadingSection from '@/components/lesson/ReadingSection.vue'
 import ReviewPanel from '@/components/lesson/ReviewPanel.vue'
 import VocabularySection from '@/components/lesson/VocabularySection.vue'
 import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
+import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type { Language, Lesson, ReviewResult, StreakResponse } from '@/types'
 import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
@@ -229,17 +230,20 @@ const submitReview = async () => {
 
   const payload = buildReviewPayload(lesson.value, answers)
   if (payload.length === 0) {
-    window.alert(t('today.answerAtLeastOne'))
+    showNotice(t('today.answerAtLeastOne'), 'warning')
     return
   }
 
   if (answeredQuestions.value < totalQuestions.value) {
-    const ok = window.confirm(
-      t('today.unansweredConfirm', {
+    const ok = await requestConfirmation({
+      title: t('today.submitPartialTitle'),
+      message: t('today.unansweredConfirm', {
         answered: answeredQuestions.value,
         total: totalQuestions.value,
       }),
-    )
+      confirmLabel: t('today.submitReview'),
+      cancelLabel: t('common.cancel'),
+    })
     if (!ok) return
   }
 
@@ -271,6 +275,14 @@ const exportPdf = async () => {
 }
 
 const resetDemo = async () => {
+  const confirmed = await requestConfirmation({
+    title: t('today.resetDemoConfirmTitle'),
+    message: t('today.resetDemoConfirmMessage'),
+    confirmLabel: t('today.resetDemo'),
+    cancelLabel: t('common.cancel'),
+  })
+  if (!confirmed) return
+
   resettingDemo.value = true
   error.value = null
   try {

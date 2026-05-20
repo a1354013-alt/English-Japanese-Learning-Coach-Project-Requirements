@@ -31,7 +31,8 @@
     "cancel": "取消",
     "submit": "送出",
     "back": "返回",
-    "friendlyError": "目前無法載入資料，請稍後再試。"
+    "friendlyError": "目前無法載入資料，請稍後再試。",
+    "confirm": "??"
   },
   "nav": {
     "today": "今日學習",
@@ -126,7 +127,10 @@
     "exportError": "目前無法匯出 PDF，請稍後再試。",
     "resetError": "目前無法重設 Demo 資料，請稍後再試。",
     "answerAtLeastOne": "請至少回答一題再送出。",
-    "unansweredConfirm": "你目前回答了 {answered} / {total} 題，未作答的題目會視為答錯。仍要送出嗎？"
+    "unansweredConfirm": "你目前回答了 {answered} / {total} 題，未作答的題目會視為答錯。仍要送出嗎？",
+    "submitPartialTitle": "??????????",
+    "resetDemoConfirmTitle": "???? Demo ???",
+    "resetDemoConfirmMessage": "?????? demo ?????????????????"
   },
   "materials": {
     "title": "RAG 教材",
@@ -141,7 +145,9 @@
     "loadError": "目前無法載入教材，請稍後再試。",
     "uploadError": "目前無法上傳教材，請稍後再試。",
     "deleteError": "目前無法刪除教材，請稍後再試。",
-    "demoNote": "Demo 提示：如果後端停用了 RAG，教材清單仍可載入，但上傳與刪除會回傳明確錯誤。"
+    "demoNote": "Demo 提示：如果後端停用了 RAG，教材清單仍可載入，但上傳與刪除會回傳明確錯誤。",
+    "confirmDeleteTitle": "???????",
+    "confirmDeleteMessage": "?? RAG ??????????????"
   },
   "vocabulary": {
     "title": "匯入單字",
@@ -157,7 +163,8 @@
     "delete": "刪除",
     "loadError": "目前無法載入單字資料，請稍後再試。",
     "deleteError": "目前無法刪除單字，請稍後再試。",
-    "deleteConfirm": "確定要刪除這筆匯入單字嗎？這也會一併移除衍生的 SRS 項目與對應單字卡。"
+    "deleteConfirm": "確定要刪除這筆匯入單字嗎？這也會一併移除衍生的 SRS 項目與對應單字卡。",
+    "deleteConfirmTitle": "???????"
   },
   "mistakes": {
     "title": "錯題筆記本",

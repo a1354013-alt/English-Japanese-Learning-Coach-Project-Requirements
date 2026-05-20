@@ -53,7 +53,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { progressApi } from '@/services/api'
-import type { Language } from '@/types'
+import type { DifficultyMode, Language } from '@/types'
 
 const emit = defineEmits<{ complete: [] }>()
 const { t } = useI18n()
@@ -62,7 +62,7 @@ const error = ref<string | null>(null)
 const form = reactive<{
   language: Language
   level: string
-  difficulty: string
+  difficulty: DifficultyMode
 }>({
   language: 'EN',
   level: 'A1',

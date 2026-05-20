@@ -4,6 +4,7 @@ import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { showApiError } from '@/services/apiNotifications'
 import type {
   GenerateLessonRequest,
+  OnboardRequest,
   Language,
   Lesson,
   ReviewAnswer,
@@ -22,7 +23,10 @@ import type {
   RagMaterialsResponse,
   ImportedVocabularyListResponse,
   TtsResponse,
+  TtsRequest,
   SrsDueResponse,
+  SrsReviewRequest,
+  StudyPlanGenerateRequest,
   ErrorType,
   DemoResetResponse,
   LessonListItem,
@@ -149,9 +153,8 @@ export const lessonApi = {
   },
 
   async getTts(text: string, language: Language) {
-    const response = await api.post<TtsResponse>('/tts', null, {
-      params: { text, language },
-    })
+    const payload: TtsRequest = { text, language }
+    const response = await api.post<TtsResponse>('/tts', payload)
     return response.data
   },
 }
@@ -162,10 +165,13 @@ export const progressApi = {
     return response.data
   },
 
-  async onboard(language: Language, level: string, difficulty: string) {
-    const response = await api.post<{ success: boolean }>('/onboard', null, {
-      params: { language, level, difficulty },
-    })
+  async onboard(
+    language: Language,
+    level: string,
+    difficulty: OnboardRequest['difficulty'],
+  ) {
+    const payload: OnboardRequest = { language, level, difficulty }
+    const response = await api.post<{ success: boolean }>('/onboard', payload)
     return response.data
   },
 }
@@ -190,9 +196,11 @@ export const reviewApi = {
   },
 
   async submitSrsReview(word: string, language: Language, quality: number) {
-    const response = await api.post<{ success: boolean }>('/srs/review', null, {
-      params: { word, language, quality },
-    })
+    const payload: SrsReviewRequest = { word, language, quality }
+    const response = await api.post<{ success: boolean }>(
+      '/srs/review',
+      payload,
+    )
     return response.data
   },
 }
@@ -273,12 +281,13 @@ export const aiTutorApi = {
   },
 
   async generateStudyPlan(targetGoal: string, language: Language) {
+    const payload: StudyPlanGenerateRequest = {
+      target_goal: targetGoal,
+      language,
+    }
     const response = await api.post<{ success: boolean; plan: StudyPlan }>(
       '/study-plan/generate',
-      null,
-      {
-        params: { target_goal: targetGoal, language },
-      },
+      payload,
     )
     return response.data
   },

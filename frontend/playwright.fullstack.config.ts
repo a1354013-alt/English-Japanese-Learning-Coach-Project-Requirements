@@ -15,6 +15,7 @@ export default defineConfig({
         ...process.env,
         ENABLE_RAG: 'false',
         MAX_UPLOAD_SIZE_MB: '10',
+        ALLOW_DEMO_RESET: 'true',
         DATA_DIR: '.playwright-data',
         DB_PATH: '.playwright-data/language_coach.db',
         CHROMA_DB_PATH: '.playwright-data/chroma_db',

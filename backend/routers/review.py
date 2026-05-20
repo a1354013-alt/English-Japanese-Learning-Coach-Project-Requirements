@@ -11,6 +11,7 @@ from models import (
     ReviewAnswer,
     ReviewSubmitResponse,
     SrsDueResponse,
+    SrsReviewRequest,
     SuccessResponse,
     TasksResponse,
     UserRPGStats,
@@ -190,26 +191,24 @@ async def get_due_items(
 
 @router.post("/srs/review", response_model=SuccessResponse)
 async def submit_srs_review(
-    word: str,
-    language: LanguageCode,
-    quality: int = Query(ge=0, le=5),
+    request: SrsReviewRequest,
     user_id: str = Depends(require_demo_user_id),
 ):
-    word = str(word).strip()
+    word = str(request.word).strip()
     if not word:
         raise api_error(400, "Missing word", "srs_word_required")
-    prev = db.get_srs_item(user_id, word, language)
+    prev = db.get_srs_item(user_id, word, request.language)
     if not prev:
         raise api_error(404, "SRS item not found", "srs_item_not_found")
 
     srs_data = srs_engine.calculate(
-        quality=quality,
+        quality=request.quality,
         prev_interval=int(prev["interval"]) if prev else 0,
         prev_ease_factor=float(prev["ease_factor"]) if prev else 2.5,
         repetition=int(prev["srs_level"]) if prev else 0,
     )
     vocab_info = prev["data"] if isinstance(prev.get("data"), dict) else {}
-    db.update_srs_item(user_id, word, language, srs_data, vocab_info)
+    db.update_srs_item(user_id, word, request.language, srs_data, vocab_info)
     db.record_learning_activity(user_id=user_id, activity_type="srs_review")
     return {"success": True}
 

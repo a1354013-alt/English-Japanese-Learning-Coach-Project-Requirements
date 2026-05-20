@@ -99,6 +99,7 @@
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { importApi } from '@/services/api'
+import { requestConfirmation } from '@/services/appFeedback'
 import type { ImportedVocabularyItem, Language } from '@/types'
 
 const { t } = useI18n()
@@ -131,7 +132,13 @@ const load = async () => {
 }
 
 const remove = async (id: number) => {
-  if (!window.confirm(t('vocabulary.deleteConfirm'))) {
+  const confirmed = await requestConfirmation({
+    title: t('vocabulary.deleteConfirmTitle'),
+    message: t('vocabulary.deleteConfirm'),
+    confirmLabel: t('common.delete'),
+    cancelLabel: t('common.cancel'),
+  })
+  if (!confirmed) {
     return
   }
   deletingId.value = id

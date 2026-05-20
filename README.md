@@ -2,7 +2,7 @@
 
 Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, **Vue 3 + TypeScript**, **SQLite**, **spaced repetition**, **chunked RAG lesson evidence**, **wrong-answer review**, **progress analytics**, and **gamification**.
 
-The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and reset demo data back to a presentable state.
+The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
 TTS is currently integration-ready rather than provider-backed: `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
 
@@ -15,6 +15,13 @@ TTS is currently integration-ready rather than provider-backed: `POST /api/tts` 
 - TTS provider-ready placeholder with a stable unavailable response shape; this is not shipped as full voice synthesis
 - SQLite persistence with migration smoke tests and index coverage
 - Dockerized backend with persistent `/data` volume and non-root runtime
+
+## Portfolio Pitch
+
+- Product-style learner dashboard instead of isolated API demo pages
+- Stable standard test lane plus isolated optional RAG lane
+- Full-stack demo path that does not depend on a live LLM
+- Clear separation between health, readiness, local demo reset, and release packaging
 
 ## Architecture
 
@@ -38,7 +45,7 @@ Text architecture: the Vue frontend talks to the FastAPI backend through typed R
 
 ## 30-second Demo Flow
 
-1. Reset demo data with `POST /api/demo/reset`.
+1. If you are running a local demo, start the backend with `ALLOW_DEMO_RESET=true` and reset demo data with `POST /api/demo/reset`.
 2. Generate or open today’s lesson.
 3. Complete one review submission.
 4. Check progress.
@@ -55,6 +62,7 @@ Text architecture: the Vue frontend talks to the FastAPI backend through typed R
 Reset demo data at any time:
 
 ```bash
+ALLOW_DEMO_RESET=true python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
@@ -74,6 +82,7 @@ Backend environment variables:
 - `DB_PATH` SQLite database path
 - `CHROMA_DB_PATH` Chroma persistence directory
 - `ENABLE_RAG` defaults to `false`; set `true` only after installing `backend/requirements-rag.txt`
+- `ALLOW_DEMO_RESET` defaults to `false`; set `true` only for local demo or seeded full-stack test runs
 - `MAX_UPLOAD_SIZE_MB` maximum upload size for import and RAG material endpoints, defaults to `10`
 - `CORS_ORIGINS` comma-separated frontend origins
 - `LOG_LEVEL` backend log level
@@ -81,7 +90,7 @@ Backend environment variables:
 Frontend environment variables:
 
 - `VITE_API_BASE_URL` defaults to `/api`, so local development uses the Vite proxy in `frontend/vite.config.ts`
-- `VITE_WS_BASE_URL` defaults to `ws://localhost:8000`
+- `VITE_WS_BASE_URL` is optional; when omitted, the app derives the WebSocket origin from `VITE_API_BASE_URL` or the current browser host
 
 Runtime requirements:
 
@@ -114,6 +123,7 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```bash
 cd frontend
 node -v   # should be 22.18.0 or newer
+nvm use   # optional, uses the repo-pinned 22.18.0 from .nvmrc / .node-version
 npm ci
 npm run dev
 ```
@@ -128,19 +138,34 @@ The provided Compose file starts the backend API only. The frontend is intended 
 docker compose up --build
 ```
 
-The API is exposed at [http://localhost:8000](http://localhost:8000). Health is available at [http://localhost:8000/api/health](http://localhost:8000/api/health), and the compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
+The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness is available at [http://localhost:8000/api/health](http://localhost:8000/api/health) and checks only app + DB basics. Readiness is available at [http://localhost:8000/api/ready](http://localhost:8000/api/ready) and reports Ollama/RAG status. The compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
 
 ## Testing
 
 ### Backend
 
+Standard backend checks:
+
 ```bash
 python -m compileall -q backend
-ruff check backend tests
-mypy backend
-pip-audit -r backend/requirements.txt
-pytest backend/tests -q
+python -m ruff check backend tests
+python -m mypy backend
+pytest backend/tests -q -m "not rag"
 ```
+
+Optional RAG smoke check:
+
+```bash
+python -m pip install -r backend/requirements-rag.txt
+pytest backend/tests -q -m rag
+```
+
+Test lanes at a glance:
+
+- Standard backend/frontend checks are the default CI-safe gate and do not require ChromaDB or Ollama.
+- Optional RAG tests validate Chroma-backed flows only after installing `backend/requirements-rag.txt`.
+- Mocked Playwright E2E validates the primary lesson flow with deterministic API mocks.
+- Full-stack smoke E2E validates the seeded real backend/frontend path without a live LLM.
 
 ### Frontend
 
@@ -193,7 +218,18 @@ The full-stack Playwright suite starts:
 - a real FastAPI backend on `http://127.0.0.1:8000`
 - a real Vite frontend on `http://127.0.0.1:4273`
 
-It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, exercises the real `lesson generate -> review submit -> progress updated` path plus wrong-answer/PDF flows, and keeps `ENABLE_RAG=false` so the run does not depend on ChromaDB.
+It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, so the backend process for this suite must set `ALLOW_DEMO_RESET=true`. The suite still keeps `ENABLE_RAG=false` so it does not depend on ChromaDB.
+
+## Demo Seed
+
+For local demos only:
+
+```bash
+ALLOW_DEMO_RESET=true python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+curl -X POST http://127.0.0.1:8000/api/demo/reset
+```
+
+This reseeds a deterministic lesson, progress snapshot, wrong answers, and supporting demo data for the default user.
 
 ### Full-Stack Smoke E2E
 
@@ -243,6 +279,8 @@ Real demo screenshots are committed under `docs/screenshots/`:
 - ![Materials and RAG](docs/screenshots/materials-rag.png)
 - ![Writing center](docs/screenshots/writing-center.png)
 
+See [docs/screenshots/README.md](docs/screenshots/README.md) for the recommended screenshot list and missing captures, and [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for a walkthrough-friendly presenter flow.
+
 ## Portfolio Signals
 
 This project is intended to demonstrate engineering quality rather than flashy feature breadth: typed API contracts, migration-safe SQLite persistence, deterministic review scoring, SRS, gamification idempotency, RAG chunking contracts, frontend state/error handling, mocked E2E coverage, dependency audits, Docker config validation, and CI quality gates.
@@ -252,6 +290,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - Importing `backend/main.py` does not require `chromadb` or `sentence-transformers` when `ENABLE_RAG=false`.
 - `backend/requirements-rag.txt` contains the optional Chroma / embedding dependencies for RAG-enabled environments.
 - If `ENABLE_RAG=true` but `chromadb` or `sentence-transformers` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
+- `GET /api/health` is intentionally lightweight and does not depend on Ollama or RAG. Use `GET /api/ready` when you need optional dependency status.
 - Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit with chunked reads and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
 - Excel import is intentionally `.xlsx` only. The backend uses `openpyxl`, and the frontend/file validation/docs now match that contract.
 - RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored vectors are CJK-aware chunked per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
@@ -263,16 +302,25 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - Lesson generation can fall back to deterministic sample content when the model path fails.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
 
+## Troubleshooting
+
+- Node version: use `22.18.0+`. The repo also pins this in `.nvmrc` and `.node-version`.
+- Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `pytest -m rag`.
+- Ollama not running: standard tests and `/api/health` should still work; check `/api/ready` for optional dependency status.
+- Frontend API base URL: `VITE_API_BASE_URL` controls REST calls, and WebSocket URLs are derived from the current host or API origin instead of hardcoded `localhost`.
+- Playwright browser install: run `npx playwright install --with-deps chromium` before E2E if browsers are missing.
+
 ## Release Delivery
 
 Use the helper scripts when preparing a handoff build:
 
 ```bash
 python scripts/verify_delivery.py
+python scripts/verify_delivery.py --mode rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` runs the backend and frontend release gate commands in sequence. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding `.git`, `node_modules`, virtualenvs, caches, coverage outputs, and other local build artifacts.
+`scripts/verify_delivery.py` defaults to the standard release gate and excludes optional RAG tests. Use `--mode rag` or `--mode full` only after installing `backend/requirements-rag.txt`. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
 
 ## License
 

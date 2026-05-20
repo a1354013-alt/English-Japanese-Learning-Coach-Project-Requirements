@@ -22,15 +22,28 @@ EXCLUDED_DIR_NAMES = {
     "dist",
 }
 EXCLUDED_FILE_SUFFIXES = {".pyc", ".pyo"}
+EXCLUDED_RUNTIME_PREFIXES = (
+    ("data", "chroma_db"),
+    ("data", "audio"),
+    ("data", "exports"),
+    ("data", "lessons"),
+    ("frontend", "test-results"),
+    ("frontend", "playwright-report"),
+    ("frontend", "coverage"),
+)
 
 
 def should_skip(relative_path: Path) -> bool:
-    parts = set(relative_path.parts)
-    if parts & EXCLUDED_DIR_NAMES:
+    parts = relative_path.parts
+    if set(parts) & EXCLUDED_DIR_NAMES:
         return True
     if any(part.endswith(".egg-info") for part in relative_path.parts):
         return True
     if relative_path.suffix in EXCLUDED_FILE_SUFFIXES:
+        return True
+    if relative_path.name.endswith((".db", ".db-wal", ".db-shm")) and parts[:1] == ("data",):
+        return True
+    if any(parts[: len(prefix)] == prefix for prefix in EXCLUDED_RUNTIME_PREFIXES):
         return True
     return False
 

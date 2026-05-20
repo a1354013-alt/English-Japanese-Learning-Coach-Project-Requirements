@@ -7,6 +7,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, StrictInt, StrictStr
 
 LanguageCode: TypeAlias = Literal["EN", "JP"]
+DifficultyMode: TypeAlias = Literal["easy", "normal", "hardcore"]
 
 
 # ============ Vocabulary Models ============
@@ -349,6 +350,28 @@ class GenerateLessonRequest(BaseModel):
     interest_context: Optional[str] = None  # User uploaded article or interest
 
 
+class OnboardRequest(BaseModel):
+    language: LanguageCode
+    level: str
+    difficulty: DifficultyMode
+
+
+class StudyPlanGenerateRequest(BaseModel):
+    target_goal: str
+    language: LanguageCode
+
+
+class TtsGenerateRequest(BaseModel):
+    text: str
+    language: str
+
+
+class SrsReviewRequest(BaseModel):
+    word: str
+    language: LanguageCode
+    quality: int = Field(ge=0, le=5)
+
+
 class LessonQueryParams(BaseModel):
     """Query parameters for lesson listing"""
     language: Optional[LanguageCode] = None
@@ -549,6 +572,12 @@ class RagHealth(BaseModel):
 
 
 class HealthCheckResponse(BaseModel):
+    api: str
+    database: DatabaseHealth
+    timestamp: datetime
+
+
+class ReadyCheckResponse(BaseModel):
     api: str
     database: DatabaseHealth
     ollama: OllamaHealth

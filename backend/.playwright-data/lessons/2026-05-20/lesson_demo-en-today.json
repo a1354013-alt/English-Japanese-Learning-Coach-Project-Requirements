@@ -1,0 +1,87 @@
+{
+  "metadata": {
+    "lesson_id": "demo-en-today",
+    "language": "EN",
+    "level": "A2",
+    "topic": "Daily Standup Conversations",
+    "generated_at": "2026-05-20T10:25:56.207124+08:00",
+    "estimated_duration_minutes": 20,
+    "key_points": [
+      "Daily Standup Conversations",
+      "A2"
+    ]
+  },
+  "vocabulary": [
+    {
+      "word": "blocker",
+      "phonetic": "/ˈblɑː.kɚ/",
+      "definition_zh": "阻礙進度的問題",
+      "example_sentence": "I have one blocker in the deployment step.",
+      "example_translation": "我在部署步驟有一個阻礙。"
+    },
+    {
+      "word": "ship",
+      "phonetic": "/ʃɪp/",
+      "definition_zh": "交付、上線",
+      "example_sentence": "We can ship the fix this afternoon.",
+      "example_translation": "我們今天下午可以上線這個修正。"
+    }
+  ],
+  "grammar": {
+    "title": "Present Simple for status updates",
+    "explanation": "Use the present simple to report routines, status, and current work plans.",
+    "examples": [
+      {
+        "sentence": "I review pull requests every morning.",
+        "translation": "我每天早上都會 review PR。"
+      }
+    ],
+    "exercises": [
+      {
+        "question": "Choose the best standup update sentence.",
+        "options": [
+          "I finish the API docs today.",
+          "I am finish the API docs today.",
+          "I finished the API docs tomorrow."
+        ],
+        "correct_answer": "I finish the API docs today.",
+        "explanation": "The present simple works for a planned status update in this demo."
+      }
+    ]
+  },
+  "reading": {
+    "title": "Demo Standup Note",
+    "content": "Our team reviews the release checklist, fixes one blocker, and ships the lesson flow before noon.",
+    "word_count": 16,
+    "questions": [
+      {
+        "question": "What does the team do before noon?",
+        "options": [
+          "Ships the lesson flow",
+          "Cancels the release",
+          "Writes a novel"
+        ],
+        "correct_answer": "Ships the lesson flow",
+        "explanation": "The note says the team ships the lesson flow before noon."
+      }
+    ]
+  },
+  "dialogue": {
+    "scenario": "Morning standup",
+    "context": "A short work update between teammates.",
+    "dialogue": [
+      {
+        "speaker": "Aki",
+        "text": "I fixed the blocker this morning.",
+        "translation": "我今天早上修好了阻礙。"
+      },
+      {
+        "speaker": "Mina",
+        "text": "Great, then we can ship after lunch.",
+        "translation": "太好了，那我們午餐後就能上線。"
+      }
+    ],
+    "alternatives": []
+  },
+  "evidence": []
+}

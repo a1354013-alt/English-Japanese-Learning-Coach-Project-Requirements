@@ -32,7 +32,10 @@ def test_generate_study_plan_success():
         mock_db.get_progress.return_value = {"english_progress": {"current_level": "A2"}, "japanese_progress": {}}
         mock_db.record_learning_activity = MagicMock()
 
-        response = client.post("/api/study-plan/generate", params={"target_goal": "TOEIC 800", "language": "EN"})
+        response = client.post(
+            "/api/study-plan/generate",
+            json={"target_goal": "TOEIC 800", "language": "EN"},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is True
@@ -76,7 +79,10 @@ def test_generate_tts_returns_audio_url():
         mock_audio_path.name = "audio_123.wav"
         mock_tts.generate_audio = AsyncMock(return_value=mock_audio_path)
 
-        response = client.post("/api/tts", params={"text": "Hello world", "language": "en-US"})
+        response = client.post(
+            "/api/tts",
+            json={"text": "Hello world", "language": "en-US"},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["success"] is True
@@ -89,7 +95,10 @@ def test_generate_tts_placeholder_returns_explicit_unavailable():
     with patch("routers.ai_tools.tts_service") as mock_tts:
         mock_tts.generate_audio = AsyncMock(return_value=None)
 
-        response = client.post("/api/tts", params={"text": "Hello world", "language": "en-US"})
+        response = client.post(
+            "/api/tts",
+            json={"text": "Hello world", "language": "en-US"},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body == {

@@ -91,6 +91,7 @@ def test_review_updates_progress_and_streak_from_same_source(tmp_path, monkeypat
 
 def test_demo_reset_restores_reasonable_streak_state(tmp_path, monkeypatch):
     _wire_test_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "allow_demo_reset", True, raising=False)
     client = TestClient(_make_app())
 
     reset = client.post("/api/demo/reset")
@@ -106,6 +107,7 @@ def test_demo_reset_restores_reasonable_streak_state(tmp_path, monkeypatch):
 
 def test_demo_reset_uses_local_timezone_for_streak_seed(tmp_path, monkeypatch):
     _wire_test_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "allow_demo_reset", True, raising=False)
     monkeypatch.setattr(settings, "timezone", "Asia/Taipei", raising=False)
     def simulated_now() -> datetime:
         return datetime(2026, 5, 18, 16, 22, tzinfo=ZoneInfo("UTC")).astimezone(

@@ -4,6 +4,7 @@ import Analytics from '@/views/Analytics.vue'
 import Materials from '@/views/Materials.vue'
 import Progress from '@/views/Progress.vue'
 import TodayLesson from '@/views/TodayLesson.vue'
+import Vocabulary from '@/views/Vocabulary.vue'
 import WrongAnswers from '@/views/WrongAnswers.vue'
 import type {
   AnalyticsResponse,
@@ -28,6 +29,8 @@ const apiMocks = vi.hoisted(() => ({
   listRagMaterials: vi.fn(),
   uploadRagMaterial: vi.fn(),
   deleteRagMaterial: vi.fn(),
+  listImportedVocabulary: vi.fn(),
+  deleteImportedVocabulary: vi.fn(),
   listWrongAnswers: vi.fn(),
   updateStatus: vi.fn(),
   deleteWrongAnswer: vi.fn(),
@@ -38,6 +41,11 @@ const apiMocks = vi.hoisted(() => ({
   getStreak: vi.fn(),
   resetDemo: vi.fn(),
   exportPdf: vi.fn(),
+}))
+
+const feedbackMocks = vi.hoisted(() => ({
+  showNotice: vi.fn(),
+  requestConfirmation: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -68,6 +76,8 @@ vi.mock('@/services/api', () => ({
     listRagMaterials: apiMocks.listRagMaterials,
     uploadRagMaterial: apiMocks.uploadRagMaterial,
     deleteRagMaterial: apiMocks.deleteRagMaterial,
+    listImportedVocabulary: apiMocks.listImportedVocabulary,
+    deleteImportedVocabulary: apiMocks.deleteImportedVocabulary,
   },
   wrongAnswerApi: {
     listWrongAnswers: apiMocks.listWrongAnswers,
@@ -89,6 +99,11 @@ vi.mock('@/services/api', () => ({
   systemApi: {
     resetDemo: apiMocks.resetDemo,
   },
+}))
+
+vi.mock('@/services/appFeedback', () => ({
+  showNotice: feedbackMocks.showNotice,
+  requestConfirmation: feedbackMocks.requestConfirmation,
 }))
 
 const flushPromises = () =>
@@ -338,6 +353,7 @@ describe('Analytics.vue', () => {
 describe('Materials.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    feedbackMocks.requestConfirmation.mockResolvedValue(true)
   })
 
   it('renders uploaded RAG materials', async () => {
@@ -382,6 +398,36 @@ describe('Materials.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('materials.loadError')
+  })
+
+  it('confirms before deleting a material', async () => {
+    apiMocks.listRagMaterials.mockResolvedValueOnce(
+      materialsPayload([
+        {
+          material_id: 'm1',
+          doc_id: 'doc-1',
+          source: 'notes.txt',
+          title: 'Travel Notes',
+          language: 'EN',
+          source_type: 'text',
+          uploaded_at: '2026-05-11T00:00:00',
+          total_chunks: 2,
+        },
+      ]),
+    )
+    apiMocks.deleteRagMaterial.mockResolvedValueOnce({ success: true })
+    apiMocks.listRagMaterials.mockResolvedValueOnce(materialsPayload([]))
+
+    const wrapper = mount(Materials)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'materials.delete')
+      ?.trigger('click')
+    await flushPromises()
+
+    expect(feedbackMocks.requestConfirmation).toHaveBeenCalled()
+    expect(apiMocks.deleteRagMaterial).toHaveBeenCalledWith('doc-1')
   })
 })
 
@@ -472,8 +518,7 @@ describe('WrongAnswers.vue', () => {
 describe('TodayLesson.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined)
+    feedbackMocks.requestConfirmation.mockResolvedValue(true)
   })
 
   it('renders vocabulary, grammar, and reading sections', async () => {
@@ -533,6 +578,24 @@ describe('TodayLesson.vue', () => {
     expect(wrapper.text()).toContain('today.reviewResult')
   })
 
+  it('shows an in-app notice when submitting without any answers', async () => {
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+    await wrapper.get('[data-testid="submit-review"]').trigger('click')
+
+    expect(feedbackMocks.showNotice).toHaveBeenCalledWith(
+      'today.answerAtLeastOne',
+      'warning',
+    )
+    expect(apiMocks.submitReview).not.toHaveBeenCalled()
+  })
+
   it('renders no lesson and error states', async () => {
     apiMocks.getTodayLesson.mockResolvedValueOnce({
       success: true,
@@ -549,5 +612,47 @@ describe('TodayLesson.vue', () => {
     const errorWrapper = mount(TodayLesson)
     await flushPromises()
     expect(errorWrapper.text()).toContain('today.loadError')
+  })
+})
+
+describe('Vocabulary.vue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    feedbackMocks.requestConfirmation.mockResolvedValue(true)
+  })
+
+  it('confirms before deleting an imported vocabulary item', async () => {
+    apiMocks.listImportedVocabulary.mockResolvedValueOnce({
+      success: true,
+      count: 1,
+      items: [
+        {
+          id: 7,
+          user_id: 'default_user',
+          language: 'EN',
+          word: 'blocker',
+          reading: null,
+          definition_zh: '阻礙',
+          example_sentence: 'We fixed the blocker.',
+          example_translation: '我們解掉阻礙了。',
+          created_at: '2026-05-11T00:00:00',
+        },
+      ],
+    })
+    apiMocks.deleteImportedVocabulary.mockResolvedValueOnce({ success: true })
+    apiMocks.listImportedVocabulary.mockResolvedValueOnce({
+      success: true,
+      count: 0,
+      items: [],
+    })
+
+    const wrapper = mount(Vocabulary)
+    await flushPromises()
+    const buttons = wrapper.findAll('button')
+    await buttons[buttons.length - 1]?.trigger('click')
+    await flushPromises()
+
+    expect(feedbackMocks.requestConfirmation).toHaveBeenCalled()
+    expect(apiMocks.deleteImportedVocabulary).toHaveBeenCalledWith(7)
   })
 })

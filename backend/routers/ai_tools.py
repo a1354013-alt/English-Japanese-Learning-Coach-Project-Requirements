@@ -8,8 +8,9 @@ from database import db
 from fastapi import APIRouter, Depends, WebSocket
 from fastapi.responses import FileResponse
 from models import (
-    LanguageCode,
+    StudyPlanGenerateRequest,
     StudyPlanResponse,
+    TtsGenerateRequest,
     TtsResponse,
     WritingAnalysisResponse,
     WritingSubmission,
@@ -28,13 +29,21 @@ chat_ws_router = APIRouter(tags=["ai-tools"])
 
 @router.post("/study-plan/generate", response_model=StudyPlanResponse)
 async def generate_study_plan(
-    target_goal: str,
-    language: LanguageCode,
+    request: StudyPlanGenerateRequest,
     user_id: str = Depends(require_demo_user_id),
 ):
     progress = db.get_progress(user_id)
-    current_progress = progress["english_progress"] if language == "EN" else progress["japanese_progress"]
-    plan = await study_planner.generate_plan(user_id, target_goal, language, current_progress)
+    current_progress = (
+        progress["english_progress"]
+        if request.language == "EN"
+        else progress["japanese_progress"]
+    )
+    plan = await study_planner.generate_plan(
+        user_id,
+        request.target_goal,
+        request.language,
+        current_progress,
+    )
     db.record_learning_activity(user_id=user_id, activity_type="study_plan_generate")
     return {"success": True, "plan": plan.model_dump(mode="json")}
 
@@ -47,8 +56,8 @@ async def analyze_writing(submission: WritingSubmission, user_id: str = Depends(
 
 
 @router.post("/tts", response_model=TtsResponse)
-async def generate_tts(text: str, language: str, user_id: str = Depends(require_demo_user_id)):
-    audio_path = await tts_service.generate_audio(text, language)
+async def generate_tts(request: TtsGenerateRequest, user_id: str = Depends(require_demo_user_id)):
+    audio_path = await tts_service.generate_audio(request.text, request.language)
     if not audio_path:
         return {
             "success": True,

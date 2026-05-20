@@ -31,6 +31,7 @@
     "cancel": "Cancel",
     "submit": "Submit",
     "back": "Back",
+    "confirm": "Confirm",
     "friendlyError": "Unable to load data. Please try again later."
   },
   "nav": {
@@ -125,6 +126,9 @@
     "submitError": "Unable to submit the review. Please try again later.",
     "exportError": "Unable to export the PDF. Please try again later.",
     "resetError": "Unable to reset the demo dataset. Please try again later.",
+    "submitPartialTitle": "Submit partial review?",
+    "resetDemoConfirmTitle": "Reset demo data?",
+    "resetDemoConfirmMessage": "This will rebuild the seeded demo lesson, progress, and review data for the current demo user.",
     "answerAtLeastOne": "Please answer at least one question before submitting.",
     "unansweredConfirm": "You answered {answered} of {total} questions. Unanswered questions will be counted as incorrect. Submit anyway?"
   },
@@ -141,6 +145,8 @@
     "loadError": "Unable to load materials. Please try again later.",
     "uploadError": "Unable to upload materials. Please try again later.",
     "deleteError": "Unable to delete the material. Please try again later.",
+    "confirmDeleteTitle": "Delete material?",
+    "confirmDeleteMessage": "Delete this uploaded material from the RAG workspace?",
     "demoNote": "Demo note: if RAG is disabled on the backend, listing still works but upload/delete return a clear error."
   },
   "vocabulary": {
@@ -157,6 +163,7 @@
     "delete": "Delete",
     "loadError": "Unable to load vocabulary. Please try again later.",
     "deleteError": "Unable to delete the vocabulary item. Please try again later.",
+    "deleteConfirmTitle": "Delete vocabulary item?",
     "deleteConfirm": "Delete this imported vocabulary item? This also removes its derived SRS entry and any matching word card."
   },
   "mistakes": {
