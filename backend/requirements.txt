@@ -1,5 +1,5 @@
-fastapi==0.136.1
-uvicorn==0.47.0
+fastapi==0.136.3
+uvicorn==0.48.0
 pydantic==2.13.4
 pydantic-settings==2.14.1
 python-dotenv==1.2.2
@@ -12,4 +12,4 @@ apscheduler==3.11.2
 pytz==2026.2
 websockets==13.1
 python-multipart==0.0.29
-pypdf==6.11.0
+pypdf==6.12.1
