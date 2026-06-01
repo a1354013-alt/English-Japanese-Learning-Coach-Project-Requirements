@@ -4,7 +4,9 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-TTS is currently integration-ready rather than provider-backed: `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
+This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
+
+TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
 
 ## Highlights
 
@@ -41,7 +43,7 @@ flowchart LR
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
 
-Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, activity streaks, and analytics in SQLite. RAG is optional and disabled by default; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, activity streaks, and analytics in SQLite. Core mode works without RAG dependencies. RAG mode requires `backend/requirements-rag.txt`, `ENABLE_RAG=true`, and separate verification; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
 
 ## 30-second Demo Flow
 
@@ -99,6 +101,8 @@ Runtime requirements:
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
 Runtime data such as local SQLite files, generated lessons, audio, exports, and Chroma persistence must stay out of git. The repository keeps only `data/.gitkeep`; create runtime content locally under `data/` or a custom `DATA_DIR`.
+
+Versioning uses root `VERSION` as the source of truth. Backend app metadata and release archives read that file, and `scripts/verify_delivery.py` checks that `frontend/package.json` stays in sync.
 
 ## Local Setup
 
@@ -322,7 +326,7 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` defaults to the standard release gate and excludes optional RAG tests. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+`scripts/verify_delivery.py` defaults to the standard release gate and includes backend compile/lint/type/test checks, frontend install/type/lint/format/test/build checks, `npm audit --omit=dev`, full `npm audit`, version consistency, and release zip validation. `--full` adds explicitly labelled optional advisory checks and the optional RAG lane when dependencies are available; skipped optional checks are reported with the reason. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
 
 ## License
 

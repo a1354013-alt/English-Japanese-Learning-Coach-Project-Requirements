@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import collections
 import importlib.util
+import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -19,10 +21,12 @@ VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 RELEASE_ARCHIVE = REPO_ROOT / "dist" / f"english-japanese-learning-coach-v{VERSION}.zip"
 RELEASE_EXCLUDED_PREFIXES = (
     "backend/.playwright-data/",
+    "data/chroma/",
     "data/chroma_db/",
     "data/audio/",
     "data/exports/",
     "data/lessons/",
+    "frontend/dist/",
     "frontend/test-results/",
     "frontend/playwright-report/",
     "frontend/coverage/",
@@ -69,6 +73,10 @@ def _safe_sink_write(sink, text: str) -> None:
 
 def npm_command() -> str:
     return "npm.cmd" if os.name == "nt" else "npm"
+
+
+def npx_command() -> str:
+    return "npx.cmd" if os.name == "nt" else "npx"
 
 
 def run_step(
@@ -134,8 +142,28 @@ def _print_tail(name: str, tail: collections.deque[str]) -> None:
         print(line, file=sys.stderr)
 
 
+def warn_skipped(label: str, reason: str) -> None:
+    print(f"\n[SKIPPED] {label}: {reason}")
+
+
+def warn_optional(label: str, reason: str) -> None:
+    print(f"\n[WARNING] {label}: {reason}")
+
+
+def verify_version_consistency() -> None:
+    package_json = json.loads((FRONTEND_DIR / "package.json").read_text(encoding="utf-8"))
+    frontend_version = str(package_json.get("version", "")).strip()
+    if frontend_version != VERSION:
+        raise StepFailed(
+            f"Frontend package.json version ({frontend_version or '<missing>'}) "
+            f"does not match root VERSION ({VERSION})"
+        )
+    print(f"Verified version consistency: {VERSION}")
+
+
 def run_standard_verification() -> None:
-    run_step("Compile backend", [sys.executable, "-m", "compileall", "-q", "."], cwd=BACKEND_DIR)
+    verify_version_consistency()
+    run_step("Compile backend", [sys.executable, "-m", "compileall", "backend"])
     run_step("Ruff backend", [sys.executable, "-m", "ruff", "check", "."], cwd=BACKEND_DIR)
     run_step("Mypy backend", [sys.executable, "-m", "mypy", "."], cwd=BACKEND_DIR)
     run_step(
@@ -151,6 +179,8 @@ def run_standard_verification() -> None:
     run_step("Frontend format check", [npm, "run", "format:check"], cwd=FRONTEND_DIR)
     run_step("Frontend tests", [npm, "run", "test:ci"], cwd=FRONTEND_DIR)
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
+    run_step("Frontend production dependency audit", [npm, "audit", "--omit=dev"], cwd=FRONTEND_DIR)
+    run_step("Frontend full dependency audit", [npm, "audit"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
 
@@ -170,6 +200,83 @@ def run_rag_verification() -> None:
         [sys.executable, "-m", "pytest", "tests", "-q", "-m", "rag"],
         cwd=BACKEND_DIR,
     )
+
+
+def run_optional_advisory_checks() -> None:
+    print(
+        "\n==> Optional advisory checks\n"
+        "These checks are environment-dependent. Skips here are reported explicitly and do not "
+        "change the standard delivery gate result."
+    )
+    run_optional_playwright_check()
+    run_optional_pip_audit_check()
+    run_optional_docker_check()
+
+
+def run_optional_playwright_check() -> None:
+    npx = npx_command()
+    if shutil.which(npx) is None:
+        warn_skipped("Playwright E2E", "npx is not available.")
+        return
+
+    browser_root = (
+        Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH", ""))
+        if os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+        else _default_playwright_browser_root()
+    )
+    has_chromium = browser_root.exists() and any(browser_root.glob("chromium*"))
+    if not has_chromium:
+        warn_skipped(
+            "Playwright E2E",
+            f"Chromium browser executable is not installed under {browser_root}. "
+            "Run `cd frontend && npx playwright install --with-deps chromium` to verify E2E locally.",
+        )
+        return
+    run_step(
+        "Playwright mocked E2E (optional)",
+        [npm_command(), "run", "test:e2e", "--", "--project=chromium"],
+        cwd=FRONTEND_DIR,
+        timeout=900,
+    )
+
+
+def _default_playwright_browser_root() -> Path:
+    if os.name == "nt":
+        return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "ms-playwright"
+    return Path.home() / ".cache" / "ms-playwright"
+
+
+def run_optional_pip_audit_check() -> None:
+    if shutil.which("pip-audit") is None and importlib.util.find_spec("pip_audit") is None:
+        warn_skipped("pip-audit", "pip-audit is not installed.")
+        return
+
+    command = ["pip-audit", "-r", str(BACKEND_DIR / "requirements.txt")]
+    if shutil.which("pip-audit") is None:
+        command = [sys.executable, "-m", "pip_audit", "-r", str(BACKEND_DIR / "requirements.txt")]
+    result = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, timeout=300)
+    if result.returncode != 0:
+        warn_optional(
+            "pip-audit",
+            "audit could not complete or reported findings; standard delivery does not depend on this optional gate.",
+        )
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        return
+    print("[OK] pip-audit")
+
+
+def run_optional_docker_check() -> None:
+    if shutil.which("docker") is None:
+        warn_skipped("Docker compose", "docker is not available.")
+        return
+    result = subprocess.run(["docker", "compose", "version"], cwd=REPO_ROOT, text=True, capture_output=True)
+    if result.returncode != 0:
+        warn_skipped("Docker compose", "docker compose is not available.")
+        return
+    run_step("Docker compose config (optional)", ["docker", "compose", "config"], timeout=300)
 
 
 def verify_release_archive() -> None:
@@ -192,18 +299,18 @@ def verify_release_archive() -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run delivery verification. Standard mode excludes optional RAG tests."
+        description="Run delivery verification. Standard mode excludes optional environment-dependent checks."
     )
     parser.add_argument(
         "--full",
         action="store_true",
-        help="Shortcut for the complete delivery verification flow.",
+        help="Run standard delivery plus optional advisory checks and the optional RAG lane when available.",
     )
     parser.add_argument(
         "--mode",
         choices=("standard", "rag", "full"),
         default="standard",
-        help="standard: default backend/frontend checks; rag: optional RAG tests only; full: standard + rag.",
+        help="standard: backend/frontend/release gate; rag: optional RAG tests only; full: standard + optional advisory checks + rag.",
     )
     parser.add_argument(
         "--include-rag",
@@ -222,6 +329,8 @@ def main() -> int:
     try:
         if selected_mode in {"standard", "full"}:
             run_standard_verification()
+        if selected_mode == "full":
+            run_optional_advisory_checks()
         if selected_mode in {"rag", "full"} or args.include_rag:
             run_rag_verification()
     except OptionalStepSkipped as exc:

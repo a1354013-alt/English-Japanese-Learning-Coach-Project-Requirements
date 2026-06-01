@@ -21,10 +21,11 @@ from models import (
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 from services.streak_service import get_streak_snapshot
+from version import get_app_version
 
 from routers.deps import require_demo_user_id
 
-APP_VERSION = "1.2.0"
+APP_VERSION = get_app_version()
 
 root_router = APIRouter(tags=["system"], responses=COMMON_ERROR_RESPONSES)
 api_router = APIRouter(prefix="/api", tags=["system"], responses=COMMON_ERROR_RESPONSES)

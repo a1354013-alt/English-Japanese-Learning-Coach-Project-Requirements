@@ -6,7 +6,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Confirm the target branch is up to date and CI is green.
 - Review `CHANGELOG.md` and add release-facing notes under the upcoming version.
-- Update `VERSION` and any user-visible version strings that must stay in sync.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync; `scripts/verify_delivery.py` checks this.
+- Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 
 ## 2. Backend verification
 
@@ -22,6 +23,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Confirm `node -v` reports `22.18.0` or newer.
 - Run `cd frontend && npm ci`
+- Run `npm audit --omit=dev`
+- Run `npm audit`
 - Run `npm run typecheck`
 - Run `npm run lint`
 - Run `npm run format:check`
@@ -40,9 +43,9 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Only for local demo validation, start the backend with `ALLOW_DEMO_RESET=true`, then call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id. Do not enable this in production.
 - Run `python scripts/verify_delivery.py`
-- Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`
+- Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
-- Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
+- Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 - Run `docker compose config`
 - If shipping containers, also run `docker compose build`
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
@@ -53,4 +56,5 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
+- Known limitations should include: TTS is integration-ready but disabled by default; core mode works without RAG dependencies; RAG mode requires additional dependencies and separate verification.
 - Publish the release only after all checks above pass.

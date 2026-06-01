@@ -19,6 +19,17 @@ class ChatManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
 
+    def build_prompt(self, history: List[Dict[str, Any]], user_text: str) -> str:
+        prompt_messages = (history + [{"role": "user", "content": user_text}])[-8:]
+        lines = []
+        for msg in prompt_messages:
+            role = msg["role"]
+            if role == "user":
+                lines.append(f"User: {msg['content']}")
+            elif role == "assistant":
+                lines.append(f"Assistant: {msg['content']}")
+        return "\n".join(lines)
+
     async def handle_chat(self, websocket: WebSocket, language: str, scenario: str) -> None:
         # TODO: replace with persisted memory source; this is explicit fallback.
         user_memory_fallback = "No stored user memory is available in this build."
@@ -56,16 +67,7 @@ class ChatManager:
                 if not user_text:
                     continue
 
-                history.append({"role": "user", "content": user_text})
-                recent = history[-8:]
-                lines = []
-                for msg in recent:
-                    role = msg["role"]
-                    if role == "user":
-                        lines.append(f"User: {msg['content']}")
-                    elif role == "assistant":
-                        lines.append(f"Assistant: {msg['content']}")
-                full_prompt = "\n".join(lines + [f"User: {user_text}"])
+                full_prompt = self.build_prompt(history, user_text)
 
                 response = await ollama_client.generate(
                     prompt=full_prompt,
@@ -78,6 +80,7 @@ class ChatManager:
 
                 if response.get("success"):
                     ai_text = response.get("response", "")
+                    history.append({"role": "user", "content": user_text})
                     history.append({"role": "assistant", "content": ai_text})
                     await websocket.send_json({"role": "assistant", "text": ai_text})
                 else:

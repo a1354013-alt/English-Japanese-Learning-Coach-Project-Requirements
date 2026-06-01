@@ -23,10 +23,12 @@ EXCLUDED_DIR_NAMES = {
 }
 EXCLUDED_FILE_SUFFIXES = {".pyc", ".pyo"}
 EXCLUDED_RUNTIME_PREFIXES = (
+    ("data", "chroma"),
     ("data", "chroma_db"),
     ("data", "audio"),
     ("data", "exports"),
     ("data", "lessons"),
+    ("frontend", "dist"),
     ("frontend", "test-results"),
     ("frontend", "playwright-report"),
     ("frontend", "coverage"),
