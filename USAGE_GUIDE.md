@@ -37,6 +37,8 @@ Frontend note: the current dependency tree requires `Node.js >= 22.18.0`. Using 
 
 Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite files, generated lessons, audio, exports, and Chroma data should stay untracked under `data/` or another `DATA_DIR`.
 
+Production readiness note: this project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
+
 ## Test Lane Guide
 
 - Standard tests: default release gate, no RAG dependency required.
@@ -108,8 +110,9 @@ Runtime data note: keep only `data/.gitkeep` in version control. Local SQLite fi
 
 ## Current Build Notes
 
-- Single-tenant demo: backend enforces `user_id=default_user`; the frontend does not send `user_id`.
-- TTS is API-only and provider-ready. `POST /api/tts` returns `available=false` with a clear preview message unless a real provider is configured.
+- Single-user/local demo: backend enforces `user_id=default_user`; the frontend does not send `user_id`.
+- TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with a clear preview message unless a real provider is configured.
+- Core mode works without RAG dependencies. RAG mode requires installing `backend/requirements-rag.txt`, setting `ENABLE_RAG=true`, and running the separate RAG verification lane.
 - RAG uploads go to Chroma when available; materials are CJK-aware chunked per document and keep stable metadata.
 - When RAG is disabled, listing still works and mutating endpoints return an unavailable error.
 
@@ -145,6 +148,14 @@ npm run format:check
 npm run test:ci
 npm run build
 ```
+
+Release helper:
+
+```bash
+python scripts/verify_delivery.py
+```
+
+The standard helper includes production and full frontend audits. Optional RAG, Playwright, Docker, and pip-audit checks are reported as explicit skipped/warning entries when the local environment is missing the required dependency.
 
 ## Playwright E2E
 

@@ -11,6 +11,8 @@ htmlcov/
 .env
 .env.local
 *.env.*
+!.env.example
+!backend/.env.example
 
 # IDE
 .vscode/
@@ -31,6 +33,7 @@ data/*.sqlite3
 data/lessons/
 data/audio/
 data/exports/
+data/chroma/
 data/chroma_db/
 tmp_chroma_test/
 tmp_chroma_test2/
@@ -42,5 +45,6 @@ dist/
 node_modules/
 build/
 frontend/test-results/
+frontend/dist/
 frontend/playwright-report/
 frontend/coverage/

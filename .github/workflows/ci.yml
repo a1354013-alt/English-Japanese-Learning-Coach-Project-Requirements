@@ -263,12 +263,22 @@ jobs:
       - name: Show backend log on failure
         if: failure()
         working-directory: .
-        run: cat backend-e2e.log
+        run: |
+          if [ -f backend-e2e.log ]; then
+            cat backend-e2e.log
+          else
+            echo "backend-e2e.log was not created."
+          fi
 
       - name: Show frontend log on failure
         if: failure()
         working-directory: .
-        run: cat frontend-e2e.log
+        run: |
+          if [ -f frontend-e2e.log ]; then
+            cat frontend-e2e.log
+          else
+            echo "frontend-e2e.log was not created."
+          fi
 
   e2e-fullstack:
     if: github.event_name == 'workflow_dispatch'

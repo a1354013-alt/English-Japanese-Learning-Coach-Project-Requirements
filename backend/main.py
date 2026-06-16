@@ -20,8 +20,9 @@ from logging_config import configure_logging
 from ollama_client import ollama_client
 from routers import ai_tools, imports, lessons, review, streak, system, wrong_answers
 from scheduler import lesson_scheduler
+from version import get_app_version
 
-APP_VERSION = "1.2.0"
+APP_VERSION = get_app_version()
 
 configure_logging()
 logger = logging.getLogger(__name__)
