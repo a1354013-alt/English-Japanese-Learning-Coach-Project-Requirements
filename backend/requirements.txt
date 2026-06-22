@@ -7,7 +7,7 @@ httpx==0.28.1
 pandas==2.2.3
 openpyxl==3.1.5
 redis==5.2.1
-reportlab==4.5.1
+reportlab==5.0.0
 apscheduler==3.11.2
 pytz==2026.2
 websockets==16.0
