@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 
+import gamification_engine as gamification_module
 import pandas as pd
 from api_errors import (
     http_exception_handler,
@@ -11,6 +12,7 @@ from api_errors import (
     validation_exception_handler,
 )
 from config import settings
+from database import Database
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
@@ -58,6 +60,21 @@ def _excel_bytes() -> bytes:
     return output.getvalue()
 
 
+def _excel_bytes_from_rows(rows: list[dict]) -> bytes:
+    output = io.BytesIO()
+    df = pd.DataFrame(rows)
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+    return output.getvalue()
+
+
+def _isolated_import_db(tmp_path, monkeypatch) -> Database:
+    test_db = Database(str(tmp_path / "import-test.db"))
+    monkeypatch.setattr(imports_router, "db", test_db, raising=False)
+    monkeypatch.setattr(gamification_module, "db", test_db, raising=False)
+    return test_db
+
+
 def test_import_excel_small_file_succeeds(monkeypatch):
     monkeypatch.setattr(settings, "max_upload_size_mb", 1, raising=False)
     client = TestClient(_make_app())
@@ -74,6 +91,63 @@ def test_import_excel_small_file_succeeds(monkeypatch):
     assert response.status_code == 200
     assert response.json()["success"] is True
     assert response.json()["count"] >= 1
+
+
+def test_import_excel_skips_blank_definition_without_nan_pollution(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_size_mb", 1, raising=False)
+    test_db = _isolated_import_db(tmp_path, monkeypatch)
+    client = TestClient(_make_app())
+
+    files = {
+        "file": (
+            "vocab.xlsx",
+            _excel_bytes_from_rows(
+                [
+                    {"word": "valid", "definition_zh": "usable definition"},
+                    {"word": "blank-definition", "definition_zh": None},
+                ]
+            ),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+    response = client.post("/api/import/excel?language=EN", files=files)
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "count": 1}
+    items, total = test_db.list_imported_vocabulary(user_id=settings.default_user_id, language="EN")
+    assert total == 1
+    assert items[0]["word"] == "valid"
+    assert items[0]["definition_zh"] == "usable definition"
+    assert all(str(item["definition_zh"]).lower() not in {"nan", "none"} for item in items)
+
+
+def test_import_excel_skips_blank_word_and_creates_imported_vocab_and_srs(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "max_upload_size_mb", 1, raising=False)
+    test_db = _isolated_import_db(tmp_path, monkeypatch)
+    client = TestClient(_make_app())
+
+    files = {
+        "file": (
+            "vocab.xlsx",
+            _excel_bytes_from_rows(
+                [
+                    {"word": None, "definition": "missing word"},
+                    {"word": "card", "definition": "a learning card"},
+                ]
+            ),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+    response = client.post("/api/import/excel?language=EN", files=files)
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "count": 1}
+    items, total = test_db.list_imported_vocabulary(user_id=settings.default_user_id, language="EN")
+    assert total == 1
+    assert items[0]["word"] == "card"
+    assert test_db.get_srs_item(settings.default_user_id, "card", "EN") is not None
+    word_cards = test_db.get_rpg_stats(settings.default_user_id).get("word_cards", [])
+    assert any(card["word"] == "card" and card["language"] == "EN" for card in word_cards)
 
 
 def test_import_excel_rejects_oversized_file_with_413(monkeypatch):

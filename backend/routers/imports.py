@@ -27,6 +27,15 @@ from routers.deps import require_demo_user_id
 router = APIRouter(prefix="/api", tags=["imports"], responses=COMMON_ERROR_RESPONSES)
 
 
+def _excel_text(value, *, allow_empty: bool = False) -> str | None:
+    if pd.isna(value):
+        return "" if allow_empty else None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none"}:
+        return "" if allow_empty else None
+    return text
+
+
 def _normalize_material_item(item: dict) -> dict:
     material_id = str(item.get("material_id") or item.get("doc_id") or "")
     return {
@@ -99,19 +108,17 @@ async def import_excel(
 
     imported_count = 0
     for _, row in df.iterrows():
-        word = str(row[column_map["word"]]).strip()
-        definition_zh = str(row[definition_col]).strip()
-        if not word or not definition_zh or word.lower() == "nan":
+        word = _excel_text(row[column_map["word"]])
+        definition_zh = _excel_text(row[definition_col])
+        if not word or not definition_zh:
             continue
 
         vocab_item = {
             "word": word,
-            "reading": str(row[reading_col]).strip() if reading_col and not pd.isna(row[reading_col]) else None,
+            "reading": _excel_text(row[reading_col]) if reading_col else None,
             "definition_zh": definition_zh,
-            "example_sentence": str(row[example_col]).strip() if example_col and not pd.isna(row[example_col]) else "",
-            "example_translation": str(row[translation_col]).strip()
-            if translation_col and not pd.isna(row[translation_col])
-            else "",
+            "example_sentence": _excel_text(row[example_col], allow_empty=True) if example_col else "",
+            "example_translation": _excel_text(row[translation_col], allow_empty=True) if translation_col else "",
         }
 
         db.save_imported_vocabulary(user_id, language, vocab_item)

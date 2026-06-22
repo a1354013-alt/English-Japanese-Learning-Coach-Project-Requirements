@@ -38,7 +38,12 @@ jobs:
       - name: Mypy
         run: python -m mypy .
       - name: Pytest
-        run: python -m pytest -q
+        run: python -m pytest -q -m "not rag and not startup_isolation"
+        env:
+          ENABLE_RAG: "false"
+          MAX_UPLOAD_SIZE_MB: "10"
+      - name: RAG disabled startup isolation tests
+        run: python -m pytest tests/test_rag_disabled_startup.py -q
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"

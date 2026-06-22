@@ -168,7 +168,12 @@ def run_standard_verification() -> None:
     run_step("Mypy backend", [sys.executable, "-m", "mypy", "."], cwd=BACKEND_DIR)
     run_step(
         "Pytest backend",
-        [sys.executable, "-m", "pytest", "-q"],
+        [sys.executable, "-m", "pytest", "-q", "-m", "not rag and not startup_isolation"],
+        cwd=BACKEND_DIR,
+    )
+    run_step(
+        "Pytest backend RAG disabled startup isolation",
+        [sys.executable, "-m", "pytest", "tests/test_rag_disabled_startup.py", "-q"],
         cwd=BACKEND_DIR,
     )
 

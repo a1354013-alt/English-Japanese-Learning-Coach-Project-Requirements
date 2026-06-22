@@ -14,7 +14,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m compileall -q backend`
 - Run `python -m ruff check backend tests`
 - Run `python -m mypy backend`
-- Run `python -m pytest backend/tests -q -m "not rag"`
+- Run `python -m pytest backend/tests -q -m "not rag and not startup_isolation"`
+- Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q`
 - Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.

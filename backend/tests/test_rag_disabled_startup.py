@@ -7,8 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 SUBPROCESS_TIMEOUT_SECONDS = 60
+pytestmark = pytest.mark.startup_isolation
 
 
 def _blocked_chromadb_env(tmp_path: Path, enable_rag: bool) -> dict[str, str]:
