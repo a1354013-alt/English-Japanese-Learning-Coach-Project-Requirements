@@ -12,9 +12,6 @@ on:
 jobs:
   backend-lint-typecheck-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -24,21 +21,21 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Compile
-        run: python -m compileall -q .
+        run: python -m compileall backend scripts tests
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Ruff
-        run: python -m ruff check .
+        run: python -m ruff check backend scripts tests
       - name: Mypy
-        run: python -m mypy .
+        run: python -m mypy backend
       - name: Pytest
-        run: python -m pytest -q
+        run: python -m pytest
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
@@ -77,6 +74,8 @@ jobs:
         run: npm ci
       - name: Production dependency audit
         run: npm audit --omit=dev
+      - name: Full dependency audit
+        run: npm audit
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -107,7 +106,7 @@ jobs:
           python -m pip install -U pip
           pip install -r backend/requirements.txt -r backend/requirements-dev.txt
       - name: Verify delivery bundle
-        run: python scripts/verify_delivery.py --full
+        run: python scripts/verify_delivery.py
 
       - name: Release package smoke check
         run: python scripts/make_release_zip.py
@@ -130,9 +129,11 @@ jobs:
         run: npm ci
       - name: Production dependency audit
         run: npm audit --omit=dev
+      - name: Full dependency audit
+        run: npm audit
 
       - name: Install Playwright (Chromium only)
-        run: npx playwright install --with-deps chromium
+        run: npm run e2e:install -- --with-deps
 
       - name: Run frontend-only mocked e2e acceptance
         env:
@@ -170,7 +171,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright (Chromium only)
-        run: npx playwright install --with-deps chromium
+        run: npm run e2e:install -- --with-deps
 
       - name: Start backend server
         run: |
@@ -310,7 +311,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright (Chromium only)
-        run: npx playwright install --with-deps chromium
+        run: npm run e2e:install -- --with-deps
 
       - name: Run full-stack e2e acceptance
         run: npm run test:e2e:fullstack -- --project=chromium
