@@ -34,14 +34,33 @@ RELEASE_EXCLUDED_PREFIXES = (
     "frontend/node_modules/",
 )
 RELEASE_EXCLUDED_SUFFIXES = (".db", ".db-wal", ".db-shm")
+PYTHON_VERSION = (3, 11)
+NODE_VERSION = "22.18.0"
+REQUIRED_BACKEND_MODULES = (
+    ("fastapi", "fastapi"),
+    ("uvicorn", "uvicorn"),
+    ("pydantic", "pydantic"),
+    ("pydantic-settings", "pydantic_settings"),
+    ("python-dotenv", "dotenv"),
+    ("httpx", "httpx"),
+    ("pandas", "pandas"),
+    ("openpyxl", "openpyxl"),
+    ("redis", "redis"),
+    ("reportlab", "reportlab"),
+    ("apscheduler", "apscheduler"),
+    ("pytz", "pytz"),
+    ("websockets", "websockets"),
+    ("python-multipart", "multipart"),
+    ("pypdf", "pypdf"),
+    ("pytest", "pytest"),
+    ("pytest-asyncio", "pytest_asyncio"),
+    ("ruff", "ruff"),
+    ("mypy", "mypy"),
+)
 
 
 class StepFailed(RuntimeError):
     """Raised when a verification step exits unsuccessfully."""
-
-
-class OptionalStepSkipped(RuntimeError):
-    """Raised when an optional verification step is intentionally skipped."""
 
 
 def configure_stdio() -> None:
@@ -77,6 +96,49 @@ def npm_command() -> str:
 
 def npx_command() -> str:
     return "npx.cmd" if os.name == "nt" else "npx"
+
+
+def require_python_version() -> None:
+    current = sys.version_info[:2]
+    if current != PYTHON_VERSION:
+        raise StepFailed(
+            f"Python {PYTHON_VERSION[0]}.{PYTHON_VERSION[1]}.x is required for release verification; "
+            f"found {sys.version.split()[0]}"
+        )
+
+
+def require_node_version() -> None:
+    command = ["node", "--version"]
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()
+        raise StepFailed(f"Unable to read Node.js version with `{' '.join(command)}`: {stderr or 'unknown error'}")
+
+    version = completed.stdout.strip().removeprefix("v")
+    if version != NODE_VERSION:
+        raise StepFailed(
+            f"Node.js {NODE_VERSION} is required for release verification; found {version or 'unknown'}"
+        )
+
+
+def require_backend_dependencies() -> None:
+    missing = [package for package, module in REQUIRED_BACKEND_MODULES if importlib.util.find_spec(module) is None]
+    if missing:
+        raise StepFailed(
+            "Backend dependency preflight failed; missing importable packages: "
+            f"{', '.join(missing)}. Install them with "
+            "`python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt`."
+        )
+
+    run_step("Backend dependency consistency preflight", [sys.executable, "-m", "pip", "check"], timeout=300)
 
 
 def run_step(
@@ -133,6 +195,36 @@ def run_step(
         raise StepFailed(f"{label} failed with exit code {return_code}")
 
 
+def run_audit_step(label: str, command: list[str]) -> None:
+    print(f"\n==> {label}")
+    print(" ".join(command))
+    completed = subprocess.run(
+        command,
+        cwd=FRONTEND_DIR,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if completed.stdout:
+        _safe_sink_write(sys.stdout, completed.stdout)
+    if completed.stderr:
+        _safe_sink_write(sys.stderr, completed.stderr)
+    if completed.returncode != 0:
+        raise StepFailed(f"{label} failed with exit code {completed.returncode}")
+
+    try:
+        payload = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise StepFailed(f"{label} did not return valid JSON output") from exc
+
+    vulnerabilities = payload.get("metadata", {}).get("vulnerabilities", {})
+    total = vulnerabilities.get("total")
+    if total not in (0, None):
+        raise StepFailed(f"{label} reported unresolved vulnerabilities: {vulnerabilities}")
+
+
 def _print_tail(name: str, tail: collections.deque[str]) -> None:
     if not tail:
         print(f"\n--- {name} tail: <empty> ---", file=sys.stderr)
@@ -162,39 +254,50 @@ def verify_version_consistency() -> None:
 
 
 def run_standard_verification() -> None:
+    require_python_version()
+    require_node_version()
+    require_backend_dependencies()
     verify_version_consistency()
-    run_step("Compile backend", [sys.executable, "-m", "compileall", "backend"])
-    run_step("Ruff backend", [sys.executable, "-m", "ruff", "check", "."], cwd=BACKEND_DIR)
-    run_step("Mypy backend", [sys.executable, "-m", "mypy", "."], cwd=BACKEND_DIR)
     run_step(
-        "Pytest backend",
-        [sys.executable, "-m", "pytest", "-q", "-m", "not rag and not startup_isolation"],
-        cwd=BACKEND_DIR,
+        "Compile backend",
+        [sys.executable, "-m", "compileall", "backend", "scripts", "tests"],
+        cwd=REPO_ROOT,
     )
     run_step(
-        "Pytest backend RAG disabled startup isolation",
-        [sys.executable, "-m", "pytest", "tests/test_rag_disabled_startup.py", "-q"],
-        cwd=BACKEND_DIR,
+        "Ruff backend",
+        [sys.executable, "-m", "ruff", "check", "backend", "scripts", "tests"],
+        cwd=REPO_ROOT,
+    )
+    run_step("Mypy backend", [sys.executable, "-m", "mypy", "backend"], cwd=REPO_ROOT)
+    run_step(
+        "Pytest backend (excluding RAG and startup isolation)",
+        [sys.executable, "-m", "pytest", "-q", "-m", "not rag and not startup_isolation"],
+        cwd=REPO_ROOT,
+    )
+    run_step(
+        "Pytest backend startup isolation",
+        [sys.executable, "-m", "pytest", "backend/tests/test_rag_disabled_startup.py", "-q"],
+        cwd=REPO_ROOT,
     )
 
     npm = npm_command()
     run_step("Frontend install", [npm, "ci"], cwd=FRONTEND_DIR)
+    run_audit_step("Frontend production audit", [npm, "audit", "--omit=dev", "--json"])
+    run_audit_step("Frontend full audit", [npm, "audit", "--json"])
     run_step("Frontend typecheck", [npm, "run", "typecheck"], cwd=FRONTEND_DIR)
     run_step("Frontend lint", [npm, "run", "lint"], cwd=FRONTEND_DIR)
     run_step("Frontend format check", [npm, "run", "format:check"], cwd=FRONTEND_DIR)
     run_step("Frontend tests", [npm, "run", "test:ci"], cwd=FRONTEND_DIR)
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
-    run_step("Frontend production dependency audit", [npm, "audit", "--omit=dev"], cwd=FRONTEND_DIR)
-    run_step("Frontend full dependency audit", [npm, "audit"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
 
 
 def require_rag_dependencies() -> None:
     if importlib.util.find_spec("chromadb") is None:
-        raise OptionalStepSkipped(
-            "Optional RAG verification skipped because chromadb is not installed. "
-            "Install it with `pip install -r backend/requirements-rag.txt` to run this lane."
+        raise StepFailed(
+            "RAG verification requires `chromadb`. Install `backend/requirements-rag.txt` before running "
+            "`scripts/verify_delivery.py --include-rag`, `--mode rag`, or `--full`."
         )
 
 
@@ -338,8 +441,6 @@ def main() -> int:
             run_optional_advisory_checks()
         if selected_mode in {"rag", "full"} or args.include_rag:
             run_rag_verification()
-    except OptionalStepSkipped as exc:
-        print(f"\n{exc}")
     except StepFailed as exc:
         print(f"\nVerification failed: {exc}", file=sys.stderr)
         return 1

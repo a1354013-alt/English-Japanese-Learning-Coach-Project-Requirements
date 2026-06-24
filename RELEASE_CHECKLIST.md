@@ -11,32 +11,36 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 ## 2. Backend verification
 
-- Run `python -m compileall -q backend`
-- Run `python -m ruff check backend tests`
+- Confirm `python --version` reports `3.11.x`.
+- Run `python -m compileall backend scripts tests`
+- Run `python -m ruff check backend scripts tests`
 - Run `python -m mypy backend`
-- Run `python -m pytest backend/tests -q -m "not rag and not startup_isolation"`
-- Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q`
+- Run `python -m pytest -q -m "not rag and not startup_isolation"` from the repository root for the main backend test lane.
+- Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
 - Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
 
 ## 3. Frontend verification
 
-- Confirm `node -v` reports `22.18.0` or newer.
+- Run `nvm install`
+- Run `nvm use`
+- Confirm `node -v` reports `22.18.0`.
 - Run `cd frontend && npm ci`
 - Run `npm audit --omit=dev`
 - Run `npm audit`
 - Run `npm run typecheck`
 - Run `npm run lint`
 - Run `npm run format:check`
-- Run `npm run test:ci`
+- Run `npm run test:unit`
+- Run `npm run test:component`
 - Run `npm run build`
 
 ## 4. E2E verification
 
-- Run mocked smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && RUN_E2E=1 npm run test:e2e -- --project=chromium`
-- Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack:smoke -- --project=chromium`
-- Run full-stack smoke coverage with `cd frontend && npm ci && npx playwright install --with-deps chromium && npm run test:e2e:fullstack -- --project=chromium`
+- Run mocked smoke coverage with `cd frontend && npm ci && npm run e2e:install && RUN_E2E=1 npm run test:e2e -- --project=chromium`
+- Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack:smoke -- --project=chromium`
+- Run full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack -- --project=chromium`
 - Confirm the full-stack run resets deterministic demo data before the scenario and leaves the demo resettable afterward.
 - Confirm the stable lesson flow coverage still demonstrates `lesson generate -> review submit -> progress updated` without relying on a live Ollama model.
 
@@ -51,6 +55,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - If shipping containers, also run `docker compose build`
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
+- Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.
 
 ## 6. Finalize the release
 

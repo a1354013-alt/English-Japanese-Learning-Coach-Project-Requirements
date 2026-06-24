@@ -4,7 +4,7 @@
   "version": "1.2.0",
   "type": "module",
   "engines": {
-    "node": ">=22.18.0"
+    "node": "22.18.0"
   },
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,7 @@
     "test:unit": "vitest run src/utils src/services --config vitest.config.ts",
     "test:component": "vitest run src/views --config vitest.config.ts",
     "test:ci": "npm run test:unit && npm run test:component",
+    "e2e:install": "playwright install chromium",
     "test:e2e": "playwright test",
     "test:e2e:fullstack": "playwright test -c playwright.fullstack.config.ts",
     "test:e2e:fullstack:smoke": "playwright test -c playwright.fullstack.smoke.config.ts",

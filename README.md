@@ -96,7 +96,8 @@ Frontend environment variables:
 
 Runtime requirements:
 
-- Frontend tooling requires `Node.js >= 22.18.0` because the current Vite/Vitest dependency tree includes packages that no longer support Node 20.
+- Release verification is pinned to `Python 3.11.x`.
+- Frontend tooling and CI are pinned to `Node.js 22.18.0` via `.nvmrc`, `.node-version`, `frontend/package.json`, and GitHub Actions.
 
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
@@ -125,9 +126,10 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### Frontend
 
 ```bash
+nvm install
+nvm use
+node -v   # should print 22.18.0
 cd frontend
-node -v   # should be >= 22.18.0
-nvm use   # optional, uses the repo-pinned 22.18.0 from .nvmrc / .node-version
 npm ci
 npm run dev
 ```
@@ -151,11 +153,11 @@ The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness i
 Standard backend checks:
 
 ```bash
-cd backend
-python -m compileall -q .
-python -m ruff check .
-python -m mypy .
-python -m pytest -q
+python -m compileall backend scripts tests
+python -m ruff check backend scripts tests
+python -m mypy backend
+python -m pytest -q -m "not rag and not startup_isolation"
+python -m pytest backend/tests/test_rag_disabled_startup.py -q
 ```
 
 Optional RAG smoke check:
@@ -177,14 +179,14 @@ Test lanes at a glance:
 
 ```bash
 cd frontend
-node -v   # should be >= 22.18.0
 npm ci
-npm audit
 npm audit --omit=dev
+npm audit
 npm run typecheck
 npm run lint
 npm run format:check
-npm run test:ci
+npm run test:unit
+npm run test:component
 npm run build
 ```
 
@@ -192,9 +194,8 @@ npm run build
 
 ```bash
 cd frontend
-node -v   # should be >= 22.18.0
 npm ci
-npx playwright install --with-deps chromium
+npm run e2e:install
 RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
 
@@ -213,9 +214,8 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-node -v   # should be >= 22.18.0
 npm ci
-npx playwright install --with-deps chromium
+npm run e2e:install
 npm run test:e2e:fullstack -- --project=chromium
 ```
 
@@ -246,9 +246,8 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 cd frontend
-node -v   # should be >= 22.18.0
 npm ci
-npx playwright install --with-deps chromium
+npm run e2e:install
 npm run test:e2e:fullstack:smoke -- --project=chromium
 ```
 
@@ -310,11 +309,12 @@ This project is intended to demonstrate engineering quality rather than flashy f
 
 ## Troubleshooting
 
-- Node version: use `>= 22.18.0`. The repo also pins this in `.nvmrc` and `.node-version`.
+- Python version: use `3.11.x` for the same toolchain that CI and `scripts/verify_delivery.py` enforce.
+- Node version: use `22.18.0`. The repo pins this in `.nvmrc`, `.node-version`, `frontend/package.json`, and GitHub Actions.
 - Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `python -m pytest backend/tests -q -m rag`.
 - Ollama not running: standard tests and `/api/health` should still work; check `/api/ready` for optional dependency status.
 - Frontend API base URL: `VITE_API_BASE_URL` controls REST calls, and WebSocket URLs are derived from the current host or API origin instead of hardcoded `localhost`.
-- Playwright browser install: run `npx playwright install --with-deps chromium` before E2E if browsers are missing.
+- Playwright browser install: run `cd frontend && npm run e2e:install` before the first local E2E run if Chromium is missing.
 
 ## Release Delivery
 
@@ -326,7 +326,9 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` defaults to the standard release gate and includes backend compile/lint/type/test checks, frontend install/type/lint/format/test/build checks, `npm audit --omit=dev`, full `npm audit`, version consistency, and release zip validation. `--full` adds explicitly labelled optional advisory checks and the optional RAG lane when dependencies are available; skipped optional checks are reported with the reason. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps and [TEST_PLAN.md](TEST_PLAN.md) for the reproducible validation command set.
 
 ## License
 
