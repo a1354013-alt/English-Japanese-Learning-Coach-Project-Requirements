@@ -478,7 +478,8 @@ class Database:
         with self.get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT lesson_id, exercise_type, total_questions, correct_count, accuracy_rate, submitted_at
+                SELECT lesson_id, exercise_type, total_questions, correct_count, accuracy_rate,
+                       latest_correct_count, latest_accuracy_rate, submitted_at
                 FROM exercise_results
                 WHERE user_id = ?
                 ORDER BY submitted_at DESC

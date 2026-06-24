@@ -18,6 +18,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `pytest`
 - Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
+- If Docker is part of the release, confirm the backend image still installs CJK-capable PDF fonts (`fonts-noto-cjk` plus `fontconfig` or equivalent) so Japanese and Chinese exports do not silently regress to broken glyph rendering.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
 
 ## 3. Frontend verification
@@ -52,6 +53,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 - Run `docker compose config`
 - If shipping containers, also run `docker compose build`
+- Smoke-check PDF export with Japanese or Chinese content and confirm it completes without backend errors; if a CJK font is missing, the app should log a clear warning instead of failing silently.
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
 - Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.

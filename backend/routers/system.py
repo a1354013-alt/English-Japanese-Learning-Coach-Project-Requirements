@@ -132,7 +132,10 @@ async def get_analytics(user_id: str = Depends(require_demo_user_id)):
     accuracy_trend: List[Dict[str, Any]] = [
         {
             "lesson_id": result.get("lesson_id"),
-            "accuracy_rate": result.get("accuracy_rate"),
+            "latest_accuracy_rate": result.get("latest_accuracy_rate")
+            if result.get("latest_accuracy_rate") is not None
+            else result.get("accuracy_rate"),
+            "best_accuracy_rate": result.get("accuracy_rate"),
             "submitted_at": result.get("submitted_at"),
         }
         for result in reversed(recent)

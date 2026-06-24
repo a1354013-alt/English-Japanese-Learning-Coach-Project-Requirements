@@ -62,7 +62,10 @@ def _safe_sink_write(sink, text: str) -> None:
         sink.write(text)
     except UnicodeEncodeError:
         if hasattr(sink, "buffer"):
-            encoded = text.encode(getattr(sink, "encoding", "utf-8") or "utf-8", errors="replace")
+            encoded = text.encode(
+                getattr(sink, "encoding", "utf-8") or "utf-8",
+                errors="replace",
+            )
             sink.buffer.write(encoded)
         else:
             sink.write(text.encode("ascii", errors="replace").decode("ascii"))
@@ -73,10 +76,10 @@ def npm_command() -> str:
     return "npm.cmd" if os.name == "nt" else "npm"
 
 
-<<<<<<< Updated upstream
 def npx_command() -> str:
     return "npx.cmd" if os.name == "nt" else "npx"
-=======
+
+
 def require_python_version() -> None:
     current = sys.version_info[:2]
     if current != PYTHON_VERSION:
@@ -99,14 +102,15 @@ def require_node_version() -> None:
     )
     if completed.returncode != 0:
         stderr = completed.stderr.strip()
-        raise StepFailed(f"Unable to read Node.js version with `{' '.join(command)}`: {stderr or 'unknown error'}")
+        raise StepFailed(
+            f"Unable to read Node.js version with `{' '.join(command)}`: {stderr or 'unknown error'}"
+        )
 
     version = completed.stdout.strip().removeprefix("v")
     if version != NODE_VERSION:
         raise StepFailed(
             f"Node.js {NODE_VERSION} is required for release verification; found {version or 'unknown'}"
         )
->>>>>>> Stashed changes
 
 
 def run_step(
@@ -222,14 +226,9 @@ def verify_version_consistency() -> None:
 
 
 def run_standard_verification() -> None:
-<<<<<<< Updated upstream
-    verify_version_consistency()
-    run_step("Compile backend", [sys.executable, "-m", "compileall", "backend"])
-    run_step("Ruff backend", [sys.executable, "-m", "ruff", "check", "."], cwd=BACKEND_DIR)
-    run_step("Mypy backend", [sys.executable, "-m", "mypy", "."], cwd=BACKEND_DIR)
-=======
     require_python_version()
     require_node_version()
+    verify_version_consistency()
     run_step(
         "Compile backend",
         [sys.executable, "-m", "compileall", "backend", "scripts", "tests"],
@@ -241,12 +240,7 @@ def run_standard_verification() -> None:
         cwd=REPO_ROOT,
     )
     run_step("Mypy backend", [sys.executable, "-m", "mypy", "backend"], cwd=REPO_ROOT)
->>>>>>> Stashed changes
-    run_step(
-        "Pytest backend",
-        [sys.executable, "-m", "pytest"],
-        cwd=REPO_ROOT,
-    )
+    run_step("Pytest backend", [sys.executable, "-m", "pytest"], cwd=REPO_ROOT)
 
     npm = npm_command()
     run_step("Frontend install", [npm, "ci"], cwd=FRONTEND_DIR)
@@ -257,7 +251,11 @@ def run_standard_verification() -> None:
     run_step("Frontend format check", [npm, "run", "format:check"], cwd=FRONTEND_DIR)
     run_step("Frontend tests", [npm, "run", "test:ci"], cwd=FRONTEND_DIR)
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
-    run_step("Frontend production dependency audit", [npm, "audit", "--omit=dev"], cwd=FRONTEND_DIR)
+    run_step(
+        "Frontend production dependency audit",
+        [npm, "audit", "--omit=dev"],
+        cwd=FRONTEND_DIR,
+    )
     run_step("Frontend full dependency audit", [npm, "audit"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
@@ -307,7 +305,7 @@ def run_optional_playwright_check() -> None:
         warn_skipped(
             "Playwright E2E",
             f"Chromium browser executable is not installed under {browser_root}. "
-            "Run `cd frontend && npx playwright install --with-deps chromium` to verify E2E locally.",
+            "Run `cd frontend && npm run e2e:install` to verify E2E locally.",
         )
         return
     run_step(
@@ -350,7 +348,12 @@ def run_optional_docker_check() -> None:
     if shutil.which("docker") is None:
         warn_skipped("Docker compose", "docker is not available.")
         return
-    result = subprocess.run(["docker", "compose", "version"], cwd=REPO_ROOT, text=True, capture_output=True)
+    result = subprocess.run(
+        ["docker", "compose", "version"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
     if result.returncode != 0:
         warn_skipped("Docker compose", "docker compose is not available.")
         return

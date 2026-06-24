@@ -18,8 +18,9 @@ FROM python:3.11-slim-bookworm AS runtime
 
 WORKDIR /app
 
-# Install only runtime dependencies (fonts for PDF export)
+# Install runtime dependencies for PDF export, including CJK fonts used by reportlab.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    fontconfig \
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean

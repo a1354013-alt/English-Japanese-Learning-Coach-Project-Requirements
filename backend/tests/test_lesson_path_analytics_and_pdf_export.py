@@ -1,4 +1,4 @@
-"""Lesson file key portability + analytics + PDF export smoke tests."""
+"""Lesson file key portability, analytics semantics, and PDF export smoke tests."""
 
 from pathlib import Path
 
@@ -31,7 +31,7 @@ def _make_app() -> FastAPI:
     return app
 
 
-def test_lesson_file_path_is_portable_key_and_loadable(tmp_path, monkeypatch):
+def _patch_isolated_state(tmp_path, monkeypatch) -> Database:
     test_db = Database(str(tmp_path / "t.db"))
 
     monkeypatch.setattr(database_module, "db", test_db, raising=False)
@@ -43,14 +43,32 @@ def test_lesson_file_path_is_portable_key_and_loadable(tmp_path, monkeypatch):
     monkeypatch.setattr(review_router, "db", test_db, raising=False)
     monkeypatch.setattr(imports_router, "db", test_db, raising=False)
 
-    gen = lesson_generator_module.LessonGenerator()
-    monkeypatch.setattr(gen, "_generate_with_model", _FailingModel()._generate_with_model, raising=True)
-    monkeypatch.setattr(lessons_router, "lesson_generator", gen, raising=False)
+    generator = lesson_generator_module.LessonGenerator()
+    monkeypatch.setattr(
+        generator,
+        "_generate_with_model",
+        _FailingModel()._generate_with_model,
+        raising=True,
+    )
+    monkeypatch.setattr(lessons_router, "lesson_generator", generator, raising=False)
+    return test_db
 
+
+def _generated_lesson_client(tmp_path, monkeypatch) -> tuple[TestClient, Database]:
+    test_db = _patch_isolated_state(tmp_path, monkeypatch)
     client = TestClient(_make_app())
-    r_gen = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "A1", "topic": "PathKey"})
-    assert r_gen.status_code == 200
-    lesson_id = r_gen.json()["lesson"]["metadata"]["lesson_id"]
+    return client, test_db
+
+
+def test_lesson_file_path_is_portable_key_and_loadable(tmp_path, monkeypatch):
+    client, test_db = _generated_lesson_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/generate/lesson",
+        json={"language": "EN", "difficulty": "A1", "topic": "PathKey"},
+    )
+    assert response.status_code == 200
+    lesson_id = response.json()["lesson"]["metadata"]["lesson_id"]
 
     meta = test_db.get_lesson(lesson_id, user_id="default_user")
     assert meta is not None
@@ -58,55 +76,58 @@ def test_lesson_file_path_is_portable_key_and_loadable(tmp_path, monkeypatch):
     assert not Path(stored).is_absolute()
     assert stored.replace("\\", "/").startswith("lessons/")
 
-    # Must be loadable through the API.
-    r_get = client.get(f"/api/lessons/{lesson_id}")
-    assert r_get.status_code == 200
-    assert r_get.json()["lesson"]["metadata"]["lesson_id"] == lesson_id
+    get_response = client.get(f"/api/lessons/{lesson_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["lesson"]["metadata"]["lesson_id"] == lesson_id
 
 
-def test_analytics_computes_from_db_sources(tmp_path, monkeypatch):
-    test_db = Database(str(tmp_path / "t.db"))
+def test_analytics_exposes_latest_and_best_accuracy_semantics(tmp_path, monkeypatch):
+    client, test_db = _generated_lesson_client(tmp_path, monkeypatch)
 
-    monkeypatch.setattr(database_module, "db", test_db, raising=False)
-    monkeypatch.setattr(gamification_module, "db", test_db, raising=False)
-    monkeypatch.setattr(lesson_ops_module, "db", test_db, raising=False)
-    monkeypatch.setattr(lesson_generator_module, "db", test_db, raising=False)
-    monkeypatch.setattr(system_router, "db", test_db, raising=False)
-    monkeypatch.setattr(lessons_router, "db", test_db, raising=False)
-    monkeypatch.setattr(review_router, "db", test_db, raising=False)
-    monkeypatch.setattr(imports_router, "db", test_db, raising=False)
-
-    gen = lesson_generator_module.LessonGenerator()
-    monkeypatch.setattr(gen, "_generate_with_model", _FailingModel()._generate_with_model, raising=True)
-    monkeypatch.setattr(lessons_router, "lesson_generator", gen, raising=False)
-
-    client = TestClient(_make_app())
-
-    # Generate + review once to create progress/exercise_result sources.
-    lesson = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "A1", "topic": "Analytics"}).json()["lesson"]
+    lesson = client.post(
+        "/api/generate/lesson",
+        json={"language": "EN", "difficulty": "A1", "topic": "Analytics"},
+    ).json()["lesson"]
     lesson_id = lesson["metadata"]["lesson_id"]
-    g0 = lesson["grammar"]["exercises"][0]
-    r0 = lesson["reading"]["questions"][0]
-    answers = [
+    grammar = lesson["grammar"]["exercises"][0]
+    reading = lesson["reading"]["questions"][0]
+
+    perfect_answers = [
         {
             "lesson_id": lesson_id,
             "exercise_type": "grammar",
             "question_index": 0,
-            "user_answer": g0["correct_answer"],
-            "correct_answer": g0["correct_answer"],
+            "user_answer": grammar["correct_answer"],
+            "correct_answer": grammar["correct_answer"],
         },
         {
             "lesson_id": lesson_id,
             "exercise_type": "reading",
             "question_index": 0,
-            "user_answer": r0["correct_answer"],
-            "correct_answer": r0["correct_answer"],
+            "user_answer": reading["correct_answer"],
+            "correct_answer": reading["correct_answer"],
         },
     ]
-    r_review = client.post("/api/review", json=answers)
-    assert r_review.status_code == 200
+    lower_answers = [
+        {
+            "lesson_id": lesson_id,
+            "exercise_type": "grammar",
+            "question_index": 0,
+            "user_answer": "wrong answer",
+            "correct_answer": grammar["correct_answer"],
+        },
+        {
+            "lesson_id": lesson_id,
+            "exercise_type": "reading",
+            "question_index": 0,
+            "user_answer": reading["correct_answer"],
+            "correct_answer": reading["correct_answer"],
+        },
+    ]
 
-    # Seed wrong answers to drive hardest_words/weakest_category.
+    assert client.post("/api/review", json=perfect_answers).status_code == 200
+    assert client.post("/api/review", json=lower_answers).status_code == 200
+
     test_db.upsert_wrong_answer(
         user_id="default_user",
         language="EN",
@@ -126,46 +147,35 @@ def test_analytics_computes_from_db_sources(tmp_path, monkeypatch):
         source_lesson_id=lesson_id,
     )
 
-    r = client.get("/api/analytics")
-    assert r.status_code == 200
-    payload = r.json()["analytics"]
+    response = client.get("/api/analytics")
+    assert response.status_code == 200
+    payload = response.json()["analytics"]
     assert payload["lessons_completed"] >= 1
-    assert isinstance(payload["accuracy_trend"], list)
     assert payload["hardest_words"]
     assert payload["hardest_words"][0]["mistakes"] >= 1
+    assert payload["accuracy_trend"][0]["latest_accuracy_rate"] == 50.0
+    assert payload["accuracy_trend"][0]["best_accuracy_rate"] == 100.0
 
 
 def test_pdf_export_endpoint_returns_pdf(tmp_path, monkeypatch):
-    test_db = Database(str(tmp_path / "t.db"))
-
-    monkeypatch.setattr(database_module, "db", test_db, raising=False)
-    monkeypatch.setattr(gamification_module, "db", test_db, raising=False)
-    monkeypatch.setattr(lesson_ops_module, "db", test_db, raising=False)
-    monkeypatch.setattr(lesson_generator_module, "db", test_db, raising=False)
-    monkeypatch.setattr(system_router, "db", test_db, raising=False)
-    monkeypatch.setattr(lessons_router, "db", test_db, raising=False)
-    monkeypatch.setattr(review_router, "db", test_db, raising=False)
-    monkeypatch.setattr(imports_router, "db", test_db, raising=False)
-
-    # Route PDF exports into tmp to avoid polluting the repo.
+    _patch_isolated_state(tmp_path, monkeypatch)
     exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
     monkeypatch.setattr(export_service_module, "pdf_exporter", exporter, raising=False)
     monkeypatch.setattr(imports_router, "pdf_exporter", exporter, raising=False)
 
-    gen = lesson_generator_module.LessonGenerator()
-    monkeypatch.setattr(gen, "_generate_with_model", _FailingModel()._generate_with_model, raising=True)
-    monkeypatch.setattr(lessons_router, "lesson_generator", gen, raising=False)
-
     client = TestClient(_make_app())
-    lesson_id = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "A1", "topic": "PDF"}).json()["lesson"]["metadata"]["lesson_id"]
+    lesson_id = client.post(
+        "/api/generate/lesson",
+        json={"language": "EN", "difficulty": "A1", "topic": "PDF"},
+    ).json()["lesson"]["metadata"]["lesson_id"]
 
-    r = client.get(f"/api/export/pdf/{lesson_id}")
-    assert r.status_code == 200
-    assert r.headers.get("content-type", "").startswith("application/pdf")
-    assert r.content[:4] == b"%PDF"
+    response = client.get(f"/api/export/pdf/{lesson_id}")
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/pdf")
+    assert response.content[:4] == b"%PDF"
 
 
-def test_pdf_export_escapes_special_characters_and_supports_cjk(tmp_path):
+def test_pdf_export_handles_special_characters_and_cjk_text(tmp_path):
     exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
     pdf_path = exporter.export_lesson(
         {
@@ -173,31 +183,41 @@ def test_pdf_export_escapes_special_characters_and_supports_cjk(tmp_path):
                 "lesson_id": "special-pdf",
                 "language": "JP",
                 "level": "N4",
-                "topic": '<tag> & "quotes" 中文 日本語',
+                "topic": '<tag> & "quotes" 日本語 中文',
             },
             "vocabulary": [
                 {
                     "word": "<danger>",
-                    "definition_zh": '中文 & 日本語 "ok"',
+                    "definition_zh": '中文解釋 & 日本語 "ok"',
                     "example_sentence": 'Use <tag> & keep "quotes".',
-                    "example_translation": "中文例句與日本語の例文",
+                    "example_translation": "保留特殊字元與日文內容。",
                 }
             ],
             "grammar": {
                 "title": "<grammar>",
                 "explanation": 'A & B < C > D "quoted"',
-                "exercises": [{"question": "<q1>", "correct_answer": "&answer"}],
+                "exercises": [
+                    {"question": "<q1>", "correct_answer": "&answer"}
+                ],
             },
             "reading": {
-                "content": '第一行 <tag>\n第二行 & "quotes"\n日本語テキスト',
-                "questions": [{"question": "<what>", "correct_answer": "中文答案"}],
+                "content": '日本語の文章 <tag>\n中文段落 & "quotes"\nKeep all content.',
+                "questions": [
+                    {"question": "<what>", "correct_answer": "日本語と中文"}
+                ],
             },
             "dialogue": {
                 "scenario": "<scene>",
                 "context": 'A & B "quoted"',
-                "dialogue": [{"speaker": "<A>", "text": 'こんにちは & <tag>', "translation": "你好"}],
+                "dialogue": [
+                    {
+                        "speaker": "<A>",
+                        "text": "こんにちは & <tag>",
+                        "translation": "你好",
+                    }
+                ],
             },
-            "evidence": [{"source": "<pdf>", "text": '證據 & エビデンス "ok"'}],
+            "evidence": [{"source": "<pdf>", "text": '證據 & 日本語 "ok"'}],
         }
     )
 
@@ -215,7 +235,14 @@ def test_pdf_export_handles_empty_content_without_crashing(tmp_path):
                 "level": "A1",
                 "topic": "",
             },
-            "vocabulary": [{"word": "", "definition_zh": "", "example_sentence": "", "example_translation": ""}],
+            "vocabulary": [
+                {
+                    "word": "",
+                    "definition_zh": "",
+                    "example_sentence": "",
+                    "example_translation": "",
+                }
+            ],
             "grammar": {"title": "", "explanation": "", "exercises": []},
             "reading": {"content": "", "questions": []},
             "dialogue": {"scenario": "", "context": "", "dialogue": []},
@@ -225,3 +252,32 @@ def test_pdf_export_handles_empty_content_without_crashing(tmp_path):
 
     assert pdf_path.exists()
     assert pdf_path.read_bytes()[:4] == b"%PDF"
+
+
+def test_pdf_export_logs_warning_when_cjk_font_is_unavailable(tmp_path, caplog):
+    caplog.set_level("WARNING")
+    exporter = PDFExporter(
+        output_dir=str(tmp_path / "exports"),
+        font_paths=["/missing/font.ttf"],
+    )
+
+    pdf_path = exporter.export_lesson(
+        {
+            "metadata": {
+                "lesson_id": "fallback-font",
+                "language": "JP",
+                "level": "N5",
+                "topic": "Japanese PDF",
+            },
+            "vocabulary": [],
+            "grammar": {"title": "", "explanation": "", "exercises": []},
+            "reading": {"content": "日本語のPDF", "questions": []},
+            "dialogue": {"scenario": "", "context": "", "dialogue": []},
+            "evidence": [],
+        }
+    )
+
+    assert exporter.font_name == "Helvetica"
+    assert exporter.font_warning is not None
+    assert "No CJK font was found" in caplog.text
+    assert pdf_path.exists()

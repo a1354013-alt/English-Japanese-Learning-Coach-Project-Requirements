@@ -91,7 +91,18 @@
               class="trend-point"
             >
               <div class="trend-value">
-                {{ Number(p.accuracy_rate).toFixed(1) }}%
+                {{
+                  t('analytics.latestAccuracyValue', {
+                    rate: Number(p.latest_accuracy_rate).toFixed(1),
+                  })
+                }}
+              </div>
+              <div class="trend-meta">
+                {{
+                  t('analytics.bestAccuracyValue', {
+                    rate: Number(p.best_accuracy_rate).toFixed(1),
+                  })
+                }}
               </div>
               <div class="trend-meta">
                 {{ new Date(p.submitted_at).toLocaleDateString() }}
