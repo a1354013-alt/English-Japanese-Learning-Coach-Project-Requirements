@@ -1,4 +1,7 @@
 export type Language = 'EN' | 'JP'
+export type EnglishLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1'
+export type JapaneseLevel = 'N5' | 'N4' | 'N3' | 'N2' | 'N1'
+export type LearningLevel = EnglishLevel | JapaneseLevel
 export type DifficultyMode = 'easy' | 'normal' | 'hardcore'
 
 export type ErrorType = 'spelling' | 'grammar' | 'vocabulary' | 'comprehension'
@@ -212,17 +215,17 @@ export interface WritingSubmission {
   language: Language
   text: string
   topic?: string
-  target_level?: string
+  target_level?: LearningLevel | ''
 }
 
 export interface TtsRequest {
   text: string
-  language: string
+  language: Language
 }
 
 export interface OnboardRequest {
   language: Language
-  level: string
+  level: LearningLevel
   difficulty: DifficultyMode
 }
 
@@ -273,7 +276,7 @@ export interface StudyPlan {
 export interface GenerateLessonRequest {
   language: Language
   topic?: string
-  difficulty?: string
+  difficulty?: LearningLevel
   interest_context?: string
 }
 

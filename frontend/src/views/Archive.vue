@@ -111,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+import axios from 'axios'
 import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -121,6 +122,7 @@ import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi, lessonApi } from '@/services/api'
 import { showNotice } from '@/services/appFeedback'
 import type { Language, LessonListItem } from '@/types'
+import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 
 withDefaults(defineProps<{ embedded?: boolean }>(), {
   embedded: false,
@@ -177,7 +179,9 @@ const handleExcelUpload = async (event: Event) => {
     await loadLessons()
   } catch (err) {
     console.error(err)
-    error.value = t('archive.excelImportError')
+    error.value = axios.isAxiosError(err)
+      ? formatApiErrorDetail(err.response?.data)
+      : t('archive.excelImportError')
   } finally {
     ;(event.target as HTMLInputElement).value = ''
   }
@@ -192,7 +196,9 @@ const handleRagUpload = async (event: Event) => {
     await importApi.uploadRagMaterial(lang, file)
   } catch (err) {
     console.error(err)
-    error.value = t('archive.ragUploadError')
+    error.value = axios.isAxiosError(err)
+      ? formatApiErrorDetail(err.response?.data)
+      : t('archive.ragUploadError')
   } finally {
     ;(event.target as HTMLInputElement).value = ''
   }

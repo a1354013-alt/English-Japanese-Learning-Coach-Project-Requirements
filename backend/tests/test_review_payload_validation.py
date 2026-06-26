@@ -155,3 +155,22 @@ def test_srs_endpoints_reject_invalid_language(tmp_path, monkeypatch):
         json={"word": "hello", "language": "FR", "quality": 3},
     )
     assert review_response.status_code == 422
+
+
+def test_lesson_and_onboarding_reject_invalid_language_level_pairs(tmp_path, monkeypatch):
+    client = _setup_isolated_app(tmp_path, monkeypatch)
+
+    invalid_language = client.post("/api/generate/lesson", json={"language": "FR", "difficulty": "A1"})
+    assert invalid_language.status_code == 422
+
+    invalid_english_level = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "N5"})
+    assert invalid_english_level.status_code == 422
+
+    unsupported_english_level = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "C2"})
+    assert unsupported_english_level.status_code == 422
+
+    valid_japanese_level = client.post("/api/generate/lesson", json={"language": "JP", "difficulty": "N5"})
+    assert valid_japanese_level.status_code == 200
+
+    invalid_onboarding = client.post("/api/onboard", json={"language": "JP", "level": "A1", "difficulty": "normal"})
+    assert invalid_onboarding.status_code == 422

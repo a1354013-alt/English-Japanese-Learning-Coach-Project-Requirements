@@ -4,10 +4,29 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, TypeAlias
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, StrictInt, StrictStr
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
+from time_utils import local_now
 
 LanguageCode: TypeAlias = Literal["EN", "JP"]
+EnglishLevel: TypeAlias = Literal["A1", "A2", "B1", "B2", "C1"]
+JapaneseLevel: TypeAlias = Literal["N5", "N4", "N3", "N2", "N1"]
+LearningLevel: TypeAlias = EnglishLevel | JapaneseLevel
 DifficultyMode: TypeAlias = Literal["easy", "normal", "hardcore"]
+
+
+def _validate_level_for_language(language: LanguageCode, level: str) -> str:
+    valid_levels = {"A1", "A2", "B1", "B2", "C1"} if language == "EN" else {"N5", "N4", "N3", "N2", "N1"}
+    if level not in valid_levels:
+        expected = ", ".join(sorted(valid_levels))
+        raise ValueError(f"level must be one of {expected} for language {language}")
+    return level
 
 
 # ============ Vocabulary Models ============
@@ -114,7 +133,7 @@ class LessonMetadata(BaseModel):
     language: LanguageCode
     level: str  # CEFR (A1-C2) for EN, JLPT (N5-N1) for JP
     topic: str
-    generated_at: datetime = Field(default_factory=datetime.now)
+    generated_at: datetime = Field(default_factory=local_now)
     estimated_duration_minutes: int
     key_points: List[str]
 
@@ -148,7 +167,7 @@ class GenerationTask(BaseModel):
     duration_ms: int = 0
     error_message: Optional[str] = None
     retry_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=local_now)
 
 class ErrorType(str, Enum):
     SPELLING = "spelling"
@@ -218,7 +237,7 @@ class UserProgress(BaseModel):
     english_progress: LanguageProgress
     japanese_progress: LanguageProgress
     rpg_stats: UserRPGStats = Field(default_factory=UserRPGStats)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=local_now)
 
 
 # ============ Review Models ============
@@ -317,7 +336,20 @@ class WritingSubmission(BaseModel):
     language: LanguageCode
     text: str
     topic: Optional[str] = None
-    target_level: Optional[str] = None
+    target_level: Optional[LearningLevel] = None
+
+    @field_validator("target_level", mode="before")
+    @classmethod
+    def empty_target_level_is_unset(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
+
+    @model_validator(mode="after")
+    def validate_target_level_matches_language(self) -> "WritingSubmission":
+        if self.target_level is not None:
+            _validate_level_for_language(self.language, self.target_level)
+        return self
 
 # ============ Study Plan Models ============
 class StudyMilestone(BaseModel):
@@ -334,26 +366,37 @@ class StudyPlan(BaseModel):
     user_id: str = "default_user"
     target_goal: str  # e.g., "TOEIC 800", "JLPT N2"
     language: LanguageCode
-    start_date: datetime = Field(default_factory=datetime.now)
+    start_date: datetime = Field(default_factory=local_now)
     end_date: datetime
     milestones: List[StudyMilestone]
     daily_commitment_minutes: int
     focus_areas: List[str]
-    generated_at: datetime = Field(default_factory=datetime.now)
+    generated_at: datetime = Field(default_factory=local_now)
 
 # ============ API Request Models ============
 class GenerateLessonRequest(BaseModel):
     """Request to generate a new lesson"""
     language: LanguageCode
     topic: Optional[str] = None
-    difficulty: Optional[str] = None  # If not provided, use current progress level
+    difficulty: Optional[LearningLevel] = None  # If not provided, use current progress level
     interest_context: Optional[str] = None  # User uploaded article or interest
+
+    @model_validator(mode="after")
+    def validate_difficulty_matches_language(self) -> "GenerateLessonRequest":
+        if self.difficulty is not None:
+            _validate_level_for_language(self.language, self.difficulty)
+        return self
 
 
 class OnboardRequest(BaseModel):
     language: LanguageCode
-    level: str
+    level: LearningLevel
     difficulty: DifficultyMode
+
+    @model_validator(mode="after")
+    def validate_level_matches_language(self) -> "OnboardRequest":
+        _validate_level_for_language(self.language, self.level)
+        return self
 
 
 class StudyPlanGenerateRequest(BaseModel):
@@ -363,7 +406,7 @@ class StudyPlanGenerateRequest(BaseModel):
 
 class TtsGenerateRequest(BaseModel):
     text: str
-    language: str
+    language: LanguageCode
 
 
 class SrsReviewRequest(BaseModel):
@@ -377,7 +420,7 @@ class LessonQueryParams(BaseModel):
     language: Optional[LanguageCode] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    level: Optional[str] = None
+    level: Optional[LearningLevel] = None
     topic: Optional[str] = None
     limit: int = 20
     offset: int = 0

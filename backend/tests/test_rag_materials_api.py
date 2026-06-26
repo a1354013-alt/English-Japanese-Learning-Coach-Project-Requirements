@@ -70,6 +70,19 @@ def test_rag_list_delete_smoke(monkeypatch):
     assert r_del_missing.json()["detail"] == "Material not found"
 
 
+def test_rag_upload_rejects_invalid_language(monkeypatch):
+    stub = _StubRag()
+    monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
+
+    app = FastAPI()
+    app.include_router(imports_router.router)
+    client = TestClient(app)
+
+    files = {"file": ("a.txt", b"hello world", "text/plain")}
+    response = client.post("/api/rag/upload?language=FR", files=files)
+    assert response.status_code == 422
+
+
 def test_rag_delete_surface_underlying_failure(monkeypatch):
     class _FailingDeleteStub(_StubRag):
         def delete_material(self, *, user_id: str, doc_id: str) -> bool:

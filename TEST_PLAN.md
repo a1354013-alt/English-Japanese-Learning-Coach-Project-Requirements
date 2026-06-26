@@ -26,6 +26,8 @@ python -m pytest -q -m "not rag and not startup_isolation"
 python -m pytest backend/tests/test_rag_disabled_startup.py -q
 ```
 
+Review contract coverage is included in backend pytest: the frontend must submit one answer for every grammar and reading question, and the API rejects incomplete, duplicate, out-of-range, or lesson-mismatched answers with `422`.
+
 ## Frontend
 
 ```bash

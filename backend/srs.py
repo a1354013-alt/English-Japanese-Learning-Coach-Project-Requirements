@@ -1,8 +1,10 @@
 """
 Spaced Repetition System (SRS) implementation using SM-2 algorithm
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any, Dict
+
+from time_utils import local_now
 
 
 class SM2:
@@ -33,7 +35,7 @@ class SM2:
                 "interval": 1,
                 "ease_factor": prev_ease_factor,
                 "repetition": 0,
-                "next_review": datetime.now() + timedelta(days=1)
+                "next_review": local_now() + timedelta(days=1)
             }
         
         # Calculate new ease factor
@@ -54,7 +56,7 @@ class SM2:
             "interval": new_interval,
             "ease_factor": new_ease_factor,
             "repetition": repetition + 1,
-            "next_review": datetime.now() + timedelta(days=new_interval)
+            "next_review": local_now() + timedelta(days=new_interval)
         }
 
 srs_engine = SM2()

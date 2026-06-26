@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Analytics from '@/views/Analytics.vue'
 import Materials from '@/views/Materials.vue'
+import LearningWorkspace from '@/views/LearningWorkspace.vue'
 import Progress from '@/views/Progress.vue'
 import TodayLesson from '@/views/TodayLesson.vue'
 import Vocabulary from '@/views/Vocabulary.vue'
@@ -368,6 +369,76 @@ describe('Materials.vue', () => {
     expect(wrapper.text()).toContain('Travel Notes')
     expect(wrapper.text()).toContain('EN')
     expect(wrapper.text()).toContain('2')
+  })
+
+  it('uses the embedded language prop and enables upload', async () => {
+    apiMocks.listRagMaterials.mockResolvedValueOnce(materialsPayload([]))
+
+    const wrapper = mount(Materials, {
+      props: { embedded: true, language: 'EN' },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('select').exists()).toBe(false)
+    expect(wrapper.get('input[type="file"]').attributes('disabled')).toBe(
+      undefined,
+    )
+    expect(apiMocks.listRagMaterials).toHaveBeenCalledWith('EN')
+  })
+
+  it('keeps the language selector on the standalone page', async () => {
+    apiMocks.listRagMaterials.mockResolvedValueOnce(materialsPayload([]))
+
+    const wrapper = mount(Materials)
+    await flushPromises()
+
+    expect(wrapper.find('select').exists()).toBe(true)
+    expect(wrapper.get('input[type="file"]').attributes('disabled')).toBe('')
+  })
+
+  it('shows backend upload details before falling back to a generic message', async () => {
+    apiMocks.listRagMaterials.mockResolvedValue(materialsPayload([]))
+    apiMocks.uploadRagMaterial.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: { data: { detail: 'RAG is disabled by configuration' } },
+    })
+
+    const wrapper = mount(Materials, {
+      props: { embedded: true, language: 'EN' },
+    })
+    await flushPromises()
+
+    const input = wrapper.get('input[type="file"]').element as HTMLInputElement
+    Object.defineProperty(input, 'files', {
+      value: [new File(['notes'], 'notes.txt', { type: 'text/plain' })],
+      configurable: true,
+    })
+    await wrapper.get('input[type="file"]').trigger('change')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('RAG is disabled by configuration')
+  })
+})
+
+describe('LearningWorkspace.vue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    routeState.query = {}
+  })
+
+  it('passes the selected workspace language into embedded Materials', async () => {
+    apiMocks.listRagMaterials.mockResolvedValue(materialsPayload([]))
+
+    const wrapper = mount(LearningWorkspace)
+    await flushPromises()
+
+    const materials = wrapper.getComponent(Materials)
+    expect(materials.props('language')).toBe('EN')
+
+    await wrapper.get('select.workspace-language').setValue('JP')
+    await flushPromises()
+
+    expect(wrapper.getComponent(Materials).props('language')).toBe('JP')
   })
 })
 

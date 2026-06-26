@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [1.2.0] - 2026-06-26
+
 ### Added
 
 - Backend quality gates with `ruff`, `mypy`, and a shared `pyproject.toml`.

@@ -6,7 +6,6 @@ import asyncio
 import logging
 from collections.abc import Coroutine
 from concurrent.futures import Future
-from datetime import datetime
 from typing import Any
 
 import pytz
@@ -15,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from config import settings
 from database import db
 from lesson_generator import lesson_generator
+from time_utils import local_now
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class LessonScheduler:
         loop.run_until_complete(coro)
 
     async def _generate_daily_lessons_async(self) -> None:
-        logger.info("daily_lesson_generation_started", extra={"started_at": datetime.now().isoformat()})
+        logger.info("daily_lesson_generation_started", extra={"started_at": local_now().isoformat()})
 
         user_id = settings.default_user_id
         today_en = db.get_today_lesson(user_id, "EN")
@@ -70,7 +70,7 @@ class LessonScheduler:
         else:
             logger.info("daily_lesson_already_exists", extra={"language": "JP"})
 
-        logger.info("daily_lesson_generation_completed", extra={"finished_at": datetime.now().isoformat()})
+        logger.info("daily_lesson_generation_completed", extra={"finished_at": local_now().isoformat()})
 
     def generate_daily_lessons(self) -> None:
         self._run_async_task(self._generate_daily_lessons_async())

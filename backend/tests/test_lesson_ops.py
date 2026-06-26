@@ -50,8 +50,8 @@ def test_score_answers_all_correct(minimal_lesson):
 
 
 def test_score_answers_ignores_out_of_range_index(minimal_lesson):
-    # When an answer has an out-of-range index, it is ignored.
-    # All actual questions are then treated as unanswered (wrong).
+    # The API validates and rejects incomplete/out-of-range payloads before scoring.
+    # The lower-level scorer still treats missing entries defensively for direct callers.
     answers = [
         ReviewAnswer(
             lesson_id="l1",
@@ -62,9 +62,7 @@ def test_score_answers_ignores_out_of_range_index(minimal_lesson):
         ),
     ]
     r = score_answers(minimal_lesson, answers)
-    # Both grammar (1) and reading (1) questions are unanswered, so correct_count=0
     assert r["correct_count"] == 0
-    # Both questions appear in incorrect_items as unanswered
     assert len(r["incorrect_items"]) == 2
     assert all(item["user_answer"] == "(no answer)" for item in r["incorrect_items"])
 

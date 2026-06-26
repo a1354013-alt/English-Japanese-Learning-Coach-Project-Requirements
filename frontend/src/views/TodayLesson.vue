@@ -106,7 +106,13 @@ import ReviewPanel from '@/components/lesson/ReviewPanel.vue'
 import VocabularySection from '@/components/lesson/VocabularySection.vue'
 import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
 import { requestConfirmation, showNotice } from '@/services/appFeedback'
-import type { Language, Lesson, ReviewResult, StreakResponse } from '@/types'
+import type {
+  Language,
+  LearningLevel,
+  Lesson,
+  ReviewResult,
+  StreakResponse,
+} from '@/types'
 import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
@@ -115,7 +121,7 @@ const { t } = useI18n()
 const request = reactive<{
   language: Language
   topic: string
-  difficulty: string
+  difficulty: LearningLevel
 }>({
   language: 'EN',
   topic: '',
@@ -142,7 +148,7 @@ const answers = reactive<{
 
 const currentLevels = computed(() =>
   request.language === 'EN'
-    ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+    ? ['A1', 'A2', 'B1', 'B2', 'C1']
     : ['N5', 'N4', 'N3', 'N2', 'N1'],
 )
 

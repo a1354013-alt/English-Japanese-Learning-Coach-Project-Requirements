@@ -9,10 +9,11 @@ from zoneinfo import ZoneInfo
 
 from config import settings
 from models import UserRPGStats
+from time_utils import local_now
 
 
 def _local_now() -> datetime:
-    return datetime.now(ZoneInfo(settings.timezone))
+    return local_now()
 
 
 class Database:
@@ -365,7 +366,7 @@ class Database:
                 "last_study_date": None,
             },
             "rpg_stats": UserRPGStats().model_dump(mode="json"),
-            "updated_at": datetime.now().isoformat(),
+            "updated_at": _local_now().isoformat(),
         }
 
     def get_progress(self, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -406,7 +407,7 @@ class Database:
                     json.dumps(progress_data["english_progress"], ensure_ascii=False, default=str),
                     json.dumps(progress_data["japanese_progress"], ensure_ascii=False, default=str),
                     json.dumps(progress_data.get("rpg_stats", {}), ensure_ascii=False, default=str),
-                    datetime.now().isoformat(),
+                    _local_now().isoformat(),
                 ),
             )
 
@@ -519,7 +520,7 @@ class Database:
                     task_data.get("duration_ms", 0),
                     task_data.get("error_message"),
                     task_data.get("retry_count", 0),
-                    task_data.get("created_at", datetime.now().isoformat()),
+                    task_data.get("created_at", _local_now().isoformat()),
                 ),
             )
 
@@ -607,7 +608,7 @@ class Database:
                     srs_data["ease_factor"],
                     srs_data["interval"],
                     srs_data["next_review"].isoformat(),
-                    datetime.now().isoformat(),
+                    _local_now().isoformat(),
                 ),
             )
 
@@ -618,7 +619,7 @@ class Database:
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         query = "SELECT * FROM srs_vocabulary WHERE user_id = ? AND next_review <= ?"
-        params: List[Any] = [user_id, datetime.now().isoformat()]
+        params: List[Any] = [user_id, _local_now().isoformat()]
 
         if language:
             query += " AND language = ?"
@@ -762,7 +763,7 @@ class Database:
             if removed_cards:
                 conn.execute(
                     "UPDATE progress SET rpg_stats = ?, updated_at = ? WHERE user_id = ?",
-                    (json.dumps(stats, ensure_ascii=False, default=str), datetime.now().isoformat(), user_id),
+                    (json.dumps(stats, ensure_ascii=False, default=str), _local_now().isoformat(), user_id),
                 )
 
             return True
@@ -809,7 +810,7 @@ class Database:
         correct_answer: str,
         source_lesson_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        now = datetime.now().isoformat()
+        now = _local_now().isoformat()
         key_source = source_lesson_id or ""
 
         with self.get_connection() as conn:
@@ -883,7 +884,7 @@ class Database:
         wrong_answer_id: int,
         status: str,
     ) -> Optional[Dict[str, Any]]:
-        now = datetime.now().isoformat()
+        now = _local_now().isoformat()
         with self.get_connection() as conn:
             cur = conn.execute(
                 """
@@ -916,7 +917,7 @@ class Database:
         wrong_answer_id: int,
         user_answer: str,
     ) -> Tuple[bool, Optional[Dict[str, Any]]]:
-        now = datetime.now().isoformat()
+        now = _local_now().isoformat()
         with self.get_connection() as conn:
             row = conn.execute(
                 "SELECT * FROM wrong_answers WHERE id = ? AND user_id = ?",
@@ -961,7 +962,7 @@ class Database:
         created_at: Optional[str] = None,
     ) -> None:
         activity_date = activity_date or self._local_date_str()
-        created_at = created_at or datetime.now().isoformat()
+        created_at = created_at or _local_now().isoformat()
 
         with self.get_connection() as conn:
             conn.execute(

@@ -167,7 +167,7 @@ export const progressApi = {
 
   async onboard(
     language: Language,
-    level: string,
+    level: OnboardRequest['level'],
     difficulty: OnboardRequest['difficulty'],
   ) {
     const payload: OnboardRequest = { language, level, difficulty }

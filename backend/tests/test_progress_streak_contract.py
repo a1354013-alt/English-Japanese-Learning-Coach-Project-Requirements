@@ -8,6 +8,7 @@ import demo_seed as demo_seed_module
 import gamification_engine as gamification_module
 import lesson_generator as lesson_generator_module
 import services.lesson_ops as lesson_ops_module
+import srs as srs_module
 from config import settings
 from database import Database
 from fastapi import FastAPI
@@ -134,3 +135,35 @@ def test_demo_reset_uses_local_timezone_for_streak_seed(tmp_path, monkeypatch):
     assert progress["streak"]["current_streak"] == streak["current_streak"]
     assert progress["streak"]["today_completed"] is True
     assert progress["progress"]["rpg_stats"]["streak_days"] == streak["current_streak"]
+
+
+def test_srs_due_uses_configured_local_timezone(tmp_path, monkeypatch):
+    test_db = _wire_test_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(settings, "timezone", "Asia/Taipei", raising=False)
+
+    due_now = datetime(2026, 5, 19, 0, 30, tzinfo=ZoneInfo(settings.timezone))
+    monkeypatch.setattr(database_module, "_local_now", lambda: due_now, raising=True)
+    monkeypatch.setattr(srs_module, "local_now", lambda: due_now, raising=True)
+
+    srs_data = srs_module.srs_engine.calculate(
+        quality=1,
+        prev_interval=0,
+        prev_ease_factor=2.5,
+        repetition=0,
+    )
+    test_db.update_srs_item(
+        "u1",
+        "hello",
+        "EN",
+        srs_data,
+        {"definition_zh": "greeting"},
+    )
+
+    before_due = due_now.replace(day=19, hour=23, minute=30)
+    monkeypatch.setattr(database_module, "_local_now", lambda: before_due, raising=True)
+    assert test_db.get_due_srs_items("u1", language="EN") == []
+
+    after_due = due_now.replace(day=20, hour=0, minute=31)
+    monkeypatch.setattr(database_module, "_local_now", lambda: after_due, raising=True)
+    due_items = test_db.get_due_srs_items("u1", language="EN")
+    assert [item["word"] for item in due_items] == ["hello"]

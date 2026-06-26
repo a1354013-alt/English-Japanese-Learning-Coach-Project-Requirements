@@ -24,6 +24,7 @@ from models import (
 )
 from ollama_client import ollama_client
 from rag_manager import rag_manager
+from time_utils import local_now
 
 
 class LessonGenerator:
@@ -128,7 +129,7 @@ class LessonGenerator:
                 "user_id": uid,
                 "status": "running",
                 "model_used": model,
-                "created_at": datetime.now().isoformat(),
+                "created_at": local_now().isoformat(),
             }
         )
 
@@ -148,7 +149,7 @@ class LessonGenerator:
                     "status": "success",
                     "model_used": model,
                     "duration_ms": int((time.time() - start_time) * 1000),
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": local_now().isoformat(),
                 }
             )
             return lesson
@@ -163,7 +164,7 @@ class LessonGenerator:
                         "model_used": model,
                         "error_message": str(err),
                         "duration_ms": int((time.time() - start_time) * 1000),
-                        "created_at": datetime.now().isoformat(),
+                        "created_at": local_now().isoformat(),
                     }
                 )
                 return fallback
@@ -176,7 +177,7 @@ class LessonGenerator:
                         "model_used": model,
                         "error_message": f"{err} | fallback_failed: {fallback_err}",
                         "duration_ms": int((time.time() - start_time) * 1000),
-                        "created_at": datetime.now().isoformat(),
+                        "created_at": local_now().isoformat(),
                     }
                 )
                 raise
@@ -233,7 +234,7 @@ class LessonGenerator:
             language=language,
             level=level,
             topic=topic,
-            generated_at=datetime.now(),
+            generated_at=local_now(),
             estimated_duration_minutes=45,
             key_points=[f"Topic: {topic}", f"Level: {level}"],
         )

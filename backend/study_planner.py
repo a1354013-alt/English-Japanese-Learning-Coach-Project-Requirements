@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 from models import LanguageCode, StudyMilestone, StudyPlan
 from ollama_client import ollama_client
+from time_utils import local_now
 
 
 class StudyPlanner:
@@ -37,7 +38,7 @@ class StudyPlanner:
             return self._fallback(user_id, target_goal, language)
 
     def _build_plan(self, user_id: str, target_goal: str, language: LanguageCode, data: Dict[str, Any]) -> StudyPlan:
-        start = datetime.now()
+        start = local_now()
         end = self._parse_datetime(data.get("end_date"), start + timedelta(days=90))
 
         milestones_value = data.get("milestones")
@@ -113,7 +114,7 @@ class StudyPlanner:
         ]
 
     def _fallback(self, user_id: str, target_goal: str, language: LanguageCode) -> StudyPlan:
-        start = datetime.now()
+        start = local_now()
         return StudyPlan(
             user_id=user_id,
             target_goal=target_goal,

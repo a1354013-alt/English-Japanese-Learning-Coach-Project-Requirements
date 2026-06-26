@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import io
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
 from pypdf import PdfReader
+from time_utils import local_now
 
 TEXT_ENCODINGS = ("utf-8", "utf-8-sig", "cp932", "big5")
 
@@ -35,7 +35,7 @@ def extract_text_from_upload(filename: str, contents: bytes) -> str:
 def build_material_metadata(*, filename: str, language: str, source_type: str | None = None) -> Dict[str, Any]:
     suffix = Path(filename).suffix.lower()
     resolved_source_type = source_type or ("pdf" if suffix == ".pdf" else "text")
-    timestamp = datetime.now().isoformat()
+    timestamp = local_now().isoformat()
     return {
         "title": Path(filename).name or "unknown",
         "source": Path(filename).name or "unknown",
@@ -43,4 +43,3 @@ def build_material_metadata(*, filename: str, language: str, source_type: str | 
         "source_type": resolved_source_type,
         "uploaded_at": timestamp,
     }
-

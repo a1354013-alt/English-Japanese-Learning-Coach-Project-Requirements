@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { formatApiErrorDetail } from './apiErrorDetail'
 
 describe('formatApiErrorDetail', () => {
-  it('prefers structured message/code payloads', () => {
+  it('uses structured message/code payloads when detail is absent', () => {
     expect(
       formatApiErrorDetail({
         error: true,
@@ -10,6 +10,17 @@ describe('formatApiErrorDetail', () => {
         code: 'rag_material_not_found',
       }),
     ).toBe('Material not found')
+  })
+
+  it('prefers backend detail over structured fallback message', () => {
+    expect(
+      formatApiErrorDetail({
+        error: true,
+        message: 'Upload failed',
+        code: 'rag_unavailable',
+        detail: 'RAG is disabled by configuration',
+      }),
+    ).toBe('RAG is disabled by configuration')
   })
 
   it('returns string detail from FastAPI', () => {

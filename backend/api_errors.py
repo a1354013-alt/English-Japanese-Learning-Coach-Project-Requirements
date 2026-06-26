@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from models import ApiErrorPayload
@@ -67,7 +68,7 @@ async def http_exception_handler(_: Request, exc: Exception) -> JSONResponse:
 async def validation_exception_handler(_: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, RequestValidationError):
         return await unhandled_exception_handler(_, exc)
-    errors = exc.errors()
+    errors = jsonable_encoder(exc.errors())
     message = "; ".join(str(item.get("msg", "Validation error")) for item in errors) or "Validation failed"
     return JSONResponse(
         status_code=422,

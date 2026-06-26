@@ -81,7 +81,7 @@ def test_generate_tts_returns_audio_url():
 
         response = client.post(
             "/api/tts",
-            json={"text": "Hello world", "language": "en-US"},
+            json={"text": "Hello world", "language": "EN"},
         )
         assert response.status_code == 200
         body = response.json()
@@ -97,7 +97,7 @@ def test_generate_tts_placeholder_returns_explicit_unavailable():
 
         response = client.post(
             "/api/tts",
-            json={"text": "Hello world", "language": "en-US"},
+            json={"text": "Hello world", "language": "EN"},
         )
         assert response.status_code == 200
         body = response.json()
@@ -108,3 +108,14 @@ def test_generate_tts_placeholder_returns_explicit_unavailable():
             "mode": "preview",
             "message": "TTS is integration-ready but no runtime provider is configured.",
         }
+
+
+def test_ai_tool_requests_reject_invalid_language_and_level():
+    response = client.post("/api/study-plan/generate", json={"target_goal": "TOEIC 800", "language": "FR"})
+    assert response.status_code == 422
+
+    response = client.post("/api/writing/analyze", json={"language": "EN", "text": "hello", "target_level": "N5"})
+    assert response.status_code == 422
+
+    response = client.post("/api/tts", json={"text": "Hello world", "language": "en-US"})
+    assert response.status_code == 422

@@ -9,6 +9,10 @@
             {{ t('workspace.subtitle') }}
           </p>
         </div>
+        <select v-model="selectedLanguage" class="workspace-language">
+          <option value="EN">{{ t('common.english') }}</option>
+          <option value="JP">{{ t('common.japanese') }}</option>
+        </select>
       </div>
 
       <div class="tab-list">
@@ -34,16 +38,20 @@
       </div>
 
       <div class="embedded-view">
-        <Materials v-if="currentTab === 'materials'" embedded />
+        <Materials
+          v-if="currentTab === 'materials'"
+          embedded
+          :language="selectedLanguage"
+        />
         <WritingCenter v-else-if="currentTab === 'writing'" embedded />
-        <ChatTutor v-else embedded />
+        <ChatTutor v-else embedded :language="selectedLanguage" />
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import ChatTutor from '@/views/ChatTutor.vue'
@@ -55,6 +63,7 @@ type WorkspaceTab = 'materials' | 'writing' | 'chat'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const selectedLanguage = ref<'EN' | 'JP'>('EN')
 
 const tabs = computed(() => [
   {
@@ -90,3 +99,9 @@ const setTab = (tab: WorkspaceTab) => {
   void router.replace({ path: '/workspace', query: { tab } })
 }
 </script>
+
+<style scoped>
+.workspace-language {
+  min-width: 140px;
+}
+</style>

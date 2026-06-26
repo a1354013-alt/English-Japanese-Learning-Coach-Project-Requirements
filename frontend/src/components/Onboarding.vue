@@ -50,10 +50,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { progressApi } from '@/services/api'
-import type { DifficultyMode, Language } from '@/types'
+import type { DifficultyMode, Language, LearningLevel } from '@/types'
 
 const emit = defineEmits<{ complete: [] }>()
 const { t } = useI18n()
@@ -61,7 +61,7 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const form = reactive<{
   language: Language
-  level: string
+  level: LearningLevel
   difficulty: DifficultyMode
 }>({
   language: 'EN',
@@ -71,8 +71,15 @@ const form = reactive<{
 
 const levels = computed(() =>
   form.language === 'EN'
-    ? ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+    ? ['A1', 'A2', 'B1', 'B2', 'C1']
     : ['N5', 'N4', 'N3', 'N2', 'N1'],
+)
+
+watch(
+  () => form.language,
+  () => {
+    form.level = form.language === 'EN' ? 'A1' : 'N5'
+  },
 )
 
 const submit = async () => {

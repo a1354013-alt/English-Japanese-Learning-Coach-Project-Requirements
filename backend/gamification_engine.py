@@ -2,12 +2,13 @@
 Gamification Engine for Language Coach
 Handles XP calculation, leveling, and achievements
 """
-from datetime import datetime, time
+from datetime import time
 from typing import Any, Dict, List, Literal
 
 from database import db
 from models import Achievement, UserRPGStats, WordCard
 from services.streak_service import get_streak_snapshot
+from time_utils import local_now
 
 AchievementRarity = Literal["common", "rare", "epic", "legendary"]
 WordCardRarity = Literal["C", "B", "A", "S", "SS"]
@@ -82,7 +83,7 @@ class GamificationEngine:
         rpg_stats = UserRPGStats(**rpg_stats_data)
         
         # 1. Early Bird Achievement (Study before 7:30 AM)
-        now = datetime.now()
+        now = local_now()
         if now.time() < time(7, 30):
             self._unlock_achievement(rpg_stats, "early_bird", "Early Bird", "Study before 7:30 AM", "🌅", "rare", unlocked_now)
             
@@ -114,7 +115,7 @@ class GamificationEngine:
         if not any(a.id == id for a in rpg_stats.achievements):
             new_achievement = Achievement(
                 id=id, title=title, description=desc, icon=icon, 
-                unlocked_at=datetime.now(), rarity=rarity
+                unlocked_at=local_now(), rarity=rarity
             )
             rpg_stats.achievements.append(new_achievement)
             unlocked_list.append(new_achievement)
@@ -142,7 +143,7 @@ class GamificationEngine:
             new_card = WordCard(
                 word=word,
                 rarity=rarity,
-                collected_at=datetime.now(),
+                collected_at=local_now(),
                 language=language
             )
             rpg_stats.word_cards.append(new_card)

@@ -5,10 +5,10 @@ from __future__ import annotations
 import importlib
 import re
 import uuid
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from config import settings
+from time_utils import local_now
 
 __all__ = ["DisabledRAGManager", "RAGManager", "rag_manager", "split_into_chunks"]
 
@@ -154,7 +154,7 @@ class _ChromaRAGManager:
     ) -> Dict[str, Any]:
         title = str(metadata.get("title") or metadata.get("source") or "unknown")
         source = str(metadata.get("source") or title)
-        uploaded_at = str(metadata.get("uploaded_at") or datetime.now().isoformat())
+        uploaded_at = str(metadata.get("uploaded_at") or local_now().isoformat())
         source_type = str(metadata.get("source_type") or "text")
         language = str(metadata.get("language") or "unknown")
         return {

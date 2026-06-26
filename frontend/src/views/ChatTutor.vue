@@ -74,8 +74,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { Language } from '@/types'
 import { resolveWebSocketBaseUrl } from '@/utils/wsUrl'
 
 interface Message {
@@ -90,18 +91,23 @@ type ConnectionStatus =
   | 'error'
   | 'disconnected'
 
-withDefaults(defineProps<{ embedded?: boolean }>(), {
-  embedded: false,
-})
+const props = withDefaults(
+  defineProps<{ embedded?: boolean; language?: Language }>(),
+  {
+    embedded: false,
+    language: undefined,
+  },
+)
 
 const { t } = useI18n()
-const selectedLanguage = ref('EN')
+const selectedLanguage = ref<Language>(props.language ?? 'EN')
 const inputText = ref('')
 const messages = ref<Message[]>([])
 const connectionStatus = ref<ConnectionStatus>('disconnected')
 const ws = ref<WebSocket | null>(null)
 const messagesContainer = ref<HTMLElement | null>(null)
 const reconnectAttempts = ref(0)
+const connectionId = ref(0)
 const maxReconnectAttempts = 5
 const wsBaseUrl = resolveWebSocketBaseUrl({
   wsBaseUrl: import.meta.env.VITE_WS_BASE_URL,
@@ -121,6 +127,9 @@ const languageLabel = () =>
   selectedLanguage.value === 'EN' ? t('common.english') : t('common.japanese')
 
 const connect = () => {
+  const activeConnectionId = connectionId.value + 1
+  connectionId.value = activeConnectionId
+
   if (ws.value) {
     ws.value.close()
   }
@@ -132,6 +141,7 @@ const connect = () => {
     ws.value = new WebSocket(wsUrl)
 
     ws.value.onopen = () => {
+      if (connectionId.value !== activeConnectionId) return
       connectionStatus.value = 'connected'
       reconnectAttempts.value = 0
       messages.value.push({
@@ -141,6 +151,7 @@ const connect = () => {
     }
 
     ws.value.onmessage = (event) => {
+      if (connectionId.value !== activeConnectionId) return
       try {
         const data = JSON.parse(event.data)
         if (data.text) {
@@ -156,10 +167,19 @@ const connect = () => {
     }
 
     ws.value.onerror = () => {
+      if (connectionId.value !== activeConnectionId) return
       connectionStatus.value = 'error'
     }
 
-    ws.value.onclose = () => {
+    ws.value.onclose = (event) => {
+      if (connectionId.value !== activeConnectionId) return
+      if (connectionStatus.value === 'error') {
+        return
+      }
+      if (event.code === 1000 || event.code === 1001) {
+        connectionStatus.value = 'disconnected'
+        return
+      }
       if (connectionStatus.value === 'connected') {
         handleReconnect()
       } else {
@@ -211,7 +231,18 @@ onMounted(() => {
   connect()
 })
 
+watch(
+  () => props.language,
+  (language) => {
+    if (language && language !== selectedLanguage.value) {
+      selectedLanguage.value = language
+      reconnect()
+    }
+  },
+)
+
 onUnmounted(() => {
+  connectionId.value++
   if (ws.value) {
     ws.value.close()
   }

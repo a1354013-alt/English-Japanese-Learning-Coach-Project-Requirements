@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Dict, List
 
 from api_errors import COMMON_ERROR_RESPONSES, api_error
@@ -21,6 +20,7 @@ from models import (
 from ollama_client import ollama_client
 from rag_manager import rag_manager
 from services.streak_service import get_streak_snapshot
+from time_utils import local_now
 from version import get_app_version
 
 from routers.deps import require_demo_user_id
@@ -37,7 +37,7 @@ async def root():
         "status": "healthy",
         "service": "Language Coach API",
         "version": APP_VERSION,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": local_now().isoformat(),
     }
 
 
@@ -51,7 +51,7 @@ async def health_check():
             "reachable": db_reachable,
             "ready": db_reachable,
         },
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": local_now().isoformat(),
     }
 
 
@@ -80,7 +80,7 @@ async def readiness_check():
             "ready": rag_manager.enabled,
             "error": rag_manager.init_error,
         },
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": local_now().isoformat(),
     }
 
 

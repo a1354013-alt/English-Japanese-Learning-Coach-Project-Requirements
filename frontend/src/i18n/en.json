@@ -126,12 +126,12 @@
     "submitError": "Unable to submit the review. Please try again later.",
     "exportError": "Unable to export the PDF. Please try again later.",
     "resetError": "Unable to reset the demo dataset. Please try again later.",
-    "submitPartialTitle": "Submit partial review?",
+    "submitPartialTitle": "Complete all questions",
     "reviewIncomplete": "Please answer all questions before submitting. Currently answered {answered} of {total}.",
     "resetDemoConfirmTitle": "Reset demo data?",
     "resetDemoConfirmMessage": "This will rebuild the seeded demo lesson, progress, and review data for the current demo user.",
     "answerAtLeastOne": "Please answer at least one question before submitting.",
-    "unansweredConfirm": "You answered {answered} of {total} questions. Unanswered questions will be counted as incorrect. Submit anyway?"
+    "unansweredConfirm": "Please answer all {total} questions before submitting. Currently answered {answered}."
   },
   "materials": {
     "title": "RAG Materials",

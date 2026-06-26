@@ -60,7 +60,7 @@ Production readiness note: this project currently runs as a single-user/local de
 - Answer grammar and reading questions
 - Click Submit Review
 - Re-submitting the same lesson is allowed: XP and completed lesson count are awarded once, progress keeps the best score for that lesson, and SRS is refreshed from the latest attempt
-- If you submit with unanswered questions, they are counted as incorrect by design
+- All grammar and reading questions must be answered before submission. The frontend blocks incomplete reviews, and the backend rejects incomplete, duplicate, out-of-range, or lesson-mismatched answers with a validation error.
 
 4. SRS review
 - Open Review page

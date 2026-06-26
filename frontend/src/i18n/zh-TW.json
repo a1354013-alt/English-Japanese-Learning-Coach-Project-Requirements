@@ -127,8 +127,8 @@
     "exportError": "目前無法匯出 PDF，請稍後再試。",
     "resetError": "目前無法重設 Demo 資料，請稍後再試。",
     "answerAtLeastOne": "請至少回答一題再送出。",
-    "unansweredConfirm": "你目前回答了 {answered} / {total} 題，未作答的題目會視為答錯。仍要送出嗎？",
-    "submitPartialTitle": "??????????",
+    "unansweredConfirm": "請先完成全部 {total} 題再送出，目前已作答 {answered} 題。",
+    "submitPartialTitle": "請完成所有題目",
     "reviewIncomplete": "請先完成所有題目再送出，目前已作答 {answered} / {total} 題。",
     "resetDemoConfirmTitle": "???? Demo ???",
     "resetDemoConfirmMessage": "?????? demo ?????????????????"

@@ -2,7 +2,6 @@
 import json
 import re
 import unicodedata
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -11,6 +10,7 @@ from config import settings
 from database import db
 from models import ReviewAnswer
 from srs import srs_engine
+from time_utils import local_now
 
 _ANSWER_PUNCTUATION_MAP = str.maketrans(
     {
@@ -163,7 +163,7 @@ def update_progress_after_review(
         target["correct_exercises"] += correct
     elif correct > previous_best_correct:
         target["correct_exercises"] += correct - previous_best_correct
-    target["last_study_date"] = datetime.now().isoformat()
+    target["last_study_date"] = local_now().isoformat()
     target["accuracy_rate"] = (
         (target["correct_exercises"] / target["total_exercises"] * 100) if target["total_exercises"] else 0.0
     )

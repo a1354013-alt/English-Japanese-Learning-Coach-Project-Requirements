@@ -3,7 +3,7 @@
     <div v-if="!embedded" class="panel row between center">
       <h2 style="margin: 0">{{ t('materials.title') }}</h2>
       <div class="row gap-sm center">
-        <select v-model="language" style="min-width: 140px">
+        <select v-model="selectedLanguage" style="min-width: 140px">
           <option value="">{{ t('common.all') }}</option>
           <option value="EN">{{ t('common.english') }}</option>
           <option value="JP">{{ t('common.japanese') }}</option>
@@ -91,7 +91,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import axios from 'axios'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmptyState from '@/components/state/EmptyState.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
@@ -99,13 +100,21 @@ import LoadingState from '@/components/state/LoadingState.vue'
 import { importApi } from '@/services/api'
 import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type { Language, RagMaterial } from '@/types'
+import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 
-withDefaults(defineProps<{ embedded?: boolean }>(), {
-  embedded: false,
-})
+const props = withDefaults(
+  defineProps<{ embedded?: boolean; language?: Language }>(),
+  {
+    embedded: false,
+    language: undefined,
+  },
+)
 
 const { t } = useI18n()
-const language = ref<'' | Language>('')
+const selectedLanguage = ref<'' | Language>('')
+const language = computed<'' | Language>(
+  () => props.language ?? selectedLanguage.value,
+)
 const materials = ref<RagMaterial[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -119,7 +128,9 @@ const load = async () => {
     materials.value = res.items
   } catch (e) {
     console.error(e)
-    error.value = t('materials.loadError')
+    error.value = axios.isAxiosError(e)
+      ? formatApiErrorDetail(e.response?.data)
+      : t('materials.loadError')
   } finally {
     loading.value = false
   }
@@ -138,7 +149,9 @@ const handleUpload = async (event: Event) => {
     await load()
   } catch (e) {
     console.error(e)
-    error.value = t('materials.uploadError')
+    error.value = axios.isAxiosError(e)
+      ? formatApiErrorDetail(e.response?.data)
+      : t('materials.uploadError')
   } finally {
     ;(event.target as HTMLInputElement).value = ''
   }
@@ -159,11 +172,22 @@ const remove = async (docId: string) => {
     await load()
   } catch (e) {
     console.error(e)
-    error.value = t('materials.deleteError')
+    error.value = axios.isAxiosError(e)
+      ? formatApiErrorDetail(e.response?.data)
+      : t('materials.deleteError')
   } finally {
     deletingId.value = null
   }
 }
 
 onMounted(load)
+
+watch(
+  () => props.language,
+  () => {
+    if (props.embedded) {
+      void load()
+    }
+  },
+)
 </script>
