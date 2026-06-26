@@ -136,6 +136,33 @@ npm run dev
 
 Then open [http://localhost:5173](http://localhost:5173).
 
+## VS Code F5 One-Click Development
+
+This repository includes a VS Code launch configuration for starting the frontend Vite development server and the backend FastAPI app together with a single F5 press.
+
+1. Open the project root in VS Code.
+2. Ensure your Python interpreter is set to the virtual environment or Python installation used for this project.
+3. Copy `backend/.env.example` to `backend/.env` if you do not already have `backend/.env`.
+4. Select the `F5: Backend + Frontend` configuration in the Run and Debug panel.
+5. Press F5.
+
+What happens:
+
+- VS Code runs the `Frontend Dev Server` background task in `frontend/`.
+- Vite starts and listens on the default port (`http://localhost:5173`).
+- VS Code launches the backend using `python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000` from `backend/`.
+- The backend is debug-ready and supports breakpoints through the Python extension.
+
+If you want only the backend debug session, choose `F5: Backend Only`.
+
+### Troubleshooting
+
+- Confirm the Python interpreter in VS Code is correct and can import backend dependencies.
+- Confirm `backend/.env` exists by copying `backend/.env.example`.
+- Run `cd backend && python -m pip install -r requirements.txt -r requirements-dev.txt` if dependencies are missing.
+- Run `cd frontend && npm ci` if `node_modules` is missing or outdated.
+- Check ports `8000` and `5173` are not already in use.
+
 ## Docker
 
 The provided Compose file starts the backend API only. The frontend is intended to run with `npm run dev` on the host during development.
