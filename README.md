@@ -146,6 +146,8 @@ docker compose up --build
 
 The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness is available at [http://localhost:8000/api/health](http://localhost:8000/api/health) and checks only app + DB basics. Readiness is available at [http://localhost:8000/api/ready](http://localhost:8000/api/ready) and reports Ollama/RAG status. The compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
 
+The backend image installs `fonts-noto-cjk` and `fontconfig` so PDF export can render Japanese and Chinese text reliably. The PDF exporter prefers an installed CJK font and logs a warning before falling back to Helvetica if no compatible font is available.
+
 ## Testing
 
 ### Backend
@@ -300,11 +302,13 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - Excel import is intentionally `.xlsx` only. The backend uses `openpyxl`, and the frontend/file validation/docs now match that contract.
 - RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored vectors are CJK-aware chunked per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
 - Re-submitted lesson reviews do not duplicate XP or completed lesson count; progress keeps the best per-lesson score while SRS reflects the latest attempt.
+- Review submission requires a complete answer set for every grammar and reading question; incomplete, duplicate, or out-of-range answers now return a clear `422` error instead of silently counting missing answers as wrong.
 - When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.
 - Playwright E2E is intentionally mocked at the API layer so CI does not depend on backend process startup, demo seed state, or real LLM/Ollama availability.
 - The separate full-stack Playwright suite validates the real seed-reset and persistence path without making every PR wait on a two-process browser test.
 - The full-stack smoke suite adds a shorter real-app connectivity check for every PR, push to `main`/`master`, and nightly run.
 - Lesson generation can fall back to deterministic sample content when the model path fails.
+- Analytics accuracy trend now exposes `latest_accuracy_rate` and `best_accuracy_rate` separately so repeated attempts do not blur current performance versus best historical score.
 - Demo reset rebuilds stable sample data for portfolio walkthroughs.
 
 ## Troubleshooting
@@ -329,6 +333,9 @@ python scripts/make_release_zip.py
 `scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps and [TEST_PLAN.md](TEST_PLAN.md) for the reproducible validation command set.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It now enforces Python `3.11.x`, Node `22.18.0`, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps, [TEST_PLAN.md](TEST_PLAN.md) for the reproducible validation command set, and [DEPLOYMENT.md](DEPLOYMENT.md) for Docker and PDF font deployment notes.
 
 ## License
 

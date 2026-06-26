@@ -93,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import axios from 'axios'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ErrorState from '@/components/state/ErrorState.vue'
@@ -106,6 +107,7 @@ import VocabularySection from '@/components/lesson/VocabularySection.vue'
 import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
 import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type { Language, Lesson, ReviewResult, StreakResponse } from '@/types'
+import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { buildReviewPayload } from '@/utils/buildReviewPayload'
 
 const { t } = useI18n()
@@ -235,16 +237,14 @@ const submitReview = async () => {
   }
 
   if (answeredQuestions.value < totalQuestions.value) {
-    const ok = await requestConfirmation({
-      title: t('today.submitPartialTitle'),
-      message: t('today.unansweredConfirm', {
+    showNotice(
+      t('today.reviewIncomplete', {
         answered: answeredQuestions.value,
         total: totalQuestions.value,
       }),
-      confirmLabel: t('today.submitReview'),
-      cancelLabel: t('common.cancel'),
-    })
-    if (!ok) return
+      'warning',
+    )
+    return
   }
 
   submitting.value = true
@@ -253,7 +253,9 @@ const submitReview = async () => {
     await loadStreak()
   } catch (err) {
     console.error(err)
-    error.value = t('today.submitError')
+    error.value = axios.isAxiosError(err)
+      ? formatApiErrorDetail(err.response?.data)
+      : t('today.submitError')
   } finally {
     submitting.value = false
   }

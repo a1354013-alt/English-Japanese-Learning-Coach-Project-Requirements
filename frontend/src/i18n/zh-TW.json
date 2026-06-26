@@ -129,6 +129,7 @@
     "answerAtLeastOne": "請至少回答一題再送出。",
     "unansweredConfirm": "你目前回答了 {answered} / {total} 題，未作答的題目會視為答錯。仍要送出嗎？",
     "submitPartialTitle": "??????????",
+    "reviewIncomplete": "請先完成所有題目再送出，目前已作答 {answered} / {total} 題。",
     "resetDemoConfirmTitle": "???? Demo ???",
     "resetDemoConfirmMessage": "?????? demo ?????????????????"
   },
@@ -332,8 +333,10 @@
     "weakestCategoryHint": "依目前啟用中的項目數量計算。",
     "activeItems": "{count} 個進行中項目",
     "notEnoughData": "目前資料還不夠。",
-    "accuracyTrend": "正確率趨勢",
-    "accuracyTrendHint": "最近 5 次複習送出結果。",
+    "accuracyTrend": "複習正確率趨勢",
+    "accuracyTrendHint": "每個節點都會顯示該課程最近一次作答與目前保留的最佳成績。",
+    "latestAccuracyValue": "最近一次：{rate}%",
+    "bestAccuracyValue": "最佳：{rate}%",
     "noReviewHistory": "目前尚無複習紀錄。",
     "loadError": "目前無法載入分析資料，請稍後再試。"
   },

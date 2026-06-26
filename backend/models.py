@@ -613,7 +613,8 @@ class AnalyticsWeakestCategory(BaseModel):
 
 class AnalyticsTrendPoint(BaseModel):
     lesson_id: Optional[str] = None
-    accuracy_rate: float
+    latest_accuracy_rate: float
+    best_accuracy_rate: float
     submitted_at: datetime
 
 

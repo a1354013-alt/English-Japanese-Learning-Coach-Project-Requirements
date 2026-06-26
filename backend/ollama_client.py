@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 from typing import Any, Dict, Literal, Optional, Union
 
 import httpx
@@ -259,29 +260,45 @@ class OllamaClient:
     def parse_json_response(response_text: str) -> Optional[Dict[str, Any]]:
         if not response_text:
             return None
-        try:
-            return json.loads(response_text)
-        except json.JSONDecodeError:
-            pass
+        direct = OllamaClient._decode_json_candidate(response_text)
+        if direct is not None:
+            return direct
 
         if "```json" in response_text:
-            try:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                json_str = response_text[start:end].strip()
-                return json.loads(json_str)
-            except (json.JSONDecodeError, ValueError):
-                pass
+            start = response_text.find("```json") + 7
+            end = response_text.find("```", start)
+            fenced = OllamaClient._decode_json_candidate(response_text[start:end].strip())
+            if fenced is not None:
+                return fenced
 
         try:
             start = response_text.find("{")
             end = response_text.rfind("}") + 1
             if start >= 0 and end > start:
                 json_str = response_text[start:end]
-                return json.loads(json_str)
-        except (json.JSONDecodeError, ValueError):
+                extracted = OllamaClient._decode_json_candidate(json_str)
+                if extracted is not None:
+                    return extracted
+        except ValueError:
             pass
 
+        return None
+
+    @staticmethod
+    def _decode_json_candidate(text: str) -> Optional[Dict[str, Any]]:
+        candidate = text.strip()
+        if not candidate:
+            return None
+        for variant in (
+            candidate,
+            re.sub(r",(\s*[}\]])", r"\1", candidate),
+        ):
+            try:
+                parsed = json.loads(variant)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
         return None
 
 

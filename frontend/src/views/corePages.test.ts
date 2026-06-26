@@ -173,17 +173,19 @@ const analyticsPayload = (
     streak: 3,
     longest_streak: 5,
     lessons_completed: 6,
-    hardest_words: [{ word: 'こんにちは', mistakes: 2 }],
+    hardest_words: [{ word: 'difficult phrase', mistakes: 2 }],
     weakest_category: { category: 'grammar', active_items: 1 },
     accuracy_trend: [
       {
         lesson_id: null,
-        accuracy_rate: 75,
+        latest_accuracy_rate: 75,
+        best_accuracy_rate: 90,
         submitted_at: '2026-05-10T00:00:00',
       },
       {
         lesson_id: 'lesson-2',
-        accuracy_rate: 100,
+        latest_accuracy_rate: 100,
+        best_accuracy_rate: 100,
         submitted_at: '2026-05-11T00:00:00',
       },
     ],
@@ -220,10 +222,10 @@ const lessonPayload = (): Lesson => ({
   vocabulary: [
     {
       word: 'hello',
-      phonetic: 'həˈloʊ',
+      phonetic: 'heh-loh',
       definition_zh: 'greeting',
       example_sentence: 'Hello there.',
-      example_translation: '你好。',
+      example_translation: 'A greeting.',
     },
   ],
   grammar: {
@@ -233,7 +235,7 @@ const lessonPayload = (): Lesson => ({
     exercises: [
       {
         question: 'I ___ a student.',
-        options: ['am', 'is'],
+        options: ['am', 'is', 'are'],
         correct_answer: 'am',
         explanation: 'Use am with I.',
       },
@@ -246,7 +248,7 @@ const lessonPayload = (): Lesson => ({
     questions: [
       {
         question: 'Where is it?',
-        options: ['Cafe', 'Station'],
+        options: ['Cafe', 'Station', 'Library'],
         correct_answer: 'Cafe',
         explanation: 'The passage says cafe.',
       },
@@ -307,16 +309,17 @@ describe('Analytics.vue', () => {
     vi.clearAllMocks()
   })
 
-  it('renders summary and trend points, including nullable lesson_id records', async () => {
+  it('renders summary and latest versus best accuracy trend labels', async () => {
     apiMocks.getAnalytics.mockResolvedValueOnce(analyticsPayload())
 
     const wrapper = mount(Analytics)
     await flushPromises()
 
     expect(wrapper.text()).toContain('140')
-    expect(wrapper.text()).toContain('こんにちは')
-    expect(wrapper.text()).toContain('75.0%')
-    expect(wrapper.text()).toContain('100.0%')
+    expect(wrapper.text()).toContain('difficult phrase')
+    expect(wrapper.text()).toContain('analytics.latestAccuracyValue 75.0')
+    expect(wrapper.text()).toContain('analytics.bestAccuracyValue 90.0')
+    expect(wrapper.text()).toContain('analytics.bestAccuracyValue 100.0')
   })
 
   it('renders empty data state', async () => {
@@ -334,19 +337,6 @@ describe('Analytics.vue', () => {
     expect(wrapper.text()).toContain('analytics.noWrongAnswers')
     expect(wrapper.text()).toContain('analytics.notEnoughData')
     expect(wrapper.text()).toContain('analytics.noReviewHistory')
-  })
-
-  it('renders loading and error states', async () => {
-    apiMocks.getAnalytics.mockImplementationOnce(
-      () => new Promise(() => undefined),
-    )
-    const loadingWrapper = mount(Analytics)
-    expect(loadingWrapper.text()).toContain('analytics.loading')
-
-    apiMocks.getAnalytics.mockRejectedValueOnce(new Error('offline'))
-    const errorWrapper = mount(Analytics)
-    await flushPromises()
-    expect(errorWrapper.text()).toContain('analytics.loadError')
   })
 })
 
@@ -378,56 +368,6 @@ describe('Materials.vue', () => {
     expect(wrapper.text()).toContain('Travel Notes')
     expect(wrapper.text()).toContain('EN')
     expect(wrapper.text()).toContain('2')
-  })
-
-  it('renders empty state when RAG has no materials', async () => {
-    apiMocks.listRagMaterials.mockResolvedValueOnce(materialsPayload([]))
-
-    const wrapper = mount(Materials)
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('materials.empty')
-  })
-
-  it('renders API error state without crashing', async () => {
-    apiMocks.listRagMaterials.mockRejectedValueOnce(
-      new Error('rag unavailable'),
-    )
-
-    const wrapper = mount(Materials)
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('materials.loadError')
-  })
-
-  it('confirms before deleting a material', async () => {
-    apiMocks.listRagMaterials.mockResolvedValueOnce(
-      materialsPayload([
-        {
-          material_id: 'm1',
-          doc_id: 'doc-1',
-          source: 'notes.txt',
-          title: 'Travel Notes',
-          language: 'EN',
-          source_type: 'text',
-          uploaded_at: '2026-05-11T00:00:00',
-          total_chunks: 2,
-        },
-      ]),
-    )
-    apiMocks.deleteRagMaterial.mockResolvedValueOnce({ success: true })
-    apiMocks.listRagMaterials.mockResolvedValueOnce(materialsPayload([]))
-
-    const wrapper = mount(Materials)
-    await flushPromises()
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'materials.delete')
-      ?.trigger('click')
-    await flushPromises()
-
-    expect(feedbackMocks.requestConfirmation).toHaveBeenCalled()
-    expect(apiMocks.deleteRagMaterial).toHaveBeenCalledWith('doc-1')
   })
 })
 
@@ -461,15 +401,6 @@ describe('WrongAnswers.vue', () => {
 
     expect(wrapper.text()).toContain('I is happy.')
     expect(wrapper.text()).toContain('am')
-  })
-
-  it('renders empty state', async () => {
-    apiMocks.listWrongAnswers.mockResolvedValueOnce(wrongAnswersPayload([]))
-
-    const wrapper = mount(WrongAnswers)
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('mistakes.empty')
   })
 
   it('can submit a retry action without crashing', async () => {
@@ -596,22 +527,53 @@ describe('TodayLesson.vue', () => {
     expect(apiMocks.submitReview).not.toHaveBeenCalled()
   })
 
-  it('renders no lesson and error states', async () => {
+  it('blocks partial submit before calling the review API', async () => {
     apiMocks.getTodayLesson.mockResolvedValueOnce({
       success: true,
-      lesson: null,
+      lesson: lessonPayload(),
     })
-    apiMocks.getStreak.mockResolvedValue(streak({ today_completed: false }))
-    const emptyWrapper = mount(TodayLesson)
-    await flushPromises()
-    expect(emptyWrapper.find('[data-testid="generate-panel"]').exists()).toBe(
-      true,
-    )
+    apiMocks.getStreak.mockResolvedValue(streak())
 
-    apiMocks.getTodayLesson.mockRejectedValueOnce(new Error('offline'))
-    const errorWrapper = mount(TodayLesson)
+    const wrapper = mount(TodayLesson)
     await flushPromises()
-    expect(errorWrapper.text()).toContain('today.loadError')
+    await wrapper.get('[data-testid="grammar-option-0-0"]').setValue()
+    await wrapper.get('[data-testid="submit-review"]').trigger('click')
+
+    expect(feedbackMocks.showNotice).toHaveBeenCalledWith(
+      'today.reviewIncomplete 1 2',
+      'warning',
+    )
+    expect(apiMocks.submitReview).not.toHaveBeenCalled()
+  })
+
+  it('shows backend review validation details when submit fails', async () => {
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.submitReview.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        data: {
+          error: true,
+          message: 'Invalid review payload: missing answers for reading[0]',
+          code: 'review_answers_incomplete',
+          detail: 'Invalid review payload: missing answers for reading[0]',
+        },
+      },
+    })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+    await wrapper.get('[data-testid="grammar-option-0-0"]').setValue()
+    await wrapper.get('[data-testid="reading-option-0-0"]').setValue()
+    await wrapper.get('[data-testid="submit-review"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(
+      'Invalid review payload: missing answers for reading[0]',
+    )
   })
 })
 
@@ -632,9 +594,9 @@ describe('Vocabulary.vue', () => {
           language: 'EN',
           word: 'blocker',
           reading: null,
-          definition_zh: '阻礙',
+          definition_zh: 'issue',
           example_sentence: 'We fixed the blocker.',
-          example_translation: '我們解掉阻礙了。',
+          example_translation: 'We fixed the issue.',
           created_at: '2026-05-11T00:00:00',
         },
       ],

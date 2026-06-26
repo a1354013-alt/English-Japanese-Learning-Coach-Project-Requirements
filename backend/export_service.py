@@ -1,4 +1,5 @@
 """PDF export service with full lesson support."""
+import logging
 from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import escape
@@ -11,18 +12,24 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
+logger = logging.getLogger(__name__)
+
 
 class PDFExporter:
-    def __init__(self, output_dir: str | None = None):
+    def __init__(self, output_dir: str | None = None, font_paths: list[str] | None = None):
         self.output_dir = Path(output_dir or settings.exports_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.font_name = "Helvetica"
+        self.font_source: str | None = None
+        self.font_warning: str | None = None
         # Cross-platform font paths for CJK support
-        font_paths = [
+        candidate_paths = font_paths or [
             # Linux (Noto CJK)
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
             "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
             # macOS (system fonts)
             "/System/Library/Fonts/PingFang.ttc",
@@ -30,16 +37,24 @@ class PDFExporter:
             # Windows (common locations)
             "C:/Windows/Fonts/msyh.ttc",  # Microsoft YaHei
             "C:/Windows/Fonts/simsun.ttc",  # SimSun
+            "C:/Windows/Fonts/msgothic.ttc",  # MS Gothic
         ]
-        for path in font_paths:
+        for path in candidate_paths:
             p = Path(path)
             if p.exists():
                 try:
                     pdfmetrics.registerFont(TTFont("CJKFont", str(p)))
                     self.font_name = "CJKFont"
+                    self.font_source = str(p)
                     break
                 except Exception:
                     continue
+        if self.font_source is None:
+            self.font_warning = (
+                "No CJK font was found for PDF export; falling back to Helvetica. "
+                "CJK glyph rendering may be incomplete."
+            )
+            logger.warning(self.font_warning)
 
     @staticmethod
     def _escape_text(value: Any, *, preserve_newlines: bool = False) -> str:

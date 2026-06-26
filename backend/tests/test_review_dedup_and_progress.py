@@ -126,10 +126,18 @@ def test_review_repeat_attempt_updates_best_progress_and_srs_without_duplicate_x
     result_after_lower = test_db.get_exercise_result(user_id=user_id, lesson_id=lesson_id, exercise_type="mixed")
     assert result_after_lower is not None
     assert result_after_lower["correct_count"] == 1
+    assert result_after_lower["accuracy_rate"] == 100.0
     assert result_after_lower["latest_correct_count"] == 0
+    assert result_after_lower["latest_accuracy_rate"] == 0.0
 
     r4 = client.post("/api/review", json=correct)
     assert r4.status_code == 200
     progress_after_recovery = test_db.get_progress(user_id)["english_progress"]
     assert progress_after_recovery["correct_exercises"] == 1
     assert progress_after_recovery["accuracy_rate"] == 100.0
+    result_after_recovery = test_db.get_exercise_result(user_id=user_id, lesson_id=lesson_id, exercise_type="mixed")
+    assert result_after_recovery is not None
+    assert result_after_recovery["correct_count"] == 1
+    assert result_after_recovery["accuracy_rate"] == 100.0
+    assert result_after_recovery["latest_correct_count"] == 1
+    assert result_after_recovery["latest_accuracy_rate"] == 100.0

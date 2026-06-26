@@ -27,6 +27,9 @@ from rag_manager import rag_manager
 
 
 class LessonGenerator:
+    FIXED_GRAMMAR_COUNT = 1
+    FIXED_READING_COUNT = 1
+    FIXED_CHOICE_COUNT = 3
     ENGLISH_TOPICS = [
         "Daily Conversation",
         "Business Communication",
@@ -49,20 +52,46 @@ class LessonGenerator:
 
     def _get_system_prompt(self, language: Literal["EN", "JP"]) -> str:
         if language == "EN":
-            return "You are an English tutor. Return valid JSON only."
-        return "You are a Japanese tutor. Return valid JSON only."
+            return (
+                "You are an English tutor. Output JSON only. "
+                "Do not output markdown, code fences, explanations, or extra text."
+            )
+        return (
+            "You are a Japanese tutor. Output JSON only. "
+            "Do not output markdown, code fences, explanations, or extra text."
+        )
 
     def _build_prompt(self, language: Literal["EN", "JP"], level: str, topic: str) -> str:
+        exercise_schema = (
+            f"Return exactly {self.FIXED_GRAMMAR_COUNT} grammar exercise and "
+            f"exactly {self.FIXED_READING_COUNT} reading question. "
+            f"Every multiple-choice item must have exactly {self.FIXED_CHOICE_COUNT} choices. "
+            "The correct_answer must be one of the choices."
+        )
         if language == "EN":
             return (
                 f"Generate an English lesson for CEFR {level} about '{topic}'. "
-                "Return JSON with keys: vocabulary, grammar, reading, dialogue. "
-                "Vocabulary item fields: word, phonetic, definition_zh, example_sentence, example_translation."
+                f"Requested language enum is EN and requested difficulty value is {level}. "
+                "Output JSON only with keys: vocabulary, grammar, reading, dialogue. "
+                "Do not include markdown or explanatory prose. "
+                "Vocabulary item fields: word, phonetic, definition_zh, example_sentence, example_translation. "
+                "Grammar fields: title, explanation, examples, exercises. "
+                "Reading fields: title, content, word_count, questions. "
+                "Dialogue fields: scenario, context, dialogue, alternatives. "
+                f"{exercise_schema} "
+                "Use CEFR-appropriate English content and keep every required field non-empty."
             )
         return (
             f"Generate a Japanese lesson for JLPT {level} about '{topic}'. "
-            "Return JSON with keys: vocabulary, grammar, reading, dialogue. "
-            "Vocabulary item fields: word, reading, definition_zh, example_sentence, example_translation."
+            f"Requested language enum is JP and requested difficulty value is {level}. "
+            "Output JSON only with keys: vocabulary, grammar, reading, dialogue. "
+            "Do not include markdown or explanatory prose. "
+            "Vocabulary item fields: word, reading, definition_zh, example_sentence, example_translation. "
+            "Grammar fields: title, explanation, examples, exercises. "
+            "Reading fields: title, content, word_count, questions. "
+            "Dialogue fields: scenario, context, dialogue, alternatives. "
+            f"{exercise_schema} "
+            "Use JLPT-appropriate Japanese content and keep every required field non-empty."
         )
 
     def _select_model(self, language: str, level: str, context_len: int) -> str:
@@ -198,6 +227,7 @@ class LessonGenerator:
 
         content: dict[str, Any] = dict(parsed_content)
         self._normalize(content)
+        self._validate_generated_content(content)
         metadata = LessonMetadata(
             lesson_id=str(uuid4()),
             language=language,
@@ -254,6 +284,29 @@ class LessonGenerator:
                     item["correct_answer"] = options[answer]
                 elif answer is None:
                     item["correct_answer"] = ""
+
+    def _validate_generated_content(self, content: dict[str, Any]) -> None:
+        grammar = content.get("grammar", {})
+        reading = content.get("reading", {})
+        grammar_exercises = grammar.get("exercises", []) if isinstance(grammar, dict) else []
+        reading_questions = reading.get("questions", []) if isinstance(reading, dict) else []
+
+        if len(grammar_exercises) != self.FIXED_GRAMMAR_COUNT:
+            raise RuntimeError("generated lesson must contain exactly one grammar exercise")
+        if len(reading_questions) != self.FIXED_READING_COUNT:
+            raise RuntimeError("generated lesson must contain exactly one reading question")
+
+        for item in list(grammar_exercises) + list(reading_questions):
+            if not isinstance(item, dict):
+                raise RuntimeError("generated lesson item must be an object")
+            options = item.get("options")
+            answer = item.get("correct_answer")
+            if not isinstance(options, list) or len(options) != self.FIXED_CHOICE_COUNT:
+                raise RuntimeError("generated lesson choices must contain exactly three options")
+            if any(not isinstance(choice, str) or not choice.strip() for choice in options):
+                raise RuntimeError("generated lesson choices must be non-empty strings")
+            if not isinstance(answer, str) or answer not in options:
+                raise RuntimeError("generated lesson correct_answer must match one of the choices")
 
     def _save_lesson_file(self, lesson_data: dict[str, Any]) -> Path:
         metadata = lesson_data["metadata"]

@@ -96,6 +96,8 @@ def test_response_models_keep_key_fields_for_lesson_review_progress_and_analytic
     analytics = client.get("/api/analytics").json()["analytics"]
     assert "hardest_words" in analytics
     assert "accuracy_trend" in analytics
+    assert "latest_accuracy_rate" in analytics["accuracy_trend"][0]
+    assert "best_accuracy_rate" in analytics["accuracy_trend"][0]
     assert "today_completed" in analytics
 
 

@@ -83,7 +83,10 @@ def _safe_sink_write(sink, text: str) -> None:
         sink.write(text)
     except UnicodeEncodeError:
         if hasattr(sink, "buffer"):
-            encoded = text.encode(getattr(sink, "encoding", "utf-8") or "utf-8", errors="replace")
+            encoded = text.encode(
+                getattr(sink, "encoding", "utf-8") or "utf-8",
+                errors="replace",
+            )
             sink.buffer.write(encoded)
         else:
             sink.write(text.encode("ascii", errors="replace").decode("ascii"))
@@ -120,7 +123,9 @@ def require_node_version() -> None:
     )
     if completed.returncode != 0:
         stderr = completed.stderr.strip()
-        raise StepFailed(f"Unable to read Node.js version with `{' '.join(command)}`: {stderr or 'unknown error'}")
+        raise StepFailed(
+            f"Unable to read Node.js version with `{' '.join(command)}`: {stderr or 'unknown error'}"
+        )
 
     version = completed.stdout.strip().removeprefix("v")
     if version != NODE_VERSION:
@@ -337,7 +342,7 @@ def run_optional_playwright_check() -> None:
         warn_skipped(
             "Playwright E2E",
             f"Chromium browser executable is not installed under {browser_root}. "
-            "Run `cd frontend && npx playwright install --with-deps chromium` to verify E2E locally.",
+            "Run `cd frontend && npm run e2e:install` to verify E2E locally.",
         )
         return
     run_step(
@@ -380,7 +385,12 @@ def run_optional_docker_check() -> None:
     if shutil.which("docker") is None:
         warn_skipped("Docker compose", "docker is not available.")
         return
-    result = subprocess.run(["docker", "compose", "version"], cwd=REPO_ROOT, text=True, capture_output=True)
+    result = subprocess.run(
+        ["docker", "compose", "version"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
     if result.returncode != 0:
         warn_skipped("Docker compose", "docker compose is not available.")
         return

@@ -32,36 +32,50 @@ router = APIRouter(prefix="/api", tags=["review"], responses=COMMON_ERROR_RESPON
 def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) -> None:
     lesson_id = answers[0].lesson_id
     if any(a.lesson_id != lesson_id for a in answers):
-        raise api_error(400, "Invalid review payload: mixed lesson_id", "review_mixed_lesson_id")
+        raise api_error(422, "Invalid review payload: mixed lesson_id", "review_mixed_lesson_id")
 
     grammar_exercises = lesson_data.get("grammar", {}).get("exercises", []) or []
     reading_questions = lesson_data.get("reading", {}).get("questions", []) or []
+    expected_keys = {
+        ("grammar", idx) for idx in range(len(grammar_exercises))
+    } | {
+        ("reading", idx) for idx in range(len(reading_questions))
+    }
 
     seen: set[tuple[str, int]] = set()
     for a in answers:
         # Disallow blank answers (avoid polluted wrong-answer notebook/analytics).
         if str(a.user_answer).strip() == "":
-            raise api_error(400, "Invalid review payload: user_answer must be non-empty", "review_blank_user_answer")
+            raise api_error(422, "Invalid review payload: user_answer must be non-empty", "review_blank_user_answer")
 
         key = (a.exercise_type, a.question_index)
         if key in seen:
-            raise api_error(400, f"Invalid review payload: duplicate answer for {a.exercise_type}[{a.question_index}]", "review_duplicate_answer")
+            raise api_error(422, f"Invalid review payload: duplicate answer for {a.exercise_type}[{a.question_index}]", "review_duplicate_answer")
         seen.add(key)
 
         if a.question_index < 0:
-            raise api_error(400, "Invalid review payload: question_index must be >= 0", "review_negative_question_index")
+            raise api_error(422, "Invalid review payload: question_index must be >= 0", "review_negative_question_index")
 
         if a.exercise_type == "grammar":
             if a.question_index >= len(grammar_exercises):
-                raise api_error(400, "Invalid review payload: grammar question_index out of range", "review_grammar_index_out_of_range")
+                raise api_error(422, "Invalid review payload: grammar question_index out of range", "review_grammar_index_out_of_range")
             expected = str((grammar_exercises[a.question_index] or {}).get("correct_answer", ""))
         else:
             if a.question_index >= len(reading_questions):
-                raise api_error(400, "Invalid review payload: reading question_index out of range", "review_reading_index_out_of_range")
+                raise api_error(422, "Invalid review payload: reading question_index out of range", "review_reading_index_out_of_range")
             expected = str((reading_questions[a.question_index] or {}).get("correct_answer", ""))
 
         if str(a.correct_answer).strip() != expected.strip():
-            raise api_error(400, "Invalid review payload: correct_answer mismatch", "review_correct_answer_mismatch")
+            raise api_error(422, "Invalid review payload: correct_answer mismatch", "review_correct_answer_mismatch")
+
+    missing = sorted(expected_keys - seen)
+    if missing:
+        missing_labels = ", ".join(f"{exercise_type}[{question_index}]" for exercise_type, question_index in missing)
+        raise api_error(
+            422,
+            f"Invalid review payload: missing answers for {missing_labels}",
+            "review_answers_incomplete",
+        )
 
 
 @router.post("/review", response_model=ReviewSubmitResponse)
@@ -71,7 +85,7 @@ async def submit_review(
     error_type: ErrorType | None = Query(default=None),
 ):
     if not answers:
-        raise api_error(400, "No answers provided", "review_answers_required")
+        raise api_error(422, "No answers provided", "review_answers_required")
 
     lesson_id = answers[0].lesson_id
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)

@@ -182,7 +182,8 @@ function buildAnalytics(completedLessons: number): AnalyticsPayload {
         ? [
             {
               lesson_id: 'e2e-demo-lesson',
-              accuracy_rate: 100,
+              latest_accuracy_rate: 100,
+              best_accuracy_rate: 100,
               submitted_at: TIMESTAMP,
             },
           ]
