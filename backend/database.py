@@ -158,6 +158,16 @@ class Database:
                 definition_zh TEXT NOT NULL,
                 example_sentence TEXT,
                 example_translation TEXT,
+                part_of_speech TEXT,
+                root TEXT,
+                prefix TEXT,
+                suffix TEXT,
+                word_family TEXT,
+                memory_tip TEXT,
+                category TEXT,
+                tags TEXT,
+                source_lesson_id TEXT,
+                mastery_state TEXT DEFAULT 'new',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, language, word)
             )
@@ -202,6 +212,22 @@ class Database:
                 if "latest_correct_count" in cols and "latest_accuracy_rate" in cols:
                     conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
                     continue
+            if version == "0005_vocabulary_categories_and_roots.sql":
+                cols = [r["name"] for r in conn.execute("PRAGMA table_info(imported_vocabulary)").fetchall()]
+                if {
+                    "part_of_speech",
+                    "root",
+                    "prefix",
+                    "suffix",
+                    "word_family",
+                    "memory_tip",
+                    "category",
+                    "tags",
+                    "source_lesson_id",
+                    "mastery_state",
+                }.issubset(set(cols)):
+                    conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+                    continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
@@ -221,6 +247,22 @@ class Database:
             conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_correct_count INTEGER")
         if "latest_accuracy_rate" not in cols:
             conn.execute("ALTER TABLE exercise_results ADD COLUMN latest_accuracy_rate REAL")
+        imported_cols = [r["name"] for r in conn.execute("PRAGMA table_info(imported_vocabulary)").fetchall()]
+        imported_defs = {
+            "part_of_speech": "TEXT",
+            "root": "TEXT",
+            "prefix": "TEXT",
+            "suffix": "TEXT",
+            "word_family": "TEXT",
+            "memory_tip": "TEXT",
+            "category": "TEXT",
+            "tags": "TEXT",
+            "source_lesson_id": "TEXT",
+            "mastery_state": "TEXT DEFAULT 'new'",
+        }
+        for column, column_type in imported_defs.items():
+            if column not in imported_cols:
+                conn.execute(f"ALTER TABLE imported_vocabulary ADD COLUMN {column} {column_type}")
 
     def _cleanup_exercise_result_duplicates(self, conn: sqlite3.Connection) -> None:
         """Keep the newest row per unique exercise-result key before unique index creation."""
@@ -639,17 +681,31 @@ class Database:
         return result
 
     def save_imported_vocabulary(self, user_id: str, language: str, item: Dict[str, Any]) -> None:
+        word_family = item.get("word_family")
+        tags = item.get("tags")
         with self.get_connection() as conn:
             conn.execute(
                 """
                 INSERT INTO imported_vocabulary (
-                    user_id, language, word, reading, definition_zh, example_sentence, example_translation
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    user_id, language, word, reading, definition_zh, example_sentence, example_translation,
+                    part_of_speech, root, prefix, suffix, word_family, memory_tip, category, tags,
+                    source_lesson_id, mastery_state
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, language, word) DO UPDATE SET
                     reading=excluded.reading,
                     definition_zh=excluded.definition_zh,
                     example_sentence=excluded.example_sentence,
-                    example_translation=excluded.example_translation
+                    example_translation=excluded.example_translation,
+                    part_of_speech=excluded.part_of_speech,
+                    root=excluded.root,
+                    prefix=excluded.prefix,
+                    suffix=excluded.suffix,
+                    word_family=excluded.word_family,
+                    memory_tip=excluded.memory_tip,
+                    category=excluded.category,
+                    tags=excluded.tags,
+                    source_lesson_id=excluded.source_lesson_id,
+                    mastery_state=excluded.mastery_state
                 """,
                 (
                     user_id,
@@ -659,6 +715,16 @@ class Database:
                     item["definition_zh"],
                     item.get("example_sentence", ""),
                     item.get("example_translation", ""),
+                    item.get("part_of_speech"),
+                    item.get("root"),
+                    item.get("prefix"),
+                    item.get("suffix"),
+                    json.dumps(word_family, ensure_ascii=False) if isinstance(word_family, list) else None,
+                    item.get("memory_tip"),
+                    item.get("category"),
+                    json.dumps(tags, ensure_ascii=False) if isinstance(tags, list) else None,
+                    item.get("source_lesson_id"),
+                    item.get("mastery_state", "new"),
                 ),
             )
 
@@ -686,7 +752,10 @@ class Database:
             count_row = conn.execute(f"SELECT COUNT(1) AS c FROM imported_vocabulary WHERE {where_sql}", params).fetchone()
             rows = conn.execute(
                 f"""
-                SELECT id, user_id, language, word, reading, definition_zh, example_sentence, example_translation, created_at
+                SELECT id, user_id, language, word, reading, definition_zh, example_sentence,
+                       example_translation, part_of_speech, root, prefix, suffix, word_family,
+                       memory_tip, category, tags, source_lesson_id,
+                       COALESCE(mastery_state, 'new') AS mastery_state, created_at
                 FROM imported_vocabulary
                 WHERE {where_sql}
                 ORDER BY created_at DESC, id DESC
@@ -694,7 +763,21 @@ class Database:
                 """,
                 (*params, limit, offset),
             ).fetchall()
-            return [dict(r) for r in rows], int(count_row["c"]) if count_row else 0
+            items = []
+            for row in rows:
+                item = dict(row)
+                for key in ("word_family", "tags"):
+                    raw = item.get(key)
+                    if raw:
+                        try:
+                            parsed = json.loads(raw)
+                            item[key] = parsed if isinstance(parsed, list) else []
+                        except Exception:
+                            item[key] = []
+                    else:
+                        item[key] = []
+                items.append(item)
+            return items, int(count_row["c"]) if count_row else 0
 
     def delete_imported_vocabulary(self, *, user_id: str, item_id: int) -> bool:
         """Delete an imported vocabulary item and all derived/related data.

@@ -55,6 +55,8 @@ Production readiness note: this project currently runs as a single-user/local de
 2. Generate lesson
 - Go to Today page
 - Click Generate
+- The generated lesson is a textbook-style unit: objectives, vocabulary, word roots or affixes, sentence patterns, grammar, dialogue, reading, text shadowing, exercises, Feynman self-explanation, and a spaced review plan.
+- Immersion/shadowing is currently text-based. TTS remains a provider-ready placeholder unless a real provider is configured.
 
 3. Review
 - Answer grammar and reading questions
@@ -86,7 +88,8 @@ Production readiness note: this project currently runs as a single-user/local de
 - Archive page -> Excel Import
 - Select English or Japanese in the language filter; imports are disabled while filter is `All`
 - Upload `.xlsx` with at least `word` and `definition` or `definition_zh`
-- Optional columns: `reading`, `example`, `example_sentence`, `example_translation`
+- Optional columns: `reading`, `example`, `example_sentence`, `example_translation`, `part_of_speech`, `root`, `prefix`, `suffix`, `word_family`, `memory_tip`, `category`, `tags`
+- `word_family` and `tags` may be comma-separated. Imported roots, categories, and memory tips appear in the vocabulary list and SRS due-card review.
 
 10. Imported vocabulary management
 - Open Vocabulary page
@@ -112,6 +115,7 @@ Production readiness note: this project currently runs as a single-user/local de
 
 - Single-user/local demo: backend enforces `user_id=default_user`; the frontend does not send `user_id`.
 - TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with a clear preview message unless a real provider is configured.
+- VS Code F5 one-click startup is supported through the checked-in `.vscode/launch.json` and `.vscode/tasks.json`; use `F5: Backend + Frontend` after backend/frontend dependencies are installed.
 - Core mode works without RAG dependencies. RAG mode requires installing `backend/requirements-rag.txt`, setting `ENABLE_RAG=true`, and running the separate RAG verification lane.
 - RAG uploads go to Chroma when available; materials are CJK-aware chunked per document and keep stable metadata.
 - When RAG is disabled, listing still works and mutating endpoints return an unavailable error.

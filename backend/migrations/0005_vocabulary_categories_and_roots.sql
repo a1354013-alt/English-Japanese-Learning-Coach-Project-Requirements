@@ -1,0 +1,10 @@
+ALTER TABLE imported_vocabulary ADD COLUMN part_of_speech TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN root TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN prefix TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN suffix TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN word_family TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN memory_tip TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN category TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN tags TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN source_lesson_id TEXT;
+ALTER TABLE imported_vocabulary ADD COLUMN mastery_state TEXT DEFAULT 'new';

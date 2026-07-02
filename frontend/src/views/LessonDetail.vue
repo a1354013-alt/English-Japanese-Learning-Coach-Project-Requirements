@@ -21,6 +21,15 @@
         <p>{{ new Date(lesson.metadata.generated_at).toLocaleString() }}</p>
       </section>
 
+      <section v-if="lesson.objectives?.length">
+        <h3>學習目標</h3>
+        <ol>
+          <li v-for="objective in lesson.objectives" :key="objective">
+            {{ objective }}
+          </li>
+        </ol>
+      </section>
+
       <section>
         <h3>{{ t('lesson.vocabulary') }}</h3>
         <ul>
@@ -29,6 +38,11 @@
           </li>
         </ul>
       </section>
+
+      <WordRootsSection :word-roots="lesson.word_roots ?? []" />
+      <SentencePatternSection
+        :sentence-patterns="lesson.sentence_patterns ?? []"
+      />
 
       <section>
         <h3>{{ t('lesson.grammar') }}</h3>
@@ -50,6 +64,8 @@
         </div>
       </section>
 
+      <DialogueSection :dialogue="lesson.dialogue" />
+
       <section>
         <h3>{{ t('lesson.reading') }}</h3>
         <p style="white-space: pre-wrap">{{ lesson.reading.content }}</p>
@@ -68,20 +84,9 @@
         </div>
       </section>
 
-      <section v-if="lesson.dialogue">
-        <h3>{{ t('lesson.dialogue') }}</h3>
-        <p v-if="lesson.dialogue.scenario">{{ lesson.dialogue.scenario }}</p>
-        <p v-if="lesson.dialogue.context" style="color: #64748b">
-          {{ lesson.dialogue.context }}
-        </p>
-        <div
-          v-for="(line, idx) in lesson.dialogue.dialogue"
-          :key="idx"
-          style="margin-bottom: 0.5rem"
-        >
-          <strong>{{ line.speaker }}:</strong> {{ line.text }}
-        </div>
-      </section>
+      <ImmersionSection :immersion="lesson.immersion" />
+      <FeynmanSection :feynman="lesson.feynman_prompt" />
+      <ReviewPlanSection :review-plan="lesson.review_plan" />
 
       <RagEvidencePanel v-if="lesson.evidence" :evidence="lesson.evidence" />
     </div>
@@ -94,7 +99,13 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { lessonApi } from '@/services/api'
 import type { Lesson } from '@/types'
+import DialogueSection from '@/components/lesson/DialogueSection.vue'
+import FeynmanSection from '@/components/lesson/FeynmanSection.vue'
+import ImmersionSection from '@/components/lesson/ImmersionSection.vue'
 import RagEvidencePanel from '@/components/RagEvidencePanel.vue'
+import ReviewPlanSection from '@/components/lesson/ReviewPlanSection.vue'
+import SentencePatternSection from '@/components/lesson/SentencePatternSection.vue'
+import WordRootsSection from '@/components/lesson/WordRootsSection.vue'
 
 const { t } = useI18n()
 const route = useRoute()

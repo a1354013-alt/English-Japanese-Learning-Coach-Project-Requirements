@@ -20,6 +20,14 @@ export interface VocabularyItem {
   definition_zh: string
   example_sentence: string
   example_translation: string
+  part_of_speech?: string | null
+  root?: string | null
+  prefix?: string | null
+  suffix?: string | null
+  word_family?: string[] | null
+  memory_tip?: string | null
+  category?: string | null
+  tags?: string[] | null
 }
 
 export interface GrammarExample {
@@ -74,6 +82,38 @@ export interface DialogueSection {
   alternatives: DialogueAlternative[]
 }
 
+export interface SentencePattern {
+  pattern: string
+  meaning_zh: string
+  usage_note: string
+  examples: GrammarExample[]
+}
+
+export interface WordRoot {
+  root: string
+  meaning_zh: string
+  examples: string[]
+  memory_tip: string
+}
+
+export interface ImmersionSection {
+  shadowing_text: DialogueLine[]
+  repeat_chunks: string[]
+  listening_tips: string[]
+}
+
+export interface FeynmanPrompt {
+  prompt: string
+  checklist: string[]
+}
+
+export interface ReviewPlan {
+  today: string[]
+  next_1_day: string[]
+  next_3_days: string[]
+  next_7_days: string[]
+}
+
 export interface LessonMetadata {
   lesson_id: string
   language: Language
@@ -98,10 +138,16 @@ export interface WordCard {
 
 export interface Lesson {
   metadata: LessonMetadata
+  objectives?: string[]
   vocabulary: VocabularyItem[]
+  word_roots?: WordRoot[]
+  sentence_patterns?: SentencePattern[]
   grammar: GrammarSection
   reading: ReadingSection
   dialogue: DialogueSection
+  immersion?: ImmersionSection
+  feynman_prompt?: FeynmanPrompt
+  review_plan?: ReviewPlan
   evidence?: LessonEvidence[]
   gamification?: {
     xp_added: number
@@ -407,6 +453,16 @@ export interface ImportedVocabularyItem {
   definition_zh: string
   example_sentence: string | null
   example_translation: string | null
+  part_of_speech?: string | null
+  root?: string | null
+  prefix?: string | null
+  suffix?: string | null
+  word_family?: string[] | null
+  memory_tip?: string | null
+  category?: string | null
+  tags?: string[] | null
+  source_lesson_id?: string | null
+  mastery_state?: string
   created_at: string
 }
 
@@ -420,6 +476,10 @@ export interface SrsItem {
   word: string
   language: Language
   definition_zh?: string | null
+  category?: string | null
+  tags?: string[] | null
+  memory_tip?: string | null
+  root?: string | null
   next_review: string | null
   interval: number
   ease_factor: number

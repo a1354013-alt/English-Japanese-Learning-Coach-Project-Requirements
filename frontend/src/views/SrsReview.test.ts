@@ -36,6 +36,10 @@ describe('SrsReview.vue', () => {
           word: 'hello',
           language: 'EN',
           definition_zh: 'greeting',
+          root: 'hel',
+          memory_tip: 'Picture greeting a friend.',
+          category: 'speaking',
+          tags: ['daily'],
           next_review: null,
           interval: 1,
           ease_factor: 2.5,
@@ -48,6 +52,9 @@ describe('SrsReview.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('Picture greeting a friend.')
+    expect(wrapper.text()).toContain('speaking')
+    expect(wrapper.text()).toContain('root: hel')
     expect(wrapper.text()).toContain('-')
   })
 

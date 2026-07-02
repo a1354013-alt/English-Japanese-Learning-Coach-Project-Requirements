@@ -44,8 +44,12 @@ def test_build_prompt_requires_json_only_and_fixed_counts():
 
     assert "Output JSON only" in system_prompt
     assert "Do not output markdown" in system_prompt
-    assert "exactly 1 grammar exercise" in prompt
-    assert "exactly 1 reading question" in prompt
+    assert "at least 3 grammar exercises" in prompt
+    assert "at least 3 reading comprehension questions" in prompt
+    assert "objectives, vocabulary, word_roots, sentence_patterns" in prompt
+    assert "immersion, feynman_prompt, review_plan" in prompt
+    assert "at least 8 items" in prompt
+    assert "at least 3 roots" in prompt
     assert "exactly 3 choices" in prompt
     assert "correct_answer must be one of the choices" in prompt
     normalized_prompt = prompt.lower()
@@ -75,4 +79,4 @@ def test_generate_lesson_falls_back_when_model_json_violates_contract(tmp_path, 
     tasks = test_db.get_generation_tasks("default_user", limit=5)
     assert tasks
     assert tasks[0]["status"] == "fallback_success"
-    assert "exactly one grammar exercise" in str(tasks[0]["error_message"])
+    assert "at least three objectives" in str(tasks[0]["error_message"])

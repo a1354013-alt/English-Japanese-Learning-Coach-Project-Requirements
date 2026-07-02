@@ -60,6 +60,33 @@ def _generated_lesson_client(tmp_path, monkeypatch) -> tuple[TestClient, Databas
     return client, test_db
 
 
+def _answers_for_lesson(lesson: dict, *, first_grammar_answer: str | None = None) -> list[dict]:
+    lesson_id = lesson["metadata"]["lesson_id"]
+    answers = []
+    for idx, exercise in enumerate(lesson["grammar"]["exercises"]):
+        user_answer = first_grammar_answer if idx == 0 and first_grammar_answer is not None else exercise["correct_answer"]
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "grammar",
+                "question_index": idx,
+                "user_answer": user_answer,
+                "correct_answer": exercise["correct_answer"],
+            }
+        )
+    for idx, question in enumerate(lesson["reading"]["questions"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "reading",
+                "question_index": idx,
+                "user_answer": question["correct_answer"],
+                "correct_answer": question["correct_answer"],
+            }
+        )
+    return answers
+
+
 def test_lesson_file_path_is_portable_key_and_loadable(tmp_path, monkeypatch):
     client, test_db = _generated_lesson_client(tmp_path, monkeypatch)
 
@@ -89,41 +116,8 @@ def test_analytics_exposes_latest_and_best_accuracy_semantics(tmp_path, monkeypa
         json={"language": "EN", "difficulty": "A1", "topic": "Analytics"},
     ).json()["lesson"]
     lesson_id = lesson["metadata"]["lesson_id"]
-    grammar = lesson["grammar"]["exercises"][0]
-    reading = lesson["reading"]["questions"][0]
-
-    perfect_answers = [
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": grammar["correct_answer"],
-            "correct_answer": grammar["correct_answer"],
-        },
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": reading["correct_answer"],
-            "correct_answer": reading["correct_answer"],
-        },
-    ]
-    lower_answers = [
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": "wrong answer",
-            "correct_answer": grammar["correct_answer"],
-        },
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": reading["correct_answer"],
-            "correct_answer": reading["correct_answer"],
-        },
-    ]
+    perfect_answers = _answers_for_lesson(lesson)
+    lower_answers = _answers_for_lesson(lesson, first_grammar_answer="wrong answer")
 
     assert client.post("/api/review", json=perfect_answers).status_code == 200
     assert client.post("/api/review", json=lower_answers).status_code == 200
@@ -153,7 +147,8 @@ def test_analytics_exposes_latest_and_best_accuracy_semantics(tmp_path, monkeypa
     assert payload["lessons_completed"] >= 1
     assert payload["hardest_words"]
     assert payload["hardest_words"][0]["mistakes"] >= 1
-    assert payload["accuracy_trend"][0]["latest_accuracy_rate"] == 50.0
+    expected_latest = (len(lower_answers) - 1) / len(lower_answers) * 100
+    assert payload["accuracy_trend"][0]["latest_accuracy_rate"] == expected_latest
     assert payload["accuracy_trend"][0]["best_accuracy_rate"] == 100.0
 
 

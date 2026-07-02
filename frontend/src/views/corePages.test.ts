@@ -220,6 +220,11 @@ const lessonPayload = (): Lesson => ({
     estimated_duration_minutes: 10,
     key_points: ['greetings'],
   },
+  objectives: [
+    'Use travel greetings.',
+    'Practice a sentence pattern.',
+    'Explain the dialogue.',
+  ],
   vocabulary: [
     {
       word: 'hello',
@@ -227,6 +232,26 @@ const lessonPayload = (): Lesson => ({
       definition_zh: 'greeting',
       example_sentence: 'Hello there.',
       example_translation: 'A greeting.',
+      root: 'hel',
+      memory_tip: 'Connect it to greeting someone.',
+      category: 'greetings',
+      tags: ['speaking'],
+    },
+  ],
+  word_roots: [
+    {
+      root: 're-',
+      meaning_zh: 'again',
+      examples: ['review', 'repeat'],
+      memory_tip: 'Do it again.',
+    },
+  ],
+  sentence_patterns: [
+    {
+      pattern: 'I would like ...',
+      meaning_zh: '我想要……',
+      usage_note: 'Use it for polite requests.',
+      examples: [{ sentence: 'I would like tea.', translation: '我想要茶。' }],
     },
   ],
   grammar: {
@@ -258,8 +283,28 @@ const lessonPayload = (): Lesson => ({
   dialogue: {
     scenario: 'Cafe',
     context: 'Ordering',
-    dialogue: [],
+    dialogue: [
+      { speaker: 'A', text: 'Hello.', translation: '你好。' },
+      { speaker: 'B', text: 'I would like tea.', translation: '我想要茶。' },
+    ],
     alternatives: [],
+  },
+  immersion: {
+    shadowing_text: [
+      { speaker: 'Coach', text: 'Hello there.', translation: '你好。' },
+    ],
+    repeat_chunks: ['Hello there'],
+    listening_tips: ['Listen for stress.'],
+  },
+  feynman_prompt: {
+    prompt: 'Explain the cafe greeting.',
+    checklist: ['Use hello.', 'Use one pattern.'],
+  },
+  review_plan: {
+    today: ['Read aloud.'],
+    next_1_day: ['Review hello.'],
+    next_3_days: ['Write a request.'],
+    next_7_days: ['Retake questions.'],
   },
 })
 
@@ -523,7 +568,7 @@ describe('TodayLesson.vue', () => {
     feedbackMocks.requestConfirmation.mockResolvedValue(true)
   })
 
-  it('renders vocabulary, grammar, and reading sections', async () => {
+  it('renders textbook-style lesson sections', async () => {
     apiMocks.getTodayLesson.mockResolvedValueOnce({
       success: true,
       lesson: lessonPayload(),
@@ -534,8 +579,15 @@ describe('TodayLesson.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('Use travel greetings.')
+    expect(wrapper.text()).toContain('re-')
+    expect(wrapper.text()).toContain('I would like ...')
     expect(wrapper.text()).toContain('I ___ a student.')
+    expect(wrapper.text()).toContain('I would like tea.')
     expect(wrapper.text()).toContain('A short reading.')
+    expect(wrapper.text()).toContain('Hello there')
+    expect(wrapper.text()).toContain('Explain the cafe greeting.')
+    expect(wrapper.text()).toContain('Retake questions.')
   })
 
   it('submits selected answers to the review API', async () => {

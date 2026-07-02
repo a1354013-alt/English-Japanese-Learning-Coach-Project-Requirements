@@ -12,6 +12,8 @@ TTS is integration-ready but disabled by default. No real TTS provider is enable
 
 - FastAPI backend with typed APIs for lessons, review, analytics, imports, demo reset, and tutor tools
 - Vue 3 + TypeScript frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
+- Textbook-style AI lesson units with objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, text shadowing, Feynman prompts, and review plans
+- Imported vocabulary categories, tags, roots, affixes, word families, and memory tips for stronger word-book review
 - Optional RAG integration via ChromaDB, with chunked material storage plus safe disabled mode for CI and lightweight demos
 - SRS and gamification flows that avoid duplicate XP on repeated submissions
 - TTS provider-ready placeholder with a stable unavailable response shape; this is not shipped as full voice synthesis
@@ -43,7 +45,15 @@ flowchart LR
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
 
-Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, activity streaks, and analytics in SQLite. Core mode works without RAG dependencies. RAG mode requires `backend/requirements-rag.txt`, `ENABLE_RAG=true`, and separate verification; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, and analytics in SQLite. Core mode works without RAG dependencies. RAG mode requires `backend/requirements-rag.txt`, `ENABLE_RAG=true`, and separate verification; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+
+## Textbook-Style Lessons
+
+Generated EN/JP lessons are structured like a compact textbook unit. A lesson keeps the legacy `vocabulary`, `grammar`, `reading`, and `dialogue` fields for API/UI compatibility, and adds objectives, word roots or affixes, sentence patterns, text-based immersion shadowing, a Feynman self-explanation prompt, and a spaced review plan.
+
+Vocabulary items can now carry part of speech, root, prefix, suffix, word family, memory tip, category, and tags. Excel imports accept these optional columns, and SRS due cards surface category, root, and memory tips so review can become more targeted without a risky SRS schema rewrite.
+
+Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
 ## 30-second Demo Flow
 

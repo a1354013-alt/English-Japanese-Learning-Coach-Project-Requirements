@@ -175,6 +175,8 @@ def update_progress_after_review(
 def update_srs_after_review(
     user_id: str, language: str, lesson_data: Dict[str, Any], accuracy_rate: float
 ) -> None:
+    # TODO: Move from lesson-wide accuracy to per-vocabulary outcomes once the review UI
+    # captures word-level recall. Keep the existing behavior stable until that contract exists.
     quality = 5 if accuracy_rate >= 80 else 3 if accuracy_rate >= 50 else 2
     for vocab in lesson_data.get("vocabulary", []):
         word = str(vocab.get("word", "")).strip()

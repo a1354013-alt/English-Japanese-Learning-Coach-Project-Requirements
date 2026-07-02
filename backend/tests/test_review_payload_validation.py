@@ -45,22 +45,28 @@ def _setup_isolated_app(tmp_path, monkeypatch) -> TestClient:
 
 def _full_valid_answers(lesson: dict, *, lesson_id: str | None = None) -> list[dict]:
     current_lesson_id = lesson_id or lesson["metadata"]["lesson_id"]
-    return [
-        {
-            "lesson_id": current_lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-            "correct_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-        },
-        {
-            "lesson_id": current_lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": lesson["reading"]["questions"][0]["correct_answer"],
-            "correct_answer": lesson["reading"]["questions"][0]["correct_answer"],
-        },
-    ]
+    answers = []
+    for idx, exercise in enumerate(lesson["grammar"]["exercises"]):
+        answers.append(
+            {
+                "lesson_id": current_lesson_id,
+                "exercise_type": "grammar",
+                "question_index": idx,
+                "user_answer": exercise["correct_answer"],
+                "correct_answer": exercise["correct_answer"],
+            }
+        )
+    for idx, question in enumerate(lesson["reading"]["questions"]):
+        answers.append(
+            {
+                "lesson_id": current_lesson_id,
+                "exercise_type": "reading",
+                "question_index": idx,
+                "user_answer": question["correct_answer"],
+                "correct_answer": question["correct_answer"],
+            }
+        )
+    return answers
 
 
 def test_review_rejects_mixed_lesson_id(tmp_path, monkeypatch):
@@ -134,7 +140,7 @@ def test_review_rejects_incomplete_payload_when_reading_answer_is_missing(tmp_pa
 
     r = client.post("/api/review", json=answers)
     assert r.status_code == 422
-    assert "missing answers for reading[0]" in r.json()["detail"]
+    assert "reading[0]" in r.json()["detail"]
 
 
 def test_review_rejects_empty_answer_list(tmp_path, monkeypatch):

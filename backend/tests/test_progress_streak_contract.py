@@ -57,22 +57,27 @@ def test_review_updates_progress_and_streak_from_same_source(tmp_path, monkeypat
 
     lesson = client.post("/api/generate/lesson", json={"language": "EN", "difficulty": "A1", "topic": "Streak"}).json()["lesson"]
     lesson_id = lesson["metadata"]["lesson_id"]
-    answers = [
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-            "correct_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-        },
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": lesson["reading"]["questions"][0]["correct_answer"],
-            "correct_answer": lesson["reading"]["questions"][0]["correct_answer"],
-        },
-    ]
+    answers = []
+    for idx, exercise in enumerate(lesson["grammar"]["exercises"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "grammar",
+                "question_index": idx,
+                "user_answer": exercise["correct_answer"],
+                "correct_answer": exercise["correct_answer"],
+            }
+        )
+    for idx, question in enumerate(lesson["reading"]["questions"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "reading",
+                "question_index": idx,
+                "user_answer": question["correct_answer"],
+                "correct_answer": question["correct_answer"],
+            }
+        )
 
     review = client.post("/api/review", json=answers)
     assert review.status_code == 200

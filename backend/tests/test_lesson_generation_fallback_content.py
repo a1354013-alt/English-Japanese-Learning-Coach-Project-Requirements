@@ -47,10 +47,29 @@ def test_fallback_lesson_english_and_japanese_content_is_readable(tmp_path, monk
     assert english.metadata.topic.endswith("(Fallback)")
     assert english.vocabulary[0].word == "resilience"
     assert english.vocabulary[0].definition_zh
-    assert english.reading.content == "Study a little every day to build confidence."
+    assert len(english.objectives) >= 3
+    assert len(english.vocabulary) >= 8
+    assert len(english.word_roots) >= 3
+    assert len(english.sentence_patterns) >= 3
+    assert len(english.grammar.exercises) >= 3
+    assert len(english.reading.questions) >= 3
+    assert len(english.dialogue.dialogue) >= 6
+    assert english.immersion.repeat_chunks
+    assert english.feynman_prompt.prompt
+    assert english.review_plan.next_7_days
 
     assert japanese.metadata.topic.endswith("(Fallback)")
     assert japanese.vocabulary[0].word
     assert japanese.vocabulary[0].reading
     assert japanese.vocabulary[0].definition_zh
     assert japanese.reading.content
+    assert len(japanese.objectives) >= 3
+    assert len(japanese.vocabulary) >= 8
+    assert len(japanese.word_roots) >= 3
+    assert len(japanese.sentence_patterns) >= 3
+    assert len(japanese.grammar.exercises) >= 3
+    assert len(japanese.reading.questions) >= 3
+    assert len(japanese.dialogue.dialogue) >= 6
+    assert japanese.immersion.shadowing_text
+    assert japanese.feynman_prompt.checklist
+    assert japanese.review_plan.today

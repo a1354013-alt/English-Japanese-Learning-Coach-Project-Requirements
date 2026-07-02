@@ -67,17 +67,40 @@
         <p class="error-text">{{ error }}</p>
       </div>
 
+      <div
+        v-if="lesson.objectives?.length"
+        class="section-card"
+        data-testid="lesson-objectives"
+      >
+        <div class="section-header">
+          <div>
+            <h2>學習目標</h2>
+            <p class="section-description">完成本課後，你應該能做到：</p>
+          </div>
+        </div>
+        <ol>
+          <li v-for="objective in lesson.objectives" :key="objective">
+            {{ objective }}
+          </li>
+        </ol>
+      </div>
       <VocabularySection :vocabulary="lesson.vocabulary" />
+      <WordRootsSection :word-roots="lesson.word_roots ?? []" />
+      <SentencePatternSection
+        :sentence-patterns="lesson.sentence_patterns ?? []"
+      />
       <GrammarSection
         :grammar="lesson.grammar"
         :answers="answers.grammar"
         @update-answer="setGrammarAnswer"
       />
+      <DialogueSection :dialogue="lesson.dialogue" />
       <ReadingSection
         :reading="lesson.reading"
         :answers="answers.reading"
         @update-answer="setReadingAnswer"
       />
+      <ImmersionSection :immersion="lesson.immersion" />
       <LessonActions
         :answered-questions="answeredQuestions"
         :total-questions="totalQuestions"
@@ -88,6 +111,8 @@
         @export-pdf="exportPdf"
       />
       <ReviewPanel v-if="reviewResult" :result="reviewResult" />
+      <FeynmanSection :feynman="lesson.feynman_prompt" />
+      <ReviewPlanSection :review-plan="lesson.review_plan" />
     </template>
   </section>
 </template>
@@ -98,12 +123,18 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
+import DialogueSection from '@/components/lesson/DialogueSection.vue'
+import FeynmanSection from '@/components/lesson/FeynmanSection.vue'
 import GrammarSection from '@/components/lesson/GrammarSection.vue'
+import ImmersionSection from '@/components/lesson/ImmersionSection.vue'
 import LessonActions from '@/components/lesson/LessonActions.vue'
 import LessonHeader from '@/components/lesson/LessonHeader.vue'
 import ReadingSection from '@/components/lesson/ReadingSection.vue'
 import ReviewPanel from '@/components/lesson/ReviewPanel.vue'
+import ReviewPlanSection from '@/components/lesson/ReviewPlanSection.vue'
+import SentencePatternSection from '@/components/lesson/SentencePatternSection.vue'
 import VocabularySection from '@/components/lesson/VocabularySection.vue'
+import WordRootsSection from '@/components/lesson/WordRootsSection.vue'
 import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
 import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type {

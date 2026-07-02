@@ -32,6 +32,7 @@
           <tr>
             <th align="left">{{ t('common.word') }}</th>
             <th align="left">{{ t('common.definition') }}</th>
+            <th align="left">分類 / 字根</th>
             <th align="left">{{ t('review.nextReview') }}</th>
             <th align="left">{{ t('common.action') }}</th>
           </tr>
@@ -39,7 +40,18 @@
         <tbody>
           <tr v-for="item in items" :key="item.language + ':' + item.word">
             <td style="font-weight: 600">{{ item.word }}</td>
-            <td>{{ item.definition_zh ?? '' }}</td>
+            <td>
+              <div>{{ item.definition_zh ?? '' }}</div>
+              <small v-if="item.memory_tip" class="muted">
+                {{ item.memory_tip }}
+              </small>
+            </td>
+            <td>
+              <div>{{ item.category ?? '-' }}</div>
+              <small v-if="item.root" class="muted"
+                >root: {{ item.root }}</small
+              >
+            </td>
             <td>{{ formatNextReview(item.next_review) }}</td>
             <td class="row gap-sm">
               <button
@@ -123,3 +135,11 @@ const review = async (item: SrsItem, quality: number) => {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.muted {
+  display: block;
+  color: #64748b;
+  margin-top: 4px;
+}
+</style>

@@ -64,22 +64,34 @@ def test_response_models_keep_key_fields_for_lesson_review_progress_and_analytic
     assert "new_cards" in lesson["gamification"]
 
     lesson_id = lesson["metadata"]["lesson_id"]
-    answers = [
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-            "correct_answer": lesson["grammar"]["exercises"][0]["correct_answer"],
-        },
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": lesson["reading"]["questions"][0]["correct_answer"],
-            "correct_answer": lesson["reading"]["questions"][0]["correct_answer"],
-        },
-    ]
+    assert len(lesson["objectives"]) >= 3
+    assert len(lesson["word_roots"]) >= 3
+    assert len(lesson["sentence_patterns"]) >= 3
+    assert lesson["immersion"]["repeat_chunks"]
+    assert lesson["feynman_prompt"]["prompt"]
+    assert lesson["review_plan"]["today"]
+
+    answers = []
+    for idx, exercise in enumerate(lesson["grammar"]["exercises"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "grammar",
+                "question_index": idx,
+                "user_answer": exercise["correct_answer"],
+                "correct_answer": exercise["correct_answer"],
+            }
+        )
+    for idx, question in enumerate(lesson["reading"]["questions"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "reading",
+                "question_index": idx,
+                "user_answer": question["correct_answer"],
+                "correct_answer": question["correct_answer"],
+            }
+        )
 
     r_review = client.post("/api/review", json=answers)
     assert r_review.status_code == 200

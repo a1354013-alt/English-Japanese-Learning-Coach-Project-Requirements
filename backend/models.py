@@ -40,6 +40,14 @@ class VocabularyItem(BaseModel):
     example_translation: str
     synonyms: Optional[List[str]] = None
     antonyms: Optional[List[str]] = None
+    part_of_speech: Optional[str] = None
+    root: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+    word_family: Optional[List[str]] = None
+    memory_tip: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
     # SRS Fields
     srs_level: int = 0
     next_review: Optional[datetime] = None
@@ -114,6 +122,38 @@ class DialogueSection(BaseModel):
 
 
 # ============ Lesson Models ============
+class SentencePattern(BaseModel):
+    pattern: str
+    meaning_zh: str
+    usage_note: str
+    examples: List[GrammarExample]
+
+
+class WordRoot(BaseModel):
+    root: str
+    meaning_zh: str
+    examples: List[str]
+    memory_tip: str
+
+
+class ImmersionSection(BaseModel):
+    shadowing_text: List[DialogueLine] = Field(default_factory=list)
+    repeat_chunks: List[str] = Field(default_factory=list)
+    listening_tips: List[str] = Field(default_factory=list)
+
+
+class FeynmanPrompt(BaseModel):
+    prompt: str = ""
+    checklist: List[str] = Field(default_factory=list)
+
+
+class ReviewPlan(BaseModel):
+    today: List[str] = Field(default_factory=list)
+    next_1_day: List[str] = Field(default_factory=list)
+    next_3_days: List[str] = Field(default_factory=list)
+    next_7_days: List[str] = Field(default_factory=list)
+
+
 class LessonEvidence(BaseModel):
     material_id: str
     doc_id: Optional[str] = None
@@ -141,10 +181,16 @@ class LessonMetadata(BaseModel):
 class Lesson(BaseModel):
     """Complete lesson structure"""
     metadata: LessonMetadata
+    objectives: List[str] = Field(default_factory=list)
     vocabulary: List[VocabularyItem]
+    word_roots: List[WordRoot] = Field(default_factory=list)
+    sentence_patterns: List[SentencePattern] = Field(default_factory=list)
     grammar: GrammarSection
     reading: ReadingSection
     dialogue: DialogueSection
+    immersion: ImmersionSection = Field(default_factory=ImmersionSection)
+    feynman_prompt: FeynmanPrompt = Field(default_factory=FeynmanPrompt)
+    review_plan: ReviewPlan = Field(default_factory=ReviewPlan)
     tts_scripts: Optional[List[Dict[str, Any]]] = None  # For future TTS integration
     evidence: Optional[List[LessonEvidence]] = None  # RAG evidence sources
     gamification: Optional["LessonGamification"] = None
@@ -495,6 +541,10 @@ class SrsDueItem(BaseModel):
     word: str
     language: LanguageCode
     definition_zh: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    memory_tip: Optional[str] = None
+    root: Optional[str] = None
     next_review: Optional[datetime] = None
     interval: int
     ease_factor: float
@@ -560,6 +610,16 @@ class ImportedVocabularyItem(BaseModel):
     definition_zh: str
     example_sentence: Optional[str] = None
     example_translation: Optional[str] = None
+    part_of_speech: Optional[str] = None
+    root: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+    word_family: Optional[List[str]] = None
+    memory_tip: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    source_lesson_id: Optional[str] = None
+    mastery_state: str = "new"
     created_at: datetime
 
 

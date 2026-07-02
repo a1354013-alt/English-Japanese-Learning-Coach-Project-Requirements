@@ -50,25 +50,27 @@ def test_core_flow_generate_review_progress_dedup(tmp_path, monkeypatch):
     lesson = r_gen.json()["lesson"]
     lesson_id = lesson["metadata"]["lesson_id"]
 
-    g0 = lesson["grammar"]["exercises"][0]
-    r0 = lesson["reading"]["questions"][0]
-
-    answers = [
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "grammar",
-            "question_index": 0,
-            "user_answer": g0["correct_answer"],
-            "correct_answer": g0["correct_answer"],
-        },
-        {
-            "lesson_id": lesson_id,
-            "exercise_type": "reading",
-            "question_index": 0,
-            "user_answer": r0["correct_answer"],
-            "correct_answer": r0["correct_answer"],
-        },
-    ]
+    answers = []
+    for idx, exercise in enumerate(lesson["grammar"]["exercises"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "grammar",
+                "question_index": idx,
+                "user_answer": exercise["correct_answer"],
+                "correct_answer": exercise["correct_answer"],
+            }
+        )
+    for idx, question in enumerate(lesson["reading"]["questions"]):
+        answers.append(
+            {
+                "lesson_id": lesson_id,
+                "exercise_type": "reading",
+                "question_index": idx,
+                "user_answer": question["correct_answer"],
+                "correct_answer": question["correct_answer"],
+            }
+        )
 
     r1 = client.post("/api/review", json=answers)
     assert r1.status_code == 200
@@ -79,8 +81,8 @@ def test_core_flow_generate_review_progress_dedup(tmp_path, monkeypatch):
     assert p1.status_code == 200
     progress1 = p1.json()["progress"]
     assert progress1["english_progress"]["completed_lessons"] == 1
-    assert progress1["english_progress"]["total_exercises"] == 2
-    assert progress1["english_progress"]["correct_exercises"] == 2
+    assert progress1["english_progress"]["total_exercises"] == len(answers)
+    assert progress1["english_progress"]["correct_exercises"] == len(answers)
 
     # Re-submitting must not farm XP or progress.
     r2 = client.post("/api/review", json=answers)
@@ -92,6 +94,5 @@ def test_core_flow_generate_review_progress_dedup(tmp_path, monkeypatch):
     assert p2.status_code == 200
     progress2 = p2.json()["progress"]
     assert progress2["english_progress"]["completed_lessons"] == 1
-    assert progress2["english_progress"]["total_exercises"] == 2
-    assert progress2["english_progress"]["correct_exercises"] == 2
-
+    assert progress2["english_progress"]["total_exercises"] == len(answers)
+    assert progress2["english_progress"]["correct_exercises"] == len(answers)

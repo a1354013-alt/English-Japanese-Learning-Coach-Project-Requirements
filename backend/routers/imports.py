@@ -36,6 +36,13 @@ def _excel_text(value, *, allow_empty: bool = False) -> str | None:
     return text
 
 
+def _excel_list(value) -> list[str]:
+    text = _excel_text(value, allow_empty=True)
+    if not text:
+        return []
+    return [part.strip() for part in str(text).replace(";", ",").split(",") if part.strip()]
+
+
 def _normalize_material_item(item: dict) -> dict:
     material_id = str(item.get("material_id") or item.get("doc_id") or "")
     return {
@@ -105,6 +112,26 @@ async def import_excel(
     reading_col = column_map.get("reading")
     example_col = column_map.get("example_sentence") or column_map.get("example")
     translation_col = column_map.get("example_translation")
+    optional_text_cols = {
+        name: column_map.get(name)
+        for name in (
+            "part_of_speech",
+            "root",
+            "prefix",
+            "suffix",
+            "memory_tip",
+            "category",
+            "source_lesson_id",
+            "mastery_state",
+        )
+    }
+    optional_list_cols = {
+        name: column_map.get(name)
+        for name in (
+            "word_family",
+            "tags",
+        )
+    }
 
     imported_count = 0
     for _, row in df.iterrows():
@@ -120,6 +147,14 @@ async def import_excel(
             "example_sentence": _excel_text(row[example_col], allow_empty=True) if example_col else "",
             "example_translation": _excel_text(row[translation_col], allow_empty=True) if translation_col else "",
         }
+        for field, col in optional_text_cols.items():
+            if col:
+                value = _excel_text(row[col], allow_empty=True)
+                if value:
+                    vocab_item[field] = value
+        for field, col in optional_list_cols.items():
+            if col:
+                vocab_item[field] = _excel_list(row[col])
 
         db.save_imported_vocabulary(user_id, language, vocab_item)
         gamification_engine.collect_word_cards(user_id, [word], language)
