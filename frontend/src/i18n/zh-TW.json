@@ -130,8 +130,8 @@
     "unansweredConfirm": "請先完成全部 {total} 題再送出，目前已作答 {answered} 題。",
     "submitPartialTitle": "請完成所有題目",
     "reviewIncomplete": "請先完成所有題目再送出，目前已作答 {answered} / {total} 題。",
-    "resetDemoConfirmTitle": "???? Demo ???",
-    "resetDemoConfirmMessage": "?????? demo ?????????????????"
+    "resetDemoConfirmTitle": "重設 Demo 資料？",
+    "resetDemoConfirmMessage": "這會重建目前 demo 使用者的種子課程、進度與複習資料。"
   },
   "materials": {
     "title": "RAG 教材",
@@ -147,8 +147,8 @@
     "uploadError": "目前無法上傳教材，請稍後再試。",
     "deleteError": "目前無法刪除教材，請稍後再試。",
     "demoNote": "Demo 提示：如果後端停用了 RAG，教材清單仍可載入，但上傳與刪除會回傳明確錯誤。",
-    "confirmDeleteTitle": "???????",
-    "confirmDeleteMessage": "?? RAG ??????????????"
+    "confirmDeleteTitle": "刪除教材？",
+    "confirmDeleteMessage": "要從 RAG 工作區刪除這份上傳教材嗎？"
   },
   "vocabulary": {
     "title": "匯入單字",
@@ -165,7 +165,7 @@
     "loadError": "目前無法載入單字資料，請稍後再試。",
     "deleteError": "目前無法刪除單字，請稍後再試。",
     "deleteConfirm": "確定要刪除這筆匯入單字嗎？這也會一併移除衍生的 SRS 項目與對應單字卡。",
-    "deleteConfirmTitle": "???????"
+    "deleteConfirmTitle": "刪除單字？"
   },
   "mistakes": {
     "title": "錯題筆記本",
@@ -353,6 +353,42 @@
     "readingQuestions": "閱讀題目",
     "dialogue": "對話",
     "loadError": "目前無法載入這堂課程，可能已被刪除或 API 暫時不可用。"
+  },
+  "lessonSections": {
+    "objectives": {
+      "title": "學習目標",
+      "description": "先掌握本單元目標，再進入練習。"
+    },
+    "dialogue": {
+      "title": "對話"
+    },
+    "wordRoots": {
+      "title": "字根與構詞",
+      "description": "觀察字根、接頭語、接尾語、漢字部件或語源線索。"
+    },
+    "sentencePatterns": {
+      "title": "句型",
+      "description": "可重複運用在口說、閱讀與寫作的核心句型。"
+    },
+    "immersion": {
+      "title": "沉浸練習",
+      "description": "先聽懂意思，再跟讀、分塊重複並逐步加速。",
+      "shadowing": "跟讀",
+      "repeatChunks": "重複語塊",
+      "listeningTips": "聽力提示"
+    },
+    "feynman": {
+      "title": "費曼檢核",
+      "placeholder": "用自己的話解釋本單元..."
+    },
+    "reviewPlan": {
+      "title": "複習計畫",
+      "description": "用簡單的間隔複習讓本單元保持活躍。",
+      "today": "今天",
+      "next1Day": "+1 天",
+      "next3Days": "+3 天",
+      "next7Days": "+7 天"
+    }
   },
   "studyPlan": {
     "title": "學習計畫",

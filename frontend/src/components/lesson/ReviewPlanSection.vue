@@ -1,9 +1,11 @@
 <template>
-  <div v-if="reviewPlan" class="section-card" data-testid="lesson-review-plan">
+  <div v-if="hasContent" class="section-card" data-testid="lesson-review-plan">
     <div class="section-header">
       <div>
-        <h2>複習計畫</h2>
-        <p class="section-description">把今天的課拆成間隔複習節點。</p>
+        <h2>{{ t('lessonSections.reviewPlan.title') }}</h2>
+        <p class="section-description">
+          {{ t('lessonSections.reviewPlan.description') }}
+        </p>
       </div>
     </div>
     <div class="plan-grid">
@@ -19,16 +21,33 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ReviewPlan } from '@/types'
 
 const props = defineProps<{ reviewPlan?: ReviewPlan }>()
+const { t } = useI18n()
 
 const groups = computed(() => [
-  { label: 'Today', items: props.reviewPlan?.today ?? [] },
-  { label: '+1 day', items: props.reviewPlan?.next_1_day ?? [] },
-  { label: '+3 days', items: props.reviewPlan?.next_3_days ?? [] },
-  { label: '+7 days', items: props.reviewPlan?.next_7_days ?? [] },
+  {
+    label: t('lessonSections.reviewPlan.today'),
+    items: props.reviewPlan?.today ?? [],
+  },
+  {
+    label: t('lessonSections.reviewPlan.next1Day'),
+    items: props.reviewPlan?.next_1_day ?? [],
+  },
+  {
+    label: t('lessonSections.reviewPlan.next3Days'),
+    items: props.reviewPlan?.next_3_days ?? [],
+  },
+  {
+    label: t('lessonSections.reviewPlan.next7Days'),
+    items: props.reviewPlan?.next_7_days ?? [],
+  },
 ])
+const hasContent = computed(() =>
+  groups.value.some((group) => group.items.length),
+)
 </script>
 
 <style scoped>

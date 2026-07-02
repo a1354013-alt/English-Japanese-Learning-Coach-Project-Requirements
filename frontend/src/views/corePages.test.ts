@@ -590,6 +590,28 @@ describe('TodayLesson.vue', () => {
     expect(wrapper.text()).toContain('Retake questions.')
   })
 
+  it('does not crash when older lesson data omits textbook extension fields', async () => {
+    const oldLesson: Partial<Lesson> = lessonPayload()
+    delete oldLesson.objectives
+    delete oldLesson.word_roots
+    delete oldLesson.sentence_patterns
+    delete oldLesson.immersion
+    delete oldLesson.feynman_prompt
+    delete oldLesson.review_plan
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: oldLesson as Lesson,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('hello')
+    expect(wrapper.text()).toContain('I ___ a student.')
+    expect(wrapper.text()).toContain('A short reading.')
+  })
+
   it('submits selected answers to the review API', async () => {
     const reviewResult: ReviewResult = {
       success: true,

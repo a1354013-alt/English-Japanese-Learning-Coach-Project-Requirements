@@ -2,20 +2,22 @@
   <div v-if="hasContent" class="section-card" data-testid="lesson-immersion">
     <div class="section-header">
       <div>
-        <h2>沉浸跟讀</h2>
-        <p class="section-description">文字版 shadowing，先練節奏與分段。</p>
+        <h2>{{ t('lessonSections.immersion.title') }}</h2>
+        <p class="section-description">
+          {{ t('lessonSections.immersion.description') }}
+        </p>
       </div>
     </div>
     <div class="immersion-grid">
       <section>
-        <h3>Shadowing</h3>
+        <h3>{{ t('lessonSections.immersion.shadowing') }}</h3>
         <p v-for="(line, index) in safeImmersion.shadowing_text" :key="index">
           <strong>{{ line.speaker }}:</strong> {{ line.text }}
           <small>{{ line.translation }}</small>
         </p>
       </section>
       <section>
-        <h3>Repeat Chunks</h3>
+        <h3>{{ t('lessonSections.immersion.repeatChunks') }}</h3>
         <ul>
           <li v-for="chunk in safeImmersion.repeat_chunks" :key="chunk">
             {{ chunk }}
@@ -23,7 +25,7 @@
         </ul>
       </section>
       <section>
-        <h3>Listening Tips</h3>
+        <h3>{{ t('lessonSections.immersion.listeningTips') }}</h3>
         <ul>
           <li v-for="tip in safeImmersion.listening_tips" :key="tip">
             {{ tip }}
@@ -36,9 +38,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ImmersionSection } from '@/types'
 
 const props = defineProps<{ immersion?: ImmersionSection }>()
+const { t } = useI18n()
 
 const safeImmersion = computed<ImmersionSection>(() => ({
   shadowing_text: props.immersion?.shadowing_text ?? [],

@@ -1,18 +1,24 @@
 <template>
   <div
-    v-if="dialogue.dialogue.length"
+    v-if="safeDialogue.dialogue.length"
     class="section-card"
     data-testid="lesson-dialogue"
   >
     <div class="section-header">
       <div>
-        <h2>對話</h2>
-        <p class="section-description">{{ dialogue.scenario }}</p>
+        <h2>{{ t('lessonSections.dialogue.title') }}</h2>
+        <p class="section-description">{{ safeDialogue.scenario }}</p>
       </div>
     </div>
-    <p v-if="dialogue.context" class="context">{{ dialogue.context }}</p>
+    <p v-if="safeDialogue.context" class="context">
+      {{ safeDialogue.context }}
+    </p>
     <div class="page-stack">
-      <div v-for="(line, index) in dialogue.dialogue" :key="index" class="line">
+      <div
+        v-for="(line, index) in safeDialogue.dialogue"
+        :key="index"
+        class="line"
+      >
         <strong>{{ line.speaker }}</strong>
         <span>{{ line.text }}</span>
         <small>{{ line.translation }}</small>
@@ -22,9 +28,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DialogueSection } from '@/types'
 
-defineProps<{ dialogue: DialogueSection }>()
+const props = defineProps<{ dialogue?: DialogueSection }>()
+const { t } = useI18n()
+
+const safeDialogue = computed<DialogueSection>(() => ({
+  scenario: props.dialogue?.scenario ?? '',
+  context: props.dialogue?.context ?? '',
+  dialogue: props.dialogue?.dialogue ?? [],
+  alternatives: props.dialogue?.alternatives ?? [],
+}))
 </script>
 
 <style scoped>

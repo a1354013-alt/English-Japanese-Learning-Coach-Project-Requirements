@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="grid" style="margin-top: 1rem">
     <div class="panel row between center">
       <h2 style="margin: 0">{{ t('lesson.title') }}</h2>
@@ -22,7 +22,7 @@
       </section>
 
       <section v-if="lesson.objectives?.length">
-        <h3>學習目標</h3>
+        <h3>{{ t('lessonSections.objectives.title') }}</h3>
         <ol>
           <li v-for="objective in lesson.objectives" :key="objective">
             {{ objective }}

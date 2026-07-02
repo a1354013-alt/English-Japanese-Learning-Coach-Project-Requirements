@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="page-shell page-stack" data-testid="today-lesson">
     <LessonHeader
       :lesson="lesson"
@@ -74,8 +74,10 @@
       >
         <div class="section-header">
           <div>
-            <h2>學習目標</h2>
-            <p class="section-description">完成本課後，你應該能做到：</p>
+            <h2>{{ t('lessonSections.objectives.title') }}</h2>
+            <p class="section-description">
+              {{ t('lessonSections.objectives.description') }}
+            </p>
           </div>
         </div>
         <ol>

@@ -1,17 +1,19 @@
 <template>
   <div
-    v-if="wordRoots.length"
+    v-if="safeWordRoots.length"
     class="section-card"
     data-testid="lesson-word-roots"
   >
     <div class="section-header">
       <div>
-        <h2>字根 / 字首 / 字尾</h2>
-        <p class="section-description">用字的結構建立記憶鉤子。</p>
+        <h2>{{ t('lessonSections.wordRoots.title') }}</h2>
+        <p class="section-description">
+          {{ t('lessonSections.wordRoots.description') }}
+        </p>
       </div>
     </div>
     <div class="root-grid">
-      <article v-for="item in wordRoots" :key="item.root" class="mini-card">
+      <article v-for="item in safeWordRoots" :key="item.root" class="mini-card">
         <h3>{{ item.root }}</h3>
         <p class="strong">{{ item.meaning_zh }}</p>
         <p>{{ item.examples.join(' / ') }}</p>
@@ -22,9 +24,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { WordRoot } from '@/types'
 
-defineProps<{ wordRoots: WordRoot[] }>()
+const props = defineProps<{ wordRoots?: WordRoot[] }>()
+const { t } = useI18n()
+
+const safeWordRoots = computed(() => props.wordRoots ?? [])
 </script>
 
 <style scoped>

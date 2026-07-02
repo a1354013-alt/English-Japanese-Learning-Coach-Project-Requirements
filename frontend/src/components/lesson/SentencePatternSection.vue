@@ -1,20 +1,20 @@
 <template>
   <div
-    v-if="sentencePatterns.length"
+    v-if="safeSentencePatterns.length"
     class="section-card"
     data-testid="lesson-sentence-patterns"
   >
     <div class="section-header">
       <div>
-        <h2>句型</h2>
+        <h2>{{ t('lessonSections.sentencePatterns.title') }}</h2>
         <p class="section-description">
-          先掌握可替換的句子骨架，再放入新單字。
+          {{ t('lessonSections.sentencePatterns.description') }}
         </p>
       </div>
     </div>
     <div class="page-stack">
       <article
-        v-for="item in sentencePatterns"
+        v-for="item in safeSentencePatterns"
         :key="item.pattern"
         class="pattern-card"
       >
@@ -33,9 +33,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { SentencePattern } from '@/types'
 
-defineProps<{ sentencePatterns: SentencePattern[] }>()
+const props = defineProps<{ sentencePatterns?: SentencePattern[] }>()
+const { t } = useI18n()
+
+const safeSentencePatterns = computed(() => props.sentencePatterns ?? [])
 </script>
 
 <style scoped>

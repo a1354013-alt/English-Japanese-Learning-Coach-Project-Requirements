@@ -354,6 +354,42 @@
     "dialogue": "Dialogue",
     "loadError": "Unable to load this lesson. It may have been removed or the API is unavailable."
   },
+  "lessonSections": {
+    "objectives": {
+      "title": "Objectives",
+      "description": "Use these goals to focus the unit before you practice."
+    },
+    "dialogue": {
+      "title": "Dialogue"
+    },
+    "wordRoots": {
+      "title": "Word Roots",
+      "description": "Notice roots, affixes, kanji parts, or word-building clues."
+    },
+    "sentencePatterns": {
+      "title": "Sentence Patterns",
+      "description": "Reusable patterns for speaking, reading, and writing."
+    },
+    "immersion": {
+      "title": "Immersion",
+      "description": "Shadow, repeat, and listen for meaning before speed.",
+      "shadowing": "Shadowing",
+      "repeatChunks": "Repeat Chunks",
+      "listeningTips": "Listening Tips"
+    },
+    "feynman": {
+      "title": "Feynman Check",
+      "placeholder": "Explain the unit in your own words..."
+    },
+    "reviewPlan": {
+      "title": "Review Plan",
+      "description": "A simple spaced review path for keeping the unit active.",
+      "today": "Today",
+      "next1Day": "+1 day",
+      "next3Days": "+3 days",
+      "next7Days": "+7 days"
+    }
+  },
   "studyPlan": {
     "title": "Study Plan",
     "clear": "Clear",
