@@ -1,6 +1,12 @@
-﻿<template>
+<template>
   <section class="page-shell page-stack" data-testid="today-lesson">
+    <DiagnosticFlow
+      v-if="microLoaded && !microDiagnosticCompleted"
+      @complete="handleDiagnosticComplete"
+    />
+
     <LessonHeader
+      v-if="!microLoaded || microDiagnosticCompleted"
       :lesson="lesson"
       :language="request.language"
       :streak="streak"
@@ -17,7 +23,7 @@
     />
 
     <LoadingState
-      v-if="loading && !lesson"
+      v-if="(loading && !lesson) || microLoading"
       :message="t('today.loadingLesson')"
     />
 
@@ -28,8 +34,15 @@
       @retry="loadTodayLesson"
     />
 
+    <MicroLesson
+      v-if="microLesson && microDiagnosticCompleted"
+      :lesson="microLesson"
+      :plan="learningPlan"
+      @completed="handleMicroCompleted"
+    />
+
     <div
-      v-else-if="!lesson && !loading && !error"
+      v-if="microDiagnosticCompleted && !lesson && !loading && !error"
       class="section-card page-stack"
       data-testid="generate-panel"
     >
@@ -62,7 +75,7 @@
       </div>
     </div>
 
-    <template v-else-if="lesson">
+    <template v-if="microDiagnosticCompleted && lesson">
       <div v-if="error && lesson" class="section-card warning-card">
         <p class="error-text">{{ error }}</p>
       </div>
@@ -123,6 +136,8 @@
 import axios from 'axios'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DiagnosticFlow from '@/components/DiagnosticFlow.vue'
+import MicroLesson from '@/components/MicroLesson.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import DialogueSection from '@/components/lesson/DialogueSection.vue'
@@ -137,12 +152,20 @@ import ReviewPlanSection from '@/components/lesson/ReviewPlanSection.vue'
 import SentencePatternSection from '@/components/lesson/SentencePatternSection.vue'
 import VocabularySection from '@/components/lesson/VocabularySection.vue'
 import WordRootsSection from '@/components/lesson/WordRootsSection.vue'
-import { lessonApi, reviewApi, streakApi, systemApi } from '@/services/api'
+import {
+  lessonApi,
+  microLessonApi,
+  reviewApi,
+  streakApi,
+  systemApi,
+} from '@/services/api'
 import { requestConfirmation, showNotice } from '@/services/appFeedback'
 import type {
   Language,
   LearningLevel,
   Lesson,
+  LearningPlan,
+  MicroLesson as MicroLessonType,
   ReviewResult,
   StreakResponse,
 } from '@/types'
@@ -170,6 +193,11 @@ const reviewResult = ref<ReviewResult | null>(null)
 const streak = ref<StreakResponse | null>(null)
 const resettingDemo = ref(false)
 const exportingPdf = ref(false)
+const microLesson = ref<MicroLessonType | null>(null)
+const learningPlan = ref<LearningPlan | null>(null)
+const microDiagnosticCompleted = ref(true)
+const microLoaded = ref(false)
+const microLoading = ref(false)
 
 const answers = reactive<{
   grammar: Record<number, string>
@@ -227,6 +255,7 @@ const loadTodayLesson = async () => {
   loading.value = true
   error.value = null
   try {
+    await loadMicroLesson()
     const res = await lessonApi.getTodayLesson(request.language)
     lesson.value = res.lesson
     resetAnswers()
@@ -236,6 +265,30 @@ const loadTodayLesson = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadMicroLesson = async () => {
+  microLoading.value = true
+  try {
+    const res = await microLessonApi.getToday()
+    microDiagnosticCompleted.value = res.diagnostic_completed
+    learningPlan.value = res.learning_plan
+    microLesson.value = res.lesson
+  } finally {
+    microLoaded.value = true
+    microLoading.value = false
+  }
+}
+
+const handleDiagnosticComplete = async (plan: LearningPlan) => {
+  learningPlan.value = plan
+  microDiagnosticCompleted.value = true
+  await loadMicroLesson()
+}
+
+const handleMicroCompleted = async (nextLesson: MicroLessonType) => {
+  microLesson.value = nextLesson
+  await loadStreak()
 }
 
 const loadStreak = async () => {

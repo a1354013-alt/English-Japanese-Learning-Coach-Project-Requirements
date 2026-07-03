@@ -507,3 +507,82 @@ export interface DemoResetResponse {
     today_lesson_id: string
   }
 }
+
+export interface DiagnosticQuestion {
+  question_id: string
+  prompt: string
+  choices: string[]
+  correct_answer: string
+  skill: 'subject' | 'verb' | 'present_simple'
+}
+
+export interface LearningPlan {
+  estimated_total_days: number
+  current_day: number
+  summary_zh: string
+}
+
+export interface MicroVocabularyItem {
+  word: string
+  phonetic: string
+  pronunciation_zh: string
+  definition_zh: string
+  example_sentence: string
+  example_translation: string
+}
+
+export interface MicroDialogueLine {
+  speaker: string
+  english: string
+  translation_zh: string
+}
+
+export interface ComicPanel {
+  panel: number
+  english: string
+  translation_zh: string
+  scene_prompt: string
+}
+
+export interface FillBlankQuestion {
+  prompt: string
+  choices: string[]
+  correct_answer: string
+  explanation: string
+}
+
+export interface MicroLesson {
+  lesson_id: string
+  day_index: number
+  total_days: number
+  target_exam: string
+  sentence: string
+  translation_zh: string
+  subject_text: string
+  verb_text: string
+  object_text: string
+  reading_order_steps: string[]
+  grammar_note: string
+  toeic_usage_note: string
+  vocabulary_items: MicroVocabularyItem[]
+  dialogue_lines: MicroDialogueLine[]
+  reading_passage: string
+  comic_panels: ComicPanel[]
+  fill_blank_question: FillBlankQuestion
+  completed: boolean
+}
+
+export interface MicroLessonTodayResponse {
+  success: boolean
+  diagnostic_completed: boolean
+  learning_plan: LearningPlan | null
+  lesson: MicroLesson | null
+}
+
+export interface MicroLessonAnswerResponse {
+  success: boolean
+  correct: boolean
+  completed: boolean
+  lesson: MicroLesson
+  streak: StreakResponse
+}

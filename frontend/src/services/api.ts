@@ -30,6 +30,11 @@ import type {
   ErrorType,
   DemoResetResponse,
   LessonListItem,
+  DiagnosticQuestion,
+  LearningPlan,
+  MicroLesson,
+  MicroLessonAnswerResponse,
+  MicroLessonTodayResponse,
 } from '@/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').trim()
@@ -172,6 +177,53 @@ export const progressApi = {
   ) {
     const payload: OnboardRequest = { language, level, difficulty }
     const response = await api.post<{ success: boolean }>('/onboard', payload)
+    return response.data
+  },
+}
+
+export const diagnosticApi = {
+  async getQuestions() {
+    const response = await api.get<{
+      success: boolean
+      questions: DiagnosticQuestion[]
+    }>('/diagnostic/questions')
+    return response.data
+  },
+
+  async submit(
+    answers: Array<{
+      question_id: string
+      answer: string
+    }>,
+  ) {
+    const response = await api.post<{
+      success: boolean
+      learning_plan: LearningPlan
+    }>('/diagnostic/submit', { answers })
+    return response.data
+  },
+}
+
+export const microLessonApi = {
+  async getToday() {
+    const response = await api.get<MicroLessonTodayResponse>(
+      '/micro-lessons/today',
+    )
+    return response.data
+  },
+
+  async generate() {
+    const response = await api.post<{ success: boolean; lesson: MicroLesson }>(
+      '/micro-lessons/generate',
+    )
+    return response.data
+  },
+
+  async answer(lessonId: string, answer: string) {
+    const response = await api.post<MicroLessonAnswerResponse>(
+      `/micro-lessons/${encodeURIComponent(lessonId)}/answer`,
+      { answer },
+    )
     return response.data
   },
 }

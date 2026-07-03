@@ -1,4 +1,4 @@
-﻿"""Lesson generator using Ollama AI with deterministic fallback content."""
+"""Lesson generator using Ollama AI with deterministic fallback content."""
 
 from __future__ import annotations
 

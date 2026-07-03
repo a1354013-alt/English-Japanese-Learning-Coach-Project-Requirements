@@ -356,6 +356,122 @@ class StreakInfo(BaseModel):
     today_completed: bool
 
 
+# ============ Daily Micro Lesson Models ============
+class DiagnosticQuestion(BaseModel):
+    question_id: str
+    prompt: str
+    choices: List[str]
+    correct_answer: str
+    skill: Literal["subject", "verb", "present_simple"]
+
+
+class DiagnosticQuestionsResponse(BaseModel):
+    success: bool = True
+    questions: List[DiagnosticQuestion]
+
+
+class DiagnosticAnswer(BaseModel):
+    question_id: str
+    answer: str
+
+
+class DiagnosticSubmitRequest(BaseModel):
+    answers: List[DiagnosticAnswer]
+
+
+class LearningPlan(BaseModel):
+    estimated_total_days: int = 90
+    current_day: int = 1
+    summary_zh: str
+
+
+class DiagnosticSubmitResponse(BaseModel):
+    success: bool = True
+    learning_plan: LearningPlan
+
+
+class MicroVocabularyItem(BaseModel):
+    word: str
+    phonetic: str
+    pronunciation_zh: str
+    definition_zh: str
+    example_sentence: str
+    example_translation: str
+
+
+class MicroDialogueLine(BaseModel):
+    speaker: str
+    english: str
+    translation_zh: str
+
+
+class ComicPanel(BaseModel):
+    panel: int
+    english: str
+    translation_zh: str
+    scene_prompt: str
+
+
+class FillBlankQuestion(BaseModel):
+    prompt: str
+    choices: List[str]
+    correct_answer: str
+    explanation: str
+
+
+class MicroLesson(BaseModel):
+    lesson_id: str = Field(default_factory=lambda: str(uuid4()))
+    day_index: int = Field(ge=1)
+    total_days: int = Field(ge=1)
+    target_exam: str = "TOEIC 600"
+    sentence: str
+    translation_zh: str
+    subject_text: str
+    verb_text: str
+    object_text: str
+    reading_order_steps: List[str]
+    grammar_note: str
+    toeic_usage_note: str
+    vocabulary_items: List[MicroVocabularyItem] = Field(min_length=5, max_length=10)
+    dialogue_lines: List[MicroDialogueLine]
+    reading_passage: str
+    comic_panels: List[ComicPanel]
+    fill_blank_question: FillBlankQuestion
+    completed: bool = False
+
+    @field_validator("sentence")
+    @classmethod
+    def sentence_has_at_most_ten_words(cls, value: str) -> str:
+        words = [word for word in value.replace(".", " ").replace("?", " ").split() if word]
+        if len(words) > 10:
+            raise ValueError("sentence must not exceed 10 English words")
+        return value
+
+
+class MicroLessonTodayResponse(BaseModel):
+    success: bool = True
+    diagnostic_completed: bool
+    learning_plan: Optional[LearningPlan] = None
+    lesson: Optional[MicroLesson] = None
+
+
+class MicroLessonResponse(BaseModel):
+    success: bool = True
+    lesson: MicroLesson
+
+
+class MicroLessonAnswerRequest(BaseModel):
+    answer: str
+
+
+class MicroLessonAnswerResponse(BaseModel):
+    success: bool = True
+    correct: bool
+    completed: bool
+    lesson: MicroLesson
+    streak: StreakInfo
+
+
 # ============ Writing Assistant Models ============
 class WritingCorrection(BaseModel):
     original: str

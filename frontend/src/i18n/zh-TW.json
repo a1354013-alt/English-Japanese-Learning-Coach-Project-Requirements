@@ -32,7 +32,7 @@
     "submit": "送出",
     "back": "返回",
     "friendlyError": "目前無法載入資料，請稍後再試。",
-    "confirm": "??"
+    "confirm": "確認"
   },
   "nav": {
     "today": "今日學習",
@@ -400,5 +400,28 @@
     "dailyCommitment": "每日投入：{minutes} 分鐘",
     "endDate": "結束日期：{date}",
     "error": "目前無法產生學習計畫，請稍後再試。"
+  },
+  "microLesson": {
+    "diagnosticTitle": "快速能力診斷",
+    "diagnosticDescription": "回答幾題入門問題，讓每日微課從適合你的速度開始。",
+    "diagnosticLoadError": "無法載入診斷題，請稍後再試。",
+    "diagnosticSubmitError": "無法送出診斷結果，請稍後再試。",
+    "submittingDiagnostic": "送出中...",
+    "dayLabel": "Day {day} / Day {total}",
+    "title": "每日微課",
+    "completed": "已完成",
+    "breakdown": "主詞 / 動詞拆解",
+    "subject": "主詞",
+    "verb": "動詞",
+    "object": "受詞",
+    "readingOrder": "閱讀順序",
+    "vocabulary": "核心單字",
+    "dialogue": "對話",
+    "reading": "閱讀",
+    "comic": "四格漫畫",
+    "fillBlank": "今日填空題",
+    "correct": "答對了，今日微課已完成。",
+    "incorrect": "還沒答對，先看主詞和動詞再試一次。",
+    "answerError": "無法送出答案，請稍後再試。"
   }
 }

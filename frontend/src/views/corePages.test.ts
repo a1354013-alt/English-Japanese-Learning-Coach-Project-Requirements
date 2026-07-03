@@ -11,6 +11,7 @@ import type {
   AnalyticsResponse,
   Language,
   Lesson,
+  MicroLesson,
   ProgressResponse,
   RagMaterialsResponse,
   ReviewResult,
@@ -42,6 +43,10 @@ const apiMocks = vi.hoisted(() => ({
   getStreak: vi.fn(),
   resetDemo: vi.fn(),
   exportPdf: vi.fn(),
+  getDiagnosticQuestions: vi.fn(),
+  submitDiagnostic: vi.fn(),
+  getMicroToday: vi.fn(),
+  answerMicroLesson: vi.fn(),
 }))
 
 const feedbackMocks = vi.hoisted(() => ({
@@ -99,6 +104,14 @@ vi.mock('@/services/api', () => ({
   },
   systemApi: {
     resetDemo: apiMocks.resetDemo,
+  },
+  diagnosticApi: {
+    getQuestions: apiMocks.getDiagnosticQuestions,
+    submit: apiMocks.submitDiagnostic,
+  },
+  microLessonApi: {
+    getToday: apiMocks.getMicroToday,
+    answer: apiMocks.answerMicroLesson,
   },
 }))
 
@@ -306,6 +319,102 @@ const lessonPayload = (): Lesson => ({
     next_3_days: ['Write a request.'],
     next_7_days: ['Retake questions.'],
   },
+})
+
+const microLessonPayload = (
+  overrides: Partial<MicroLesson> = {},
+): MicroLesson => ({
+  lesson_id: 'micro-1',
+  day_index: 1,
+  total_days: 90,
+  target_exam: 'TOEIC 600',
+  sentence: 'We raise prices today.',
+  translation_zh: '我們今天調高價格。',
+  subject_text: 'We',
+  verb_text: 'raise',
+  object_text: 'prices',
+  reading_order_steps: ['Find We.', 'Find raise.', 'Find prices.'],
+  grammar_note: 'Use present simple with We.',
+  toeic_usage_note: 'TOEIC uses raise prices often.',
+  vocabulary_items: [
+    {
+      word: 'raise',
+      phonetic: '/reɪz/',
+      pronunciation_zh: '雷茲',
+      definition_zh: '提高',
+      example_sentence: 'We raise prices today.',
+      example_translation: '我們今天調高價格。',
+    },
+    {
+      word: 'price',
+      phonetic: '/praɪs/',
+      pronunciation_zh: '普賴斯',
+      definition_zh: '價格',
+      example_sentence: 'The price is high.',
+      example_translation: '價格很高。',
+    },
+    {
+      word: 'today',
+      phonetic: '/təˈdeɪ/',
+      pronunciation_zh: '特-day',
+      definition_zh: '今天',
+      example_sentence: 'We meet today.',
+      example_translation: '我們今天見面。',
+    },
+    {
+      word: 'customer',
+      phonetic: '/ˈkʌstəmər/',
+      pronunciation_zh: '卡斯特默',
+      definition_zh: '顧客',
+      example_sentence: 'Customers need help.',
+      example_translation: '顧客需要協助。',
+    },
+    {
+      word: 'report',
+      phonetic: '/rɪˈpɔːrt/',
+      pronunciation_zh: '瑞波特',
+      definition_zh: '報告',
+      example_sentence: 'I read the report.',
+      example_translation: '我閱讀報告。',
+    },
+  ],
+  dialogue_lines: [
+    {
+      speaker: 'A',
+      english: 'Do we raise prices today?',
+      translation_zh: '我們今天調高價格嗎？',
+    },
+  ],
+  reading_passage: 'A team checks the report.',
+  comic_panels: [
+    {
+      panel: 1,
+      english: 'We check the report.',
+      translation_zh: '我們查看報告。',
+      scene_prompt: 'Office report.',
+    },
+  ],
+  fill_blank_question: {
+    prompt: 'We ___ prices today.',
+    choices: ['raise', 'raises', 'raising'],
+    correct_answer: 'raise',
+    explanation: 'We uses raise.',
+  },
+  completed: false,
+  ...overrides,
+})
+
+const microTodayPayload = (
+  lesson: MicroLesson | null = microLessonPayload(),
+) => ({
+  success: true,
+  diagnostic_completed: true,
+  learning_plan: {
+    estimated_total_days: 90,
+    current_day: 1,
+    summary_zh: '每日練習短句。',
+  },
+  lesson,
 })
 
 const mountOptions = {
@@ -566,6 +675,86 @@ describe('TodayLesson.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     feedbackMocks.requestConfirmation.mockResolvedValue(true)
+    apiMocks.getMicroToday.mockResolvedValue(microTodayPayload())
+  })
+
+  it('renders DiagnosticFlow questions before diagnosis is complete', async () => {
+    apiMocks.getMicroToday.mockResolvedValueOnce({
+      success: true,
+      diagnostic_completed: false,
+      learning_plan: null,
+      lesson: null,
+    })
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.getDiagnosticQuestions.mockResolvedValueOnce({
+      success: true,
+      questions: [
+        {
+          question_id: 'subject-1',
+          prompt: 'Which words are the subject?',
+          choices: ['The manager', 'checks', 'email'],
+          correct_answer: 'The manager',
+          skill: 'subject',
+        },
+      ],
+    })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="diagnostic-flow"]').text()).toContain(
+      'Which words are the subject?',
+    )
+  })
+
+  it('renders MicroLesson Day X / Day XX before textbook flow', async () => {
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="micro-lesson"]').text()).toContain(
+      'microLesson.dayLabel 1 90',
+    )
+    expect(wrapper.text()).toContain('We raise prices today.')
+  })
+
+  it('marks the micro lesson complete after a correct answer', async () => {
+    const completed = microLessonPayload({ completed: true })
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.answerMicroLesson.mockResolvedValueOnce({
+      success: true,
+      correct: true,
+      completed: true,
+      lesson: completed,
+      streak: streak({ today_completed: true }),
+    })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'raise')
+      ?.trigger('click')
+    await wrapper.get('[data-testid="micro-answer-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.answerMicroLesson).toHaveBeenCalledWith('micro-1', 'raise')
+    expect(wrapper.get('[data-testid="micro-lesson"]').text()).toContain(
+      'microLesson.completed',
+    )
   })
 
   it('renders textbook-style lesson sections', async () => {

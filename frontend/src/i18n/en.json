@@ -390,6 +390,29 @@
       "next7Days": "+7 days"
     }
   },
+  "microLesson": {
+    "diagnosticTitle": "Quick ability check",
+    "diagnosticDescription": "Answer a few beginner questions so the daily micro lesson can start at the right pace.",
+    "diagnosticLoadError": "Unable to load diagnostic questions. Please try again later.",
+    "diagnosticSubmitError": "Unable to submit the diagnostic. Please try again later.",
+    "submittingDiagnostic": "Submitting...",
+    "dayLabel": "Day {day} / Day {total}",
+    "title": "Daily Micro Lesson",
+    "completed": "Completed",
+    "breakdown": "Subject / Verb Breakdown",
+    "subject": "Subject",
+    "verb": "Verb",
+    "object": "Object",
+    "readingOrder": "Reading Order",
+    "vocabulary": "Core Vocabulary",
+    "dialogue": "Dialogue",
+    "reading": "Reading",
+    "comic": "Four-panel Comic",
+    "fillBlank": "Today's Fill Blank",
+    "correct": "Correct. Today's micro lesson is complete.",
+    "incorrect": "Not yet. Check the subject and verb, then try again.",
+    "answerError": "Unable to submit the answer. Please try again later."
+  },
   "studyPlan": {
     "title": "Study Plan",
     "clear": "Clear",

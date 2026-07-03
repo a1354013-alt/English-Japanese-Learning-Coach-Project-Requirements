@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <section :class="['grid', 'view-page', { 'embedded-page': embedded }]">
     <div v-if="!embedded" class="panel row between center">
       <div>

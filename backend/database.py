@@ -173,6 +173,32 @@ class Database:
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS diagnostic_state (
+                user_id TEXT PRIMARY KEY,
+                estimated_total_days INTEGER NOT NULL,
+                current_day INTEGER NOT NULL DEFAULT 1,
+                summary_zh TEXT NOT NULL,
+                correct_count INTEGER NOT NULL DEFAULT 0,
+                completed_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS micro_lessons (
+                lesson_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                day_index INTEGER NOT NULL,
+                lesson_json TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                UNIQUE(user_id, day_index)
+            )
+            """
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_language ON lessons(language)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(generated_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
@@ -263,6 +289,32 @@ class Database:
         for column, column_type in imported_defs.items():
             if column not in imported_cols:
                 conn.execute(f"ALTER TABLE imported_vocabulary ADD COLUMN {column} {column_type}")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS diagnostic_state (
+                user_id TEXT PRIMARY KEY,
+                estimated_total_days INTEGER NOT NULL,
+                current_day INTEGER NOT NULL DEFAULT 1,
+                summary_zh TEXT NOT NULL,
+                correct_count INTEGER NOT NULL DEFAULT 0,
+                completed_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS micro_lessons (
+                lesson_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                day_index INTEGER NOT NULL,
+                lesson_json TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                UNIQUE(user_id, day_index)
+            )
+            """
+        )
 
     def _cleanup_exercise_result_duplicates(self, conn: sqlite3.Connection) -> None:
         """Keep the newest row per unique exercise-result key before unique index creation."""
@@ -461,6 +513,130 @@ class Database:
         progress = self.get_progress(user_id)
         progress["rpg_stats"] = rpg_stats
         self.save_progress(progress)
+
+    def get_diagnostic_state(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM diagnostic_state WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def save_diagnostic_state(
+        self,
+        *,
+        user_id: str,
+        estimated_total_days: int,
+        current_day: int,
+        summary_zh: str,
+        correct_count: int,
+    ) -> Dict[str, Any]:
+        completed_at = _local_now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO diagnostic_state (
+                    user_id, estimated_total_days, current_day, summary_zh, correct_count, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    estimated_total_days=excluded.estimated_total_days,
+                    current_day=excluded.current_day,
+                    summary_zh=excluded.summary_zh,
+                    correct_count=excluded.correct_count,
+                    completed_at=excluded.completed_at
+                """,
+                (user_id, estimated_total_days, current_day, summary_zh, correct_count, completed_at),
+            )
+        return {
+            "estimated_total_days": estimated_total_days,
+            "current_day": current_day,
+            "summary_zh": summary_zh,
+        }
+
+    def save_micro_lesson(self, user_id: str, lesson_data: Dict[str, Any]) -> Dict[str, Any]:
+        now = _local_now().isoformat()
+        completed = 1 if lesson_data.get("completed") else 0
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO micro_lessons (
+                    lesson_id, user_id, day_index, lesson_json, completed, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, day_index) DO UPDATE SET
+                    lesson_id=excluded.lesson_id,
+                    lesson_json=excluded.lesson_json,
+                    completed=excluded.completed,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    lesson_data["lesson_id"],
+                    user_id,
+                    lesson_data["day_index"],
+                    json.dumps(lesson_data, ensure_ascii=False, default=str),
+                    completed,
+                    now,
+                    now,
+                ),
+            )
+        return lesson_data
+
+    def get_micro_lesson_by_day(self, user_id: str, day_index: int) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT lesson_json, completed
+                FROM micro_lessons
+                WHERE user_id = ? AND day_index = ?
+                """,
+                (user_id, day_index),
+            ).fetchone()
+        if not row:
+            return None
+        lesson = json.loads(row["lesson_json"])
+        lesson["completed"] = bool(row["completed"])
+        return lesson
+
+    def get_micro_lesson_by_id(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT lesson_json, completed
+                FROM micro_lessons
+                WHERE user_id = ? AND lesson_id = ?
+                """,
+                (user_id, lesson_id),
+            ).fetchone()
+        if not row:
+            return None
+        lesson = json.loads(row["lesson_json"])
+        lesson["completed"] = bool(row["completed"])
+        return lesson
+
+    def mark_micro_lesson_completed(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
+        lesson = self.get_micro_lesson_by_id(user_id, lesson_id)
+        if not lesson:
+            return None
+        if not lesson.get("completed"):
+            lesson["completed"] = True
+            now = _local_now().isoformat()
+            with self.get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE micro_lessons
+                    SET lesson_json = ?, completed = 1, updated_at = ?
+                    WHERE user_id = ? AND lesson_id = ?
+                    """,
+                    (json.dumps(lesson, ensure_ascii=False, default=str), now, user_id, lesson_id),
+                )
+                conn.execute(
+                    """
+                    UPDATE diagnostic_state
+                    SET current_day = current_day + 1
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                )
+        return lesson
 
     def save_exercise_result(
         self,
