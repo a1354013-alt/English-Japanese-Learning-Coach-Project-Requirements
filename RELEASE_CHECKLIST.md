@@ -11,13 +11,14 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 ## 2. Backend verification
 
-- Confirm `python --version` reports `3.11.x`.
+- Confirm `python --version` reports `3.11.x`. Python `3.11.x` is required for release verification.
+- Run `python scripts/verify_delivery.py` with that same Python `3.11.x` interpreter; do not treat another Python runtime as equivalent.
 - Run `python -m compileall backend scripts tests`
 - Run `python -m ruff check backend scripts tests`
 - Run `python -m mypy backend`
 - Run `python -m pytest -q -m "not rag and not startup_isolation"` from the repository root for the main backend test lane.
 - Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
-- Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
+- Optional RAG verification requires `backend/requirements-rag.txt`. Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` only when you are validating the RAG lane.
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - If Docker is part of the release, confirm the backend image still installs CJK-capable PDF fonts (`fonts-noto-cjk` plus `fontconfig` or equivalent) so Japanese and Chinese exports do not silently regress to broken glyph rendering.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
@@ -26,7 +27,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Run `nvm install`
 - Run `nvm use`
-- Confirm `node -v` reports `22.18.0`.
+- Confirm `node -v` reports `22.18.0`. Node `22.18.0` is required for release verification.
 - Run `cd frontend && npm ci`
 - Run `npm audit --omit=dev`
 - Run `npm audit`
@@ -52,8 +53,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
 - Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
-- Run `docker compose config`
-- If shipping containers, also run `docker compose build`
+- Docker checks require local Docker availability. Run `docker compose config` when Docker is installed locally.
+- If shipping containers and Docker is available locally, also run `docker compose build`
 - Smoke-check PDF export with Japanese or Chinese content and confirm it completes without backend errors; if a CJK font is missing, the app should log a clear warning instead of failing silently.
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.

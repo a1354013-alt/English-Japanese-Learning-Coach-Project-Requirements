@@ -10,6 +10,8 @@ No unreleased changes yet.
 
 ### Added
 
+- Textbook-style lesson units that present objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, immersion shadowing, a Feynman prompt, and a review plan in one lesson flow.
+- Vocabulary metadata support across lesson content and imports for roots, categories, tags, prefixes, suffixes, and memory tips.
 - Backend quality gates with `ruff`, `mypy`, and a shared `pyproject.toml`.
 - Frontend `eslint` and `prettier` setup with `lint`, `lint:fix`, `format`, and `format:check` scripts.
 - Reusable Vue state components: `LoadingState.vue`, `ErrorState.vue`, and `EmptyState.vue`.
@@ -20,6 +22,8 @@ No unreleased changes yet.
 
 ### Changed
 
+- The vocabulary page now surfaces part of speech, root, prefix, suffix, memory tip, category, and tags for imported entries.
+- Imported vocabulary search now matches `root`, `prefix`, `suffix`, `category`, `tags`, `memory_tip`, and `part_of_speech` in addition to the base fields.
 - CI now validates backend compile, lint, typecheck, and pytest from repository root.
 - CI now validates frontend typecheck, lint, format, tests, and build.
 - Mocked Playwright E2E remains the default CI gate, while a shorter full-stack smoke now runs automatically on PRs, pushes to `main`/`master`, and the nightly schedule.
@@ -30,6 +34,8 @@ No unreleased changes yet.
 
 ### Fixed
 
+- Backend `ruff` and `mypy` release gates now pass in the pinned local verification environment.
+- Frontend typecheck, lint, format check, tests, and build release gates now pass in the pinned local verification environment.
 - Removed the backend `mypy` ignore override for `lesson_generator`, `routers.imports`, `export_service`, and `scheduler`.
 - Rebuilt fallback lesson content so degraded-mode EN/JP lessons stay readable and typed.
 - Repeated loading/error/empty rendering patterns across large Vue views without changing API flow or layout structure.

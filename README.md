@@ -55,10 +55,32 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
+## Portfolio Demo Flow
+
+Use this path for the cleanest portfolio walkthrough:
+
+1. Install backend dependencies with `cd backend && python -m pip install -r requirements.txt -r requirements-dev.txt`.
+2. Install frontend dependencies with `cd frontend && npm ci`.
+3. Copy `backend/.env.example` to `backend/.env`.
+4. In VS Code, choose `F5: Backend + Frontend` and press F5.
+5. If `ALLOW_DEMO_RESET=true`, call `POST /api/demo/reset` to rebuild deterministic demo data before presenting.
+6. Generate a lesson from `Today` and show the objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, immersion shadowing, Feynman prompt, and review plan sections.
+7. Submit one review and show the progress update.
+8. Open SRS due review and point out the imported vocabulary metadata fields such as root, category, and memory tip.
+9. Import a vocabulary Excel file that includes `root`, `category`, and `tags`.
+10. Search the vocabulary page by `root`, `category`, or `tags`.
+11. Export the lesson as PDF.
+
+Demo limitations to state clearly during the walkthrough:
+
+- TTS is provider-ready but disabled by default unless a real provider is configured.
+- Immersion is currently text shadowing rather than live audio coaching.
+- RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+
 ## 30-second Demo Flow
 
 1. If you are running a local demo, start the backend with `ALLOW_DEMO_RESET=true` and reset demo data with `POST /api/demo/reset`.
-2. Generate or open today’s lesson.
+2. Generate or open today's lesson.
 3. Complete one review submission.
 4. Check progress.
 5. Export PDF.
@@ -374,3 +396,4 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps, [TEST_PLAN.md
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
