@@ -23,6 +23,13 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
     user_id = settings.default_user_id
     _clear_runtime_artifacts()
     _clear_database(db, user_id)
+    db.save_diagnostic_state(
+        user_id=user_id,
+        estimated_total_days=90,
+        current_day=1,
+        summary_zh="Demo learner has completed the placement diagnostic and can start the seeded lesson flow.",
+        correct_count=4,
+    )
 
     now = _local_now()
     local_today = now.date()
@@ -260,6 +267,8 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
 
 def _clear_database(db: Database, user_id: str) -> None:
     tables = [
+        "micro_lessons",
+        "diagnostic_state",
         "generation_tasks",
         "exercise_results",
         "srs_vocabulary",
