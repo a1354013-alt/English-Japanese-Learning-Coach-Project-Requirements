@@ -26,6 +26,7 @@ from models import (
 )
 from ollama_client import ollama_client
 from rag_manager import rag_manager
+from services.learning_intelligence import build_snowball_context, sync_lesson_items
 from time_utils import local_now
 
 
@@ -68,7 +69,13 @@ class LessonGenerator:
             "Do not output markdown, code fences, explanations, or extra text."
         )
 
-    def _build_prompt(self, language: Literal["EN", "JP"], level: str, topic: str) -> str:
+    def _build_prompt(
+        self,
+        language: Literal["EN", "JP"],
+        level: str,
+        topic: str,
+        snowball_context: dict[str, Any] | None = None,
+    ) -> str:
         exercise_schema = (
             f"Return at least {self.MIN_GRAMMAR_COUNT} grammar exercises and "
             f"at least {self.MIN_READING_COUNT} reading comprehension questions. "
@@ -95,7 +102,7 @@ class LessonGenerator:
             "review_plan fields: today, next_1_day, next_3_days, next_7_days. "
         )
         if language == "EN":
-            return (
+            prompt = (
                 f"Generate an English lesson for CEFR {level} about '{topic}'. "
                 f"Requested language enum is EN and requested difficulty value is {level}. "
                 "Make it feel like a complete English textbook unit, not a thin worksheet. "
@@ -108,7 +115,8 @@ class LessonGenerator:
                 f"{exercise_schema} "
                 "Use CEFR-appropriate English content and keep every required field non-empty."
             )
-        return (
+        else:
+            prompt = (
             f"Generate a Japanese lesson for JLPT {level} about '{topic}'. "
             f"Requested language enum is JP and requested difficulty value is {level}. "
             "Make it feel like a complete Japanese textbook unit adapted to the JLPT level. "
@@ -120,7 +128,21 @@ class LessonGenerator:
             "reading.content must contain at least 8 Japanese sentences. "
             f"{exercise_schema} "
             "Use JLPT-appropriate Japanese content and keep every required field non-empty."
-        )
+            )
+
+        if snowball_context and any(snowball_context.get(key) for key in (
+            "weak_vocabulary",
+            "weak_grammar",
+            "recent_vocabulary",
+            "recent_sentence_patterns",
+        )):
+            prompt += (
+                " Reuse prior learning naturally with this ratio: 70% new content, 20% recent learned items, "
+                "10% weak items. Reuse weak items in dialogue, reading, and exercises without overstuffing the lesson. "
+                "Mark reused items in review_plan. Snowball context: "
+                f"{json.dumps(snowball_context, ensure_ascii=False)}"
+            )
+        return prompt
 
     def _select_model(self, language: str, level: str, context_len: int) -> str:
         if language == "JP" or level in {"C1", "C2", "N1"} or context_len > 1000:
@@ -150,6 +172,7 @@ class LessonGenerator:
             topic = random.choice(self.ENGLISH_TOPICS if language == "EN" else self.JAPANESE_TOPICS)
 
         model = self._select_model(language, level, len(interest_context or ""))
+        snowball_context = build_snowball_context(uid, language, level)
         db.save_generation_task(
             {
                 "task_id": task_id,
@@ -168,6 +191,7 @@ class LessonGenerator:
                 interest_context=interest_context,
                 model=model,
                 user_id=uid,
+                snowball_context=snowball_context,
             )
             db.save_generation_task(
                 {
@@ -217,9 +241,10 @@ class LessonGenerator:
         interest_context: str | None,
         model: str,
         user_id: str | None = None,
+        snowball_context: dict[str, Any] | None = None,
     ) -> Lesson:
         uid = user_id or settings.default_user_id
-        prompt = self._build_prompt(language, level, topic)
+        prompt = self._build_prompt(language, level, topic, snowball_context=snowball_context)
         if interest_context:
             prompt += f" Context from user: {interest_context}"
 
@@ -255,6 +280,7 @@ class LessonGenerator:
 
         content: dict[str, Any] = dict(parsed_content)
         self._normalize(content)
+        self._attach_related_item_refs(content)
         self._validate_generated_content(content)
         metadata = LessonMetadata(
             lesson_id=str(uuid4()),
@@ -273,6 +299,7 @@ class LessonGenerator:
         lesson = Lesson(**full_lesson)
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
         db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=uid)
+        sync_lesson_items(user_id=uid, lesson_data=lesson.model_dump(mode="json"))
         return lesson
 
     def _normalize(self, content: dict[str, Any]) -> None:
@@ -410,6 +437,65 @@ class LessonGenerator:
                 raise RuntimeError("generated lesson choices must be non-empty strings")
             if not isinstance(answer, str) or answer not in options:
                 raise RuntimeError("generated lesson correct_answer must match one of the choices")
+
+    def _attach_related_item_refs(self, content: dict[str, Any]) -> None:
+        vocabulary = [
+            str(item.get("word", "")).strip()
+            for item in content.get("vocabulary", [])
+            if isinstance(item, dict) and str(item.get("word", "")).strip()
+        ]
+        grammar_title = str(content.get("grammar", {}).get("title", "")).strip()
+        patterns = [
+            str(item.get("pattern", "")).strip()
+            for item in content.get("sentence_patterns", [])
+            if isinstance(item, dict) and str(item.get("pattern", "")).strip()
+        ]
+
+        def infer_refs(text: str) -> tuple[list[str], list[str], list[str]]:
+            normalized = text.lower()
+            related_vocab = [word for word in vocabulary if word.lower() in normalized][:3]
+            related_grammar = [grammar_title] if grammar_title and grammar_title.lower() in normalized else []
+            related_patterns = [pattern for pattern in patterns if pattern.lower() in normalized][:2]
+            return related_vocab, related_grammar, related_patterns
+
+        grammar = content.get("grammar", {})
+        if isinstance(grammar, dict):
+            for exercise in grammar.get("exercises", []) or []:
+                if not isinstance(exercise, dict):
+                    continue
+                related_vocab, related_grammar, related_patterns = infer_refs(
+                    " ".join(
+                        str(exercise.get(key, ""))
+                        for key in ("question", "correct_answer", "explanation")
+                    )
+                )
+                exercise.setdefault("related_vocabulary", related_vocab)
+                exercise.setdefault("related_grammar", related_grammar or ([grammar_title] if grammar_title else []))
+                exercise.setdefault("related_sentence_patterns", related_patterns)
+
+        reading = content.get("reading", {})
+        reading_context = ""
+        if isinstance(reading, dict):
+            reading_context = " ".join(
+                [
+                    str(reading.get("title", "")),
+                    str(reading.get("content", "")),
+                ]
+            )
+            for question in reading.get("questions", []) or []:
+                if not isinstance(question, dict):
+                    continue
+                related_vocab, related_grammar, related_patterns = infer_refs(
+                    reading_context
+                    + " "
+                    + " ".join(
+                        str(question.get(key, ""))
+                        for key in ("question", "correct_answer", "explanation")
+                    )
+                )
+                question.setdefault("related_vocabulary", related_vocab)
+                question.setdefault("related_grammar", related_grammar)
+                question.setdefault("related_sentence_patterns", related_patterns)
 
     def _save_lesson_file(self, lesson_data: dict[str, Any]) -> Path:
         metadata = lesson_data["metadata"]
@@ -584,8 +670,8 @@ class LessonGenerator:
         )
         file_path = self._save_lesson_file(lesson.model_dump(mode="json"))
         db.save_lesson(lesson.model_dump(mode="json"), str(file_path), user_id=user_id)
+        sync_lesson_items(user_id=user_id, lesson_data=lesson.model_dump(mode="json"))
         return lesson
 
 
 lesson_generator = LessonGenerator()
-

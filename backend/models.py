@@ -71,6 +71,9 @@ class GrammarExercise(BaseModel):
     exercise_type: Literal["multiple_choice", "cloze", "scramble", "dictation"] = "multiple_choice"
     scrambled_words: Optional[List[str]] = None
     audio_url: Optional[str] = None
+    related_vocabulary: List[str] = Field(default_factory=list)
+    related_grammar: List[str] = Field(default_factory=list)
+    related_sentence_patterns: List[str] = Field(default_factory=list)
 
 
 class GrammarSection(BaseModel):
@@ -88,6 +91,9 @@ class ReadingQuestion(BaseModel):
     options: List[str]
     correct_answer: str
     explanation: str
+    related_vocabulary: List[str] = Field(default_factory=list)
+    related_grammar: List[str] = Field(default_factory=list)
+    related_sentence_patterns: List[str] = Field(default_factory=list)
 
 
 class ReadingSection(BaseModel):
@@ -145,6 +151,87 @@ class ImmersionSection(BaseModel):
 class FeynmanPrompt(BaseModel):
     prompt: str = ""
     checklist: List[str] = Field(default_factory=list)
+
+
+LearningItemType: TypeAlias = Literal["vocabulary", "grammar", "sentence_pattern"]
+LearningMasteryState: TypeAlias = Literal["new", "learning", "review", "weak", "mastered"]
+
+
+class LearningItemContent(BaseModel):
+    item_key: str
+    content: Dict[str, Any] = Field(default_factory=dict)
+    category: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    root: Optional[str] = None
+    memory_tip: Optional[str] = None
+
+
+class LearningItemDue(BaseModel):
+    item_id: str
+    item_type: LearningItemType
+    item_key: str
+    language: LanguageCode
+    level: Optional[str] = None
+    content: Dict[str, Any] = Field(default_factory=dict)
+    category: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    root: Optional[str] = None
+    memory_tip: Optional[str] = None
+    mastery_state: LearningMasteryState
+    due_at: datetime
+
+
+class LearningItemDueResponse(BaseModel):
+    success: bool = True
+    items: List[LearningItemDue]
+
+
+class LearningItemGroupResponse(BaseModel):
+    success: bool = True
+    vocabulary: List[LearningItemDue]
+    grammar: List[LearningItemDue]
+    sentence_pattern: List[LearningItemDue]
+
+
+class LearningItemReviewRequest(BaseModel):
+    item_id: str
+    rating: int = Field(ge=0, le=5)
+    correct: bool
+    response_time_ms: Optional[int] = Field(default=None, ge=0)
+    source: Literal["lesson_review", "srs_review", "feynman_feedback", "manual"] = "manual"
+
+
+class LearningItemReviewState(BaseModel):
+    success: bool = True
+    item_id: str
+    interval_days: int
+    ease_factor: float
+    repetitions: int
+    lapses: int
+    due_at: datetime
+    last_reviewed_at: Optional[datetime] = None
+    mastery_state: LearningMasteryState
+
+
+class FeynmanFeedback(BaseModel):
+    summary: str
+    strengths: List[str] = Field(default_factory=list)
+    missing_points: List[str] = Field(default_factory=list)
+    corrections: List[str] = Field(default_factory=list)
+    suggested_simple_explanation: str
+    related_weak_items: List[str] = Field(default_factory=list)
+    score: int = Field(ge=0, le=100)
+
+
+class FeynmanFeedbackRequest(BaseModel):
+    explanation: str
+    language: LanguageCode
+    lesson_snapshot: Optional["Lesson"] = None
+
+
+class FeynmanFeedbackResponse(BaseModel):
+    success: bool = True
+    feedback: FeynmanFeedback
 
 
 class ReviewPlan(BaseModel):

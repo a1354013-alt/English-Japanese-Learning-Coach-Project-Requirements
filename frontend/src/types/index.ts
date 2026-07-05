@@ -40,6 +40,9 @@ export interface GrammarExercise {
   options?: string[]
   correct_answer: string
   explanation: string
+  related_vocabulary?: string[]
+  related_grammar?: string[]
+  related_sentence_patterns?: string[]
 }
 
 export interface GrammarSection {
@@ -54,6 +57,9 @@ export interface ReadingQuestion {
   options: string[]
   correct_answer: string
   explanation: string
+  related_vocabulary?: string[]
+  related_grammar?: string[]
+  related_sentence_patterns?: string[]
 }
 
 export interface ReadingSection {
@@ -105,6 +111,16 @@ export interface ImmersionSection {
 export interface FeynmanPrompt {
   prompt: string
   checklist: string[]
+}
+
+export interface FeynmanFeedback {
+  summary: string
+  strengths: string[]
+  missing_points: string[]
+  corrections: string[]
+  suggested_simple_explanation: string
+  related_weak_items: string[]
+  score: number
 }
 
 export interface ReviewPlan {
@@ -255,6 +271,58 @@ export interface ReviewResult {
     xp_added: number
     leveled_up: boolean
   }
+}
+
+export type LearningItemType = 'vocabulary' | 'grammar' | 'sentence_pattern'
+export type LearningMasteryState =
+  | 'new'
+  | 'learning'
+  | 'review'
+  | 'weak'
+  | 'mastered'
+
+export interface LearningItemDue {
+  item_id: string
+  item_type: LearningItemType
+  item_key: string
+  language: Language
+  level?: string | null
+  content: Record<string, unknown>
+  category?: string | null
+  tags: string[]
+  root?: string | null
+  memory_tip?: string | null
+  mastery_state: LearningMasteryState
+  due_at: string
+}
+
+export interface LearningItemDueResponse {
+  success: boolean
+  items: LearningItemDue[]
+}
+
+export interface LearningItemWeakResponse {
+  success: boolean
+  vocabulary: LearningItemDue[]
+  grammar: LearningItemDue[]
+  sentence_pattern: LearningItemDue[]
+}
+
+export interface LearningItemReviewResult {
+  success: boolean
+  item_id: string
+  interval_days: number
+  ease_factor: number
+  repetitions: number
+  lapses: number
+  due_at: string
+  last_reviewed_at?: string | null
+  mastery_state: LearningMasteryState
+}
+
+export interface FeynmanFeedbackResponse {
+  success: boolean
+  feedback: FeynmanFeedback
 }
 
 export interface WritingSubmission {

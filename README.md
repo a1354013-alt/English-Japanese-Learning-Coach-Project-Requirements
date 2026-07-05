@@ -55,6 +55,20 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
+## v1.3 Learning Intelligence
+
+The current v1.3 pass adds learning intelligence without destabilizing the v1.2 release shape:
+
+- Per-item SRS now tracks vocabulary, grammar, and sentence patterns through additive item-level endpoints, while the legacy lesson-wide and vocabulary-only paths remain available for backward compatibility.
+- Snowball lesson generation can reuse a small amount of weak and recent items so future lessons feel connected instead of isolated.
+- Feynman feedback now accepts a learner explanation and returns structured AI feedback when a provider is available, with a deterministic fallback when it is not.
+
+Current limitations remain explicit:
+
+- TTS is provider-ready but disabled by default unless a real provider is configured.
+- Immersion is currently text shadowing rather than live audio coaching.
+- RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+
 ## Portfolio Demo Flow
 
 Use this path for the cleanest portfolio walkthrough:
@@ -67,15 +81,12 @@ Use this path for the cleanest portfolio walkthrough:
 6. Generate a lesson from `Today` and show the objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, immersion shadowing, Feynman prompt, and review plan sections.
 7. Submit one review and show the progress update.
 8. Open SRS due review and point out the imported vocabulary metadata fields such as root, category, and memory tip.
-9. Import a vocabulary Excel file that includes `root`, `category`, and `tags`.
-10. Search the vocabulary page by `root`, `category`, or `tags`.
-11. Export the lesson as PDF.
-
-Demo limitations to state clearly during the walkthrough:
-
-- TTS is provider-ready but disabled by default unless a real provider is configured.
-- Immersion is currently text shadowing rather than live audio coaching.
-- RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+9. Show weak items grouped by vocabulary, grammar, and sentence patterns.
+10. Generate another lesson and explain that weak/recent items can reappear through snowball context.
+11. Submit a Feynman explanation and show the structured feedback or deterministic fallback feedback.
+12. Import a vocabulary Excel file that includes `root`, `category`, and `tags`.
+13. Search the vocabulary page by `root`, `category`, or `tags`.
+14. Export the lesson as PDF.
 
 ## 30-second Demo Flow
 

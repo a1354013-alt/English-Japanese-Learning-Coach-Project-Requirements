@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, Query
 from gamification_engine import gamification_engine
 from lesson_generator import lesson_generator
 from models import (
+    FeynmanFeedbackRequest,
+    FeynmanFeedbackResponse,
     GeneratedLessonResponse,
     GenerateLessonRequest,
     LanguageCode,
@@ -17,6 +19,7 @@ from models import (
     TodayLessonResponse,
     UserRPGStats,
 )
+from services.learning_intelligence import generate_feynman_feedback
 from services.lesson_ops import load_lesson_payload
 
 from routers.deps import require_demo_user_id
@@ -77,6 +80,27 @@ async def get_today_lesson(language: LanguageCode, user_id: str = Depends(requir
 @router.get("/lessons/{lesson_id}", response_model=LessonDetailResponse)
 async def get_lesson(lesson_id: str, user_id: str = Depends(require_demo_user_id)):
     return {"success": True, "lesson": load_lesson_payload(lesson_id, user_id=user_id)}
+
+
+@router.post("/lessons/{lesson_id}/feynman-feedback", response_model=FeynmanFeedbackResponse)
+async def create_feynman_feedback(
+    lesson_id: str,
+    request: FeynmanFeedbackRequest,
+    user_id: str = Depends(require_demo_user_id),
+):
+    lesson_data = (
+        request.lesson_snapshot.model_dump(mode="json")
+        if request.lesson_snapshot is not None
+        else load_lesson_payload(lesson_id, user_id=user_id)
+    )
+    feedback = await generate_feynman_feedback(
+        user_id=user_id,
+        lesson_id=lesson_id,
+        language=request.language,
+        explanation=request.explanation,
+        lesson_data=lesson_data,
+    )
+    return {"success": True, "feedback": feedback.model_dump(mode="json")}
 
 
 @router.post("/onboard", response_model=SuccessResponse)

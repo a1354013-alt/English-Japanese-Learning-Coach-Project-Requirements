@@ -85,7 +85,12 @@
       </section>
 
       <ImmersionSection :immersion="lesson.immersion" />
-      <FeynmanSection :feynman="lesson.feynman_prompt" />
+      <FeynmanSection
+        :feynman="lesson.feynman_prompt"
+        :lesson-id="lesson.metadata.lesson_id"
+        :language="lesson.metadata.language"
+        :lesson-snapshot="lesson"
+      />
       <ReviewPlanSection :review-plan="lesson.review_plan" />
 
       <RagEvidencePanel v-if="lesson.evidence" :evidence="lesson.evidence" />

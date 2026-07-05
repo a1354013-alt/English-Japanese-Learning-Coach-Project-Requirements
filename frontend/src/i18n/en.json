@@ -280,9 +280,14 @@
     "loading": "Loading due items...",
     "empty": "No due items. You're all caught up.",
     "nextReview": "Next review",
+    "metadata": "Metadata",
+    "vocabulary": "Vocabulary",
+    "grammar": "Grammar",
+    "sentencePatterns": "Sentence patterns",
     "easy": "Easy",
     "hard": "Hard",
     "forgot": "Forgot",
+    "good": "Good",
     "loadError": "Unable to load due items. Please try again later.",
     "submitError": "Unable to submit the review result. Please try again later.",
     "demoNote": "Demo note: review updates your SRS schedule; XP/progress are not granted here."
@@ -379,7 +384,15 @@
     },
     "feynman": {
       "title": "Feynman Check",
-      "placeholder": "Explain the unit in your own words..."
+      "placeholder": "Explain the unit in your own words...",
+      "submit": "Get feedback",
+      "submitting": "Checking...",
+      "error": "Unable to generate Feynman feedback right now.",
+      "score": "Score: {score}",
+      "strengths": "Strengths",
+      "missingPoints": "Missing points",
+      "corrections": "Corrections",
+      "simpleExplanation": "Suggested simple explanation"
     },
     "reviewPlan": {
       "title": "Review Plan",

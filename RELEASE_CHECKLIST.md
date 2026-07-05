@@ -57,6 +57,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - If shipping containers and Docker is available locally, also run `docker compose build`
 - Smoke-check PDF export with Japanese or Chinese content and confirm it completes without backend errors; if a CJK font is missing, the app should log a clear warning instead of failing silently.
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
+- Verify the v1.3 learning-intelligence demo path still works manually: item-level SRS due items load, weak items group correctly, snowball-aware lesson generation still succeeds, and Feynman feedback returns either AI output or deterministic fallback without breaking the page.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
 - Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.
 

@@ -19,6 +19,7 @@ from models import (
     SuccessResponse,
 )
 from rag_manager import rag_manager
+from services.learning_intelligence import sync_imported_vocabulary_item
 from services.lesson_ops import load_lesson_payload
 from services.rag_service import build_material_metadata, extract_text_from_upload
 from srs import srs_engine
@@ -158,6 +159,7 @@ async def import_excel(
                 vocab_item[field] = _excel_list(row[col])
 
         db.save_imported_vocabulary(user_id, language, vocab_item)
+        sync_imported_vocabulary_item(user_id=user_id, language=language, item=vocab_item)
         gamification_engine.collect_word_cards(user_id, [word], language)
 
         prev = db.get_srs_item(user_id, word, language)

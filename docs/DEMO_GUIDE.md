@@ -35,6 +35,9 @@ Use this guide when you want to present the project as a polished portfolio demo
    - Objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, immersion shadowing, Feynman prompt, and review plan
    - Review submission and progress update
    - SRS review with root/category/memory tip
+   - Weak items grouped by vocabulary, grammar, and sentence patterns
+   - A second lesson generation pass that can reuse weak/recent items through snowball context
+   - Feynman explanation submission with structured AI feedback or deterministic fallback feedback
    - Vocabulary import plus search by root/category/tags
    - Wrong answers
    - PDF export
@@ -54,6 +57,8 @@ Use this guide when you want to present the project as a polished portfolio demo
 - Generate or open a lesson and point out the textbook-style sections, especially word roots and the Feynman prompt.
 - Submit one review to demonstrate progress, streak, and wrong-answer persistence.
 - Open Progress and SRS to show the update plus root/category/memory-tip review context.
+- Show weak items before generating the next lesson so the snowball story is easy to explain.
+- Submit one short Feynman explanation and call out that fallback feedback still works without a live provider.
 - Import vocabulary metadata and search it by root/category/tags.
 - Export PDF to close the walkthrough with a tangible artifact.
 
