@@ -7,6 +7,7 @@ from database import db
 from fastapi import APIRouter, Depends
 from gamification_engine import gamification_engine
 from models import (
+    ComicPanel,
     DiagnosticQuestion,
     DiagnosticQuestionsResponse,
     DiagnosticSubmitRequest,
@@ -20,10 +21,10 @@ from models import (
     MicroLessonResponse,
     MicroLessonTodayResponse,
     MicroVocabularyItem,
-    ComicPanel,
 )
-from routers.deps import require_demo_user_id
 from services.streak_service import get_streak_snapshot
+
+from routers.deps import require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["micro-lessons"], responses=COMMON_ERROR_RESPONSES)
 

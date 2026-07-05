@@ -1,5 +1,6 @@
 """Vocabulary import, RAG material upload, and lesson PDF export."""
 import io
+from typing import Any
 
 import pandas as pd
 from api_errors import COMMON_ERROR_RESPONSES, api_error
@@ -140,7 +141,7 @@ async def import_excel(
         if not word or not definition_zh:
             continue
 
-        vocab_item = {
+        vocab_item: dict[str, Any] = {
             "word": word,
             "reading": _excel_text(row[reading_col]) if reading_col else None,
             "definition_zh": definition_zh,

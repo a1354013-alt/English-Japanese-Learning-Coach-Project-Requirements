@@ -78,6 +78,12 @@ def test_imported_vocabulary_roots_categories_and_tags_round_trip(tmp_path, monk
     assert item["tags"] == ["root", "habit"]
     assert item["mastery_state"] == "new"
 
+    for query in ("view", "study", "habit"):
+        searched = client.get(f"/api/imported-vocabulary?language=EN&q={query}")
+        assert searched.status_code == 200
+        assert searched.json()["count"] == 1
+        assert searched.json()["items"][0]["word"] == "review"
+
     with test_db.get_connection() as conn:
         conn.execute(
             "UPDATE srs_vocabulary SET next_review = ? WHERE user_id = ? AND word = ? AND language = ?",

@@ -919,9 +919,20 @@ class Database:
             where.append("language = ?")
             params.append(language)
         if q:
-            where.append("(word LIKE ? OR definition_zh LIKE ?)")
+            search_columns = (
+                "word",
+                "definition_zh",
+                "root",
+                "prefix",
+                "suffix",
+                "category",
+                "tags",
+                "memory_tip",
+                "part_of_speech",
+            )
+            where.append("(" + " OR ".join(f"{column} LIKE ?" for column in search_columns) + ")")
             like = f"%{q}%"
-            params.extend([like, like])
+            params.extend([like] * len(search_columns))
 
         where_sql = " AND ".join(where)
         with self.get_connection() as conn:

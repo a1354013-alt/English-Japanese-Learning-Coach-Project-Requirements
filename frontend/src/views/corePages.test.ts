@@ -951,4 +951,41 @@ describe('Vocabulary.vue', () => {
     expect(feedbackMocks.requestConfirmation).toHaveBeenCalled()
     expect(apiMocks.deleteImportedVocabulary).toHaveBeenCalledWith(7)
   })
+
+  it('renders root and category review fields for imported vocabulary', async () => {
+    apiMocks.listImportedVocabulary.mockResolvedValueOnce({
+      success: true,
+      count: 1,
+      items: [
+        {
+          id: 8,
+          user_id: 'default_user',
+          language: 'EN',
+          word: 'review',
+          reading: null,
+          definition_zh: '複習',
+          example_sentence: 'I review words.',
+          example_translation: '我複習單字。',
+          part_of_speech: 'verb',
+          root: 'view',
+          prefix: 're-',
+          suffix: null,
+          memory_tip: 're- means again.',
+          category: 'study',
+          tags: ['root', 'habit'],
+          created_at: '2026-05-11T00:00:00',
+        },
+      ],
+    })
+
+    const wrapper = mount(Vocabulary)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('POS: verb')
+    expect(wrapper.text()).toContain('Root: view')
+    expect(wrapper.text()).toContain('Prefix: re-')
+    expect(wrapper.text()).toContain('Tip: re- means again.')
+    expect(wrapper.text()).toContain('Category: study')
+    expect(wrapper.text()).toContain('Tags: root, habit')
+  })
 })

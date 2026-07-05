@@ -13,7 +13,9 @@ from uuid import uuid4
 from config import settings
 from database import db
 from models import (
+    DialogueLine,
     DialogueSection,
+    GrammarExample,
     GrammarExercise,
     GrammarSection,
     Lesson,
@@ -464,7 +466,10 @@ class LessonGenerator:
                 "grammar": GrammarSection(
                     title="Simple Present for Study Habits",
                     explanation="Use the simple present to describe habits, routines, and repeated actions.",
-                    examples=[{"sentence": "I review new words every day.", "translation": "我每天複習新單字。"}, {"sentence": "She practices one pattern after class.", "translation": "她下課後練習一個句型。"}],
+                    examples=[
+                        GrammarExample(sentence="I review new words every day.", translation="我每天複習新單字。"),
+                        GrammarExample(sentence="She practices one pattern after class.", translation="她下課後練習一個句型。"),
+                    ],
                     exercises=[
                         GrammarExercise(question="Choose the sentence for a daily habit.", options=["I review words every day.", "I reviewing words every day.", "I reviewed words tomorrow."], correct_answer="I review words every day.", explanation="Simple present uses the base verb for I/you/we/they."),
                         GrammarExercise(question="Choose the best verb form: She ___ one sentence aloud.", options=["repeats", "repeat", "repeating"], correct_answer="repeats", explanation="Use -s with she/he/it in the simple present."),
@@ -475,12 +480,12 @@ class LessonGenerator:
                     scenario="Planning a daily study routine",
                     context="Two classmates talk after English class.",
                     dialogue=[
-                        {"speaker": "Mia", "text": "I want to remember today's words.", "translation": "我想記住今天的單字。"},
-                        {"speaker": "Ken", "text": "Start with a short review tonight.", "translation": "今晚先做短短的複習。"},
-                        {"speaker": "Mia", "text": "Should I read the whole lesson again?", "translation": "我應該把整課再讀一次嗎？"},
-                        {"speaker": "Ken", "text": "No, repeat three useful chunks first.", "translation": "不用，先重複三個有用語塊。"},
-                        {"speaker": "Mia", "text": "Then I can explain the lesson in my own words.", "translation": "然後我可以用自己的話解釋這課。"},
-                        {"speaker": "Ken", "text": "Exactly. That makes review easier tomorrow.", "translation": "沒錯。這會讓明天的複習更容易。"},
+                        DialogueLine(speaker="Mia", text="I want to remember today's words.", translation="我想記住今天的單字。"),
+                        DialogueLine(speaker="Ken", text="Start with a short review tonight.", translation="今晚先做短短的複習。"),
+                        DialogueLine(speaker="Mia", text="Should I read the whole lesson again?", translation="我應該把整課再讀一次嗎？"),
+                        DialogueLine(speaker="Ken", text="No, repeat three useful chunks first.", translation="不用，先重複三個有用語塊。"),
+                        DialogueLine(speaker="Mia", text="Then I can explain the lesson in my own words.", translation="然後我可以用自己的話解釋這課。"),
+                        DialogueLine(speaker="Ken", text="Exactly. That makes review easier tomorrow.", translation="沒錯。這會讓明天的複習更容易。"),
                     ],
                     alternatives=[],
                 ),
@@ -524,7 +529,10 @@ class LessonGenerator:
                 "grammar": GrammarSection(
                     title="ます形で学習習慣を話す",
                     explanation="ます形は丁寧に行動や習慣を言う時に使います。",
-                    examples=[{"sentence": "毎日、復習します。", "translation": "每天複習。"}, {"sentence": "短い文を読みます。", "translation": "閱讀短句。"}],
+                    examples=[
+                        GrammarExample(sentence="毎日、復習します。", translation="每天複習。"),
+                        GrammarExample(sentence="短い文を読みます。", translation="閱讀短句。"),
+                    ],
                     exercises=[
                         GrammarExercise(question="正しい文を選んでください。", options=["毎日、復習します。", "毎日、復習ですます。", "毎日、復習を。"], correct_answer="毎日、復習します。", explanation="動作はます形で言います。"),
                         GrammarExercise(question="「聞く」のます形はどれですか。", options=["聞きます", "聞くます", "聞いてます"], correct_answer="聞きます", explanation="聞くは聞きますになります。"),
@@ -535,12 +543,12 @@ class LessonGenerator:
                     scenario="短い復習の計画",
                     context="二人の学習者が授業の後で話します。",
                     dialogue=[
-                        {"speaker": "ミア", "text": "今日の言葉を覚えたいです。", "translation": "我想記住今天的詞語。"},
-                        {"speaker": "ケン", "text": "まず、短い復習をしましょう。", "translation": "首先做短短的複習吧。"},
-                        {"speaker": "ミア", "text": "全部をもう一度読みますか。", "translation": "要把全部再讀一次嗎？"},
-                        {"speaker": "ケン", "text": "全部ではなく、短い部分を練習します。", "translation": "不是全部，而是練習短的部分。"},
-                        {"speaker": "ミア", "text": "それから、自分の言葉で説明します。", "translation": "然後用自己的話說明。"},
-                        {"speaker": "ケン", "text": "いいですね。明日も復習できます。", "translation": "很好。明天也可以複習。"},
+                        DialogueLine(speaker="ミア", text="今日の言葉を覚えたいです。", translation="我想記住今天的詞語。"),
+                        DialogueLine(speaker="ケン", text="まず、短い復習をしましょう。", translation="首先做短短的複習吧。"),
+                        DialogueLine(speaker="ミア", text="全部をもう一度読みますか。", translation="要把全部再讀一次嗎？"),
+                        DialogueLine(speaker="ケン", text="全部ではなく、短い部分を練習します。", translation="不是全部，而是練習短的部分。"),
+                        DialogueLine(speaker="ミア", text="それから、自分の言葉で説明します。", translation="然後用自己的話說明。"),
+                        DialogueLine(speaker="ケン", text="いいですね。明日も復習できます。", translation="很好。明天也可以複習。"),
                     ],
                     alternatives=[],
                 ),

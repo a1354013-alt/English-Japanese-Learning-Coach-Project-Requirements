@@ -60,6 +60,7 @@
             <th align="left">{{ t('common.word') }}</th>
             <th align="left">{{ t('vocabulary.reading') }}</th>
             <th align="left">{{ t('common.definition') }}</th>
+            <th align="left">Details</th>
             <th align="left">{{ t('common.example') }}</th>
             <th align="left">{{ t('vocabulary.action') }}</th>
           </tr>
@@ -69,6 +70,15 @@
             <td style="font-weight: 600">{{ v.word }}</td>
             <td>{{ v.reading ?? '' }}</td>
             <td>{{ v.definition_zh }}</td>
+            <td style="min-width: 220px">
+              <div v-if="v.part_of_speech">POS: {{ v.part_of_speech }}</div>
+              <div v-if="v.root">Root: {{ v.root }}</div>
+              <div v-if="v.prefix">Prefix: {{ v.prefix }}</div>
+              <div v-if="v.suffix">Suffix: {{ v.suffix }}</div>
+              <div v-if="v.memory_tip">Tip: {{ v.memory_tip }}</div>
+              <div v-if="v.category">Category: {{ v.category }}</div>
+              <div v-if="v.tags?.length">Tags: {{ formatTags(v.tags) }}</div>
+            </td>
             <td style="max-width: 420px">
               <div>{{ v.example_sentence ?? '' }}</div>
               <div style="color: #666; font-size: 0.85rem">
@@ -110,6 +120,8 @@ const error = ref<string | null>(null)
 const items = ref<ImportedVocabularyItem[]>([])
 const count = ref(0)
 const deletingId = ref<number | null>(null)
+
+const formatTags = (tags: string[]) => tags.join(', ')
 
 const load = async () => {
   loading.value = true
