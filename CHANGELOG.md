@@ -6,6 +6,34 @@ All notable changes to this project will be documented in this file.
 
 No unreleased changes yet.
 
+## [1.3.0] - 2026-07-05
+
+### Added
+
+- Item-level SRS for vocabulary, grammar, and sentence patterns.
+- New additive learning item tables and review history.
+- `/api/srs/items/due` endpoint.
+- `/api/srs/items/review` endpoint.
+- `/api/srs/items/weak` endpoint.
+- Snowball lesson generation context that can reuse weak and recent items.
+- Feynman feedback endpoint with AI provider support and deterministic fallback.
+- Feynman feedback history persistence.
+- SRS review UI filters for vocabulary, grammar, and sentence patterns.
+- Review rating buttons: Forgot, Hard, Good, Easy.
+- Demo reset compatibility with the micro lesson diagnostic flow.
+
+### Changed
+
+- Lesson review can update related learning items when exercises include `related_vocabulary`, `related_grammar`, or `related_sentence_patterns`.
+- Legacy lesson-wide SRS fallback remains available when no item-level references exist.
+- README and `docs/DEMO_GUIDE.md` now explain the v1.3 learning-intelligence demo path.
+
+### Fixed
+
+- Mocked E2E now handles `/api/micro-lessons/today`.
+- Full-stack smoke no longer gets blocked by `DiagnosticFlow` after demo reset.
+- `pip-audit` issues fixed by upgrading `pydantic-settings` and `pypdf`.
+
 ## [1.2.0] - 2026-06-26
 
 ### Added

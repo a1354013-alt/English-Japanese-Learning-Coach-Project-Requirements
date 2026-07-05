@@ -46,11 +46,16 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in items" :key="item.item_id">
+          <tr
+            v-for="item in items"
+            :key="item.item_id"
+            data-testid="srs-review-row"
+          >
             <td style="font-weight: 600">
               <div>{{ item.item_key }}</div>
               <small class="muted">
-                {{ item.item_type }} / {{ item.mastery_state }}
+                {{ formatItemTypeLabel(item.item_type) }} /
+                {{ formatMasteryStateLabel(item.mastery_state) }}
               </small>
             </td>
             <td>
@@ -143,6 +148,12 @@ const formatDefinition = (item: LearningItemDue) => {
   }
   return ''
 }
+
+const formatItemTypeLabel = (value: LearningItemType) =>
+  t(`review.itemTypeLabels.${value}`)
+
+const formatMasteryStateLabel = (value: LearningItemDue['mastery_state']) =>
+  t(`review.masteryStateLabels.${value}`)
 
 const load = async () => {
   loading.value = true

@@ -284,6 +284,18 @@
     "vocabulary": "Vocabulary",
     "grammar": "Grammar",
     "sentencePatterns": "Sentence patterns",
+    "itemTypeLabels": {
+      "vocabulary": "Vocabulary",
+      "grammar": "Grammar",
+      "sentence_pattern": "Sentence Pattern"
+    },
+    "masteryStateLabels": {
+      "new": "New",
+      "learning": "Learning",
+      "review": "Review",
+      "weak": "Weak",
+      "mastered": "Mastered"
+    },
     "easy": "Easy",
     "hard": "Hard",
     "forgot": "Forgot",

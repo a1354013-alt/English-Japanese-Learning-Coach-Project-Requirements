@@ -7,9 +7,20 @@ const apiMocks = vi.hoisted(() => ({
   submitLearningItemReview: vi.fn(),
 }))
 
+const translationMap: Record<string, string> = {
+  'review.itemTypeLabels.vocabulary': 'Vocabulary',
+  'review.itemTypeLabels.grammar': 'Grammar',
+  'review.itemTypeLabels.sentence_pattern': 'Sentence Pattern',
+  'review.masteryStateLabels.new': 'New',
+  'review.masteryStateLabels.learning': 'Learning',
+  'review.masteryStateLabels.review': 'Review',
+  'review.masteryStateLabels.weak': 'Weak',
+  'review.masteryStateLabels.mastered': 'Mastered',
+}
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string) => key,
+    t: (key: string) => translationMap[key] ?? key,
   }),
 }))
 
@@ -28,7 +39,7 @@ describe('SrsReview.vue', () => {
     vi.clearAllMocks()
   })
 
-  it('renders item-level metadata and a safe fallback when due_at is present', async () => {
+  it('renders friendly item labels alongside item-level metadata', async () => {
     apiMocks.getDueLearningItems.mockResolvedValueOnce({
       success: true,
       items: [
@@ -56,7 +67,8 @@ describe('SrsReview.vue', () => {
     expect(wrapper.text()).toContain('speaking')
     expect(wrapper.text()).toContain('root: hel')
     expect(wrapper.text()).toContain('tags: daily')
-    expect(wrapper.text()).toContain('learning')
+    expect(wrapper.text()).toContain('Vocabulary / Learning')
+    expect(wrapper.text()).not.toContain('vocabulary / learning')
   })
 
   it('submits item-level ratings with the item id', async () => {

@@ -280,9 +280,26 @@
     "loading": "載入到期項目中...",
     "empty": "目前沒有到期項目，進度都跟上了。",
     "nextReview": "下次複習",
+    "metadata": "學習資訊",
+    "vocabulary": "字彙",
+    "grammar": "文法",
+    "sentencePatterns": "句型",
+    "itemTypeLabels": {
+      "vocabulary": "字彙",
+      "grammar": "文法",
+      "sentence_pattern": "句型"
+    },
+    "masteryStateLabels": {
+      "new": "新建",
+      "learning": "學習中",
+      "review": "複習",
+      "weak": "薄弱",
+      "mastered": "已熟練"
+    },
     "easy": "簡單",
     "hard": "困難",
     "forgot": "忘記了",
+    "good": "良好",
     "loadError": "目前無法載入複習項目，請稍後再試。",
     "submitError": "目前無法送出複習結果，請稍後再試。",
     "demoNote": "Demo 提示：這裡只會更新 SRS 排程，不會另外給予 XP 或進度獎勵。"

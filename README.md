@@ -4,6 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
+Current release: `v1.3.0`.
+
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
 TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
@@ -57,7 +59,7 @@ Immersion is currently text shadowing only. The TTS endpoint remains provider-re
 
 ## v1.3 Learning Intelligence
 
-The current v1.3 pass adds learning intelligence without destabilizing the v1.2 release shape:
+Version `1.3.0` adds learning intelligence without destabilizing the v1.2 release shape:
 
 - Per-item SRS now tracks vocabulary, grammar, and sentence patterns through additive item-level endpoints, while the legacy lesson-wide and vocabulary-only paths remain available for backward compatibility.
 - Snowball lesson generation can reuse a small amount of weak and recent items so future lessons feel connected instead of isolated.
@@ -68,6 +70,7 @@ Current limitations remain explicit:
 - TTS is provider-ready but disabled by default unless a real provider is configured.
 - Immersion is currently text shadowing rather than live audio coaching.
 - RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+- Real recording and speech comparison are not part of this release.
 
 ## Portfolio Demo Flow
 
@@ -307,7 +310,7 @@ ALLOW_DEMO_RESET=true python -m uvicorn main:app --reload --host 0.0.0.0 --port 
 curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
-This reseeds a deterministic lesson, progress snapshot, wrong answers, and supporting demo data for the default user.
+This reseeds a deterministic v1.3.0 lesson, progress snapshot, item-level SRS data, weak-item groups, and supporting demo data for the default user.
 
 ### Full-Stack Smoke E2E
 

@@ -1,11 +1,15 @@
 """Demo reset API should rebuild a fully presentable dataset."""
 
 import database as database_module
+import services.learning_intelligence as learning_intelligence_module
 from config import settings
 from database import Database
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from routers import micro_lessons as micro_lessons_router
+from routers import review as review_router
 from routers import system as system_router
+from services.learning_intelligence import build_snowball_context
 
 
 def test_demo_reset_disabled_by_default_returns_403(tmp_path, monkeypatch):
@@ -14,9 +18,14 @@ def test_demo_reset_disabled_by_default_returns_403(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"), raising=False)
     monkeypatch.setattr(database_module, "db", test_db, raising=False)
     monkeypatch.setattr(system_router, "db", test_db, raising=False)
+    monkeypatch.setattr(review_router, "db", test_db, raising=False)
+    monkeypatch.setattr(micro_lessons_router, "db", test_db, raising=False)
+    monkeypatch.setattr(learning_intelligence_module, "db", test_db, raising=False)
 
     app = FastAPI()
     app.include_router(system_router.api_router)
+    app.include_router(review_router.router)
+    app.include_router(micro_lessons_router.router)
     client = TestClient(app)
 
     response = client.post("/api/demo/reset")
@@ -30,9 +39,14 @@ def test_demo_reset_rebuilds_seed_data(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"), raising=False)
     monkeypatch.setattr(database_module, "db", test_db, raising=False)
     monkeypatch.setattr(system_router, "db", test_db, raising=False)
+    monkeypatch.setattr(review_router, "db", test_db, raising=False)
+    monkeypatch.setattr(micro_lessons_router, "db", test_db, raising=False)
+    monkeypatch.setattr(learning_intelligence_module, "db", test_db, raising=False)
 
     app = FastAPI()
     app.include_router(system_router.api_router)
+    app.include_router(review_router.router)
+    app.include_router(micro_lessons_router.router)
     client = TestClient(app)
 
     response = client.post("/api/demo/reset")
@@ -46,12 +60,33 @@ def test_demo_reset_rebuilds_seed_data(tmp_path, monkeypatch):
     assert diagnostic_state["current_day"] == 1
     assert diagnostic_state["estimated_total_days"] == 90
     assert diagnostic_state["correct_count"] == 4
+    assert diagnostic_state["completed_at"]
 
     lessons, total = test_db.query_lessons("default_user", limit=10, offset=0)
     assert total >= 2
     vocab, vocab_total = test_db.list_imported_vocabulary(user_id="default_user", limit=10, offset=0)
     assert vocab_total >= 2
     assert test_db.list_wrong_answers(user_id="default_user", limit=10, offset=0)
+
+    micro_today = client.get("/api/micro-lessons/today")
+    assert micro_today.status_code == 200
+    assert micro_today.json()["diagnostic_completed"] is True
+
+    due = client.get("/api/srs/items/due?language=EN")
+    assert due.status_code == 200
+    due_items = due.json()["items"]
+    assert due_items
+
+    weak = client.get("/api/srs/items/weak?language=EN")
+    assert weak.status_code == 200
+    weak_body = weak.json()
+    assert weak_body["vocabulary"]
+    assert weak_body["grammar"] or weak_body["sentence_pattern"]
+
+    context = build_snowball_context("default_user", "EN", "A2")
+    assert context["weak_vocabulary"]
+    assert context["weak_grammar"]
+    assert context["recent_vocabulary"]
 
 
 def test_demo_reset_clears_stale_micro_lesson_state(tmp_path, monkeypatch):
@@ -60,6 +95,9 @@ def test_demo_reset_clears_stale_micro_lesson_state(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"), raising=False)
     monkeypatch.setattr(database_module, "db", test_db, raising=False)
     monkeypatch.setattr(system_router, "db", test_db, raising=False)
+    monkeypatch.setattr(review_router, "db", test_db, raising=False)
+    monkeypatch.setattr(micro_lessons_router, "db", test_db, raising=False)
+    monkeypatch.setattr(learning_intelligence_module, "db", test_db, raising=False)
 
     test_db.save_diagnostic_state(
         user_id="default_user",
@@ -153,6 +191,8 @@ def test_demo_reset_clears_stale_micro_lesson_state(tmp_path, monkeypatch):
 
     app = FastAPI()
     app.include_router(system_router.api_router)
+    app.include_router(review_router.router)
+    app.include_router(micro_lessons_router.router)
     client = TestClient(app)
 
     response = client.post("/api/demo/reset")
