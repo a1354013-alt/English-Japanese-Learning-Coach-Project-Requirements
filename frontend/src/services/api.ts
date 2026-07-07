@@ -29,6 +29,11 @@ import type {
   StudyPlanGenerateRequest,
   ErrorType,
   DemoResetResponse,
+  FeynmanFeedbackResponse,
+  LearningItemDueResponse,
+  LearningItemReviewResult,
+  LearningItemType,
+  LearningItemWeakResponse,
   LessonListItem,
   DiagnosticQuestion,
   LearningPlan,
@@ -102,6 +107,21 @@ export const lessonApi = {
   async getLesson(lessonId: string) {
     const response = await api.get<{ success: boolean; lesson: Lesson }>(
       `/lessons/${lessonId}`,
+    )
+    return response.data
+  },
+
+  async submitFeynmanFeedback(
+    lessonId: string,
+    payload: {
+      explanation: string
+      language: Language
+      lesson_snapshot?: Lesson
+    },
+  ) {
+    const response = await api.post<FeynmanFeedbackResponse>(
+      `/lessons/${encodeURIComponent(lessonId)}/feynman-feedback`,
+      payload,
     )
     return response.data
   },
@@ -252,6 +272,42 @@ export const reviewApi = {
     const response = await api.post<{ success: boolean }>(
       '/srs/review',
       payload,
+    )
+    return response.data
+  },
+
+  async getDueLearningItems(
+    params: {
+      language?: Language
+      item_type?: LearningItemType
+    } = {},
+  ) {
+    const response = await api.get<LearningItemDueResponse>('/srs/items/due', {
+      params,
+    })
+    return response.data
+  },
+
+  async submitLearningItemReview(payload: {
+    item_id: string
+    rating: number
+    correct: boolean
+    response_time_ms?: number
+    source?: 'lesson_review' | 'srs_review' | 'feynman_feedback' | 'manual'
+  }) {
+    const response = await api.post<LearningItemReviewResult>(
+      '/srs/items/review',
+      payload,
+    )
+    return response.data
+  },
+
+  async getWeakLearningItems(language?: Language) {
+    const response = await api.get<LearningItemWeakResponse>(
+      '/srs/items/weak',
+      {
+        params: { language },
+      },
     )
     return response.data
   },

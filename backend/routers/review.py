@@ -1,5 +1,6 @@
 """Exercise review, SRS due items, and generation task history."""
-from typing import List, Optional
+
+from typing import Any, List, Optional
 
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
@@ -8,6 +9,10 @@ from gamification_engine import gamification_engine
 from models import (
     ErrorType,
     LanguageCode,
+    LearningItemDueResponse,
+    LearningItemGroupResponse,
+    LearningItemReviewRequest,
+    LearningItemReviewState,
     ReviewAnswer,
     ReviewSubmitResponse,
     SrsDueResponse,
@@ -16,6 +21,7 @@ from models import (
     TasksResponse,
     UserRPGStats,
 )
+from services.learning_intelligence import apply_item_reviews_from_lesson
 from services.lesson_ops import (
     is_answer_correct,
     load_lesson_payload,
@@ -134,7 +140,20 @@ async def submit_review(
         increment_completed_lessons=not was_completed,
         previous_best_correct=int(previous_result["correct_count"]) if previous_result else None,
     )
-    update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
+    item_review_updates = apply_item_reviews_from_lesson(
+        user_id=user_id,
+        lesson_data=lesson_data,
+        answer_checks=[
+            (a.exercise_type, a.question_index, is_answer_correct(a.user_answer, (
+                lesson_data.get("grammar", {}).get("exercises", [])[a.question_index]
+                if a.exercise_type == "grammar"
+                else lesson_data.get("reading", {}).get("questions", [])[a.question_index]
+            )))
+            for a in answers
+        ],
+    )
+    if item_review_updates == 0:
+        update_srs_after_review(user_id, language, lesson_data, review_data["accuracy_rate"])
 
     # Wrong Answer Notebook: persist each incorrect answer with dedupe/upsert.
     answer_map = {(a.exercise_type, a.question_index): a for a in answers}
@@ -229,6 +248,97 @@ async def submit_srs_review(
     db.update_srs_item(user_id, word, request.language, srs_data, vocab_info)
     db.record_learning_activity(user_id=user_id, activity_type="srs_review")
     return {"success": True}
+
+
+@router.get("/srs/items/due", response_model=LearningItemDueResponse)
+async def get_due_learning_items(
+    language: Optional[LanguageCode] = None,
+    item_type: Optional[str] = Query(default=None),
+    user_id: str = Depends(require_demo_user_id),
+):
+    raw_items = db.list_due_learning_items(
+        user_id=user_id,
+        language=language,
+        item_type=item_type,
+    )
+    items: List[dict[str, Any]] = []
+    for item in raw_items:
+        raw_content = item.get("content")
+        content: dict[str, Any] = raw_content if isinstance(raw_content, dict) else {}
+        items.append(
+            {
+                "item_id": item.get("id"),
+                "item_type": item.get("item_type"),
+                "item_key": item.get("item_key"),
+                "language": item.get("language"),
+                "level": item.get("level"),
+                "content": content,
+                "category": item.get("category") or content.get("category"),
+                "tags": item.get("tags") if isinstance(item.get("tags"), list) else [],
+                "root": content.get("root"),
+                "memory_tip": content.get("memory_tip"),
+                "mastery_state": item.get("mastery_state"),
+                "due_at": item.get("due_at"),
+            }
+        )
+    return {"success": True, "items": items}
+
+
+@router.post("/srs/items/review", response_model=LearningItemReviewState)
+async def submit_learning_item_review(
+    request: LearningItemReviewRequest,
+    user_id: str = Depends(require_demo_user_id),
+):
+    updated = db.record_learning_item_review(
+        user_id=user_id,
+        item_id=request.item_id,
+        rating=request.rating,
+        correct=request.correct,
+        response_time_ms=request.response_time_ms,
+        source=request.source,
+    )
+    return {
+        "success": True,
+        "item_id": updated.get("id"),
+        "interval_days": updated.get("interval_days"),
+        "ease_factor": updated.get("ease_factor"),
+        "repetitions": updated.get("repetitions"),
+        "lapses": updated.get("lapses"),
+        "due_at": updated.get("due_at"),
+        "last_reviewed_at": updated.get("last_reviewed_at"),
+        "mastery_state": updated.get("mastery_state"),
+    }
+
+
+@router.get("/srs/items/weak", response_model=LearningItemGroupResponse)
+async def get_weak_learning_items(
+    language: Optional[LanguageCode] = None,
+    user_id: str = Depends(require_demo_user_id),
+):
+    grouped: dict[str, List[dict[str, Any]]] = {
+        "vocabulary": [],
+        "grammar": [],
+        "sentence_pattern": [],
+    }
+    for item in db.get_weak_learning_items(user_id=user_id, language=language, limit=60):
+        raw_content = item.get("content")
+        content: dict[str, Any] = raw_content if isinstance(raw_content, dict) else {}
+        payload: dict[str, Any] = {
+            "item_id": item.get("id"),
+            "item_type": item.get("item_type"),
+            "item_key": item.get("item_key"),
+            "language": item.get("language"),
+            "level": item.get("level"),
+            "content": content,
+            "category": item.get("category") or content.get("category"),
+            "tags": item.get("tags") if isinstance(item.get("tags"), list) else [],
+            "root": content.get("root"),
+            "memory_tip": content.get("memory_tip"),
+            "mastery_state": item.get("mastery_state"),
+            "due_at": item.get("due_at"),
+        }
+        grouped[str(item.get("item_type"))].append(payload)
+    return {"success": True, **grouped}
 
 
 @router.get("/tasks", response_model=TasksResponse)

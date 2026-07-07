@@ -4,6 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
+Current release: `v1.3.0`.
+
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
 TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
@@ -59,10 +61,44 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
+## v1.3 Learning Intelligence
+
+Version `1.3.0` adds learning intelligence without destabilizing the v1.2 release shape:
+
+- Per-item SRS now tracks vocabulary, grammar, and sentence patterns through additive item-level endpoints, while the legacy lesson-wide and vocabulary-only paths remain available for backward compatibility.
+- Snowball lesson generation can reuse a small amount of weak and recent items so future lessons feel connected instead of isolated.
+- Feynman feedback now accepts a learner explanation and returns structured AI feedback when a provider is available, with a deterministic fallback when it is not.
+
+Current limitations remain explicit:
+
+- TTS is provider-ready but disabled by default unless a real provider is configured.
+- Immersion is currently text shadowing rather than live audio coaching.
+- RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+- Real recording and speech comparison are not part of this release.
+
+## Portfolio Demo Flow
+
+Use this path for the cleanest portfolio walkthrough:
+
+1. Install backend dependencies with `cd backend && python -m pip install -r requirements.txt -r requirements-dev.txt`.
+2. Install frontend dependencies with `cd frontend && npm ci`.
+3. Copy `backend/.env.example` to `backend/.env`.
+4. In VS Code, choose `F5: Backend + Frontend` and press F5.
+5. If `ALLOW_DEMO_RESET=true`, call `POST /api/demo/reset` to rebuild deterministic demo data before presenting.
+6. Generate a lesson from `Today` and show the objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, immersion shadowing, Feynman prompt, and review plan sections.
+7. Submit one review and show the progress update.
+8. Open SRS due review and point out the imported vocabulary metadata fields such as root, category, and memory tip.
+9. Show weak items grouped by vocabulary, grammar, and sentence patterns.
+10. Generate another lesson and explain that weak/recent items can reappear through snowball context.
+11. Submit a Feynman explanation and show the structured feedback or deterministic fallback feedback.
+12. Import a vocabulary Excel file that includes `root`, `category`, and `tags`.
+13. Search the vocabulary page by `root`, `category`, or `tags`.
+14. Export the lesson as PDF.
+
 ## 30-second Demo Flow
 
 1. If you are running a local demo, start the backend with `ALLOW_DEMO_RESET=true` and reset demo data with `POST /api/demo/reset`.
-2. Generate or open today’s lesson.
+2. Generate or open today's lesson.
 3. Complete one review submission.
 4. Check progress.
 5. Export PDF.
@@ -280,7 +316,7 @@ ALLOW_DEMO_RESET=true python -m uvicorn main:app --reload --host 0.0.0.0 --port 
 curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
-This reseeds a deterministic lesson, progress snapshot, wrong answers, and supporting demo data for the default user.
+This reseeds a deterministic v1.3.0 lesson, progress snapshot, item-level SRS data, weak-item groups, and supporting demo data for the default user.
 
 ### Full-Stack Smoke E2E
 
@@ -380,3 +416,4 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps, [TEST_PLAN.md
 ## License
 
 MIT. See [LICENSE](LICENSE).
+

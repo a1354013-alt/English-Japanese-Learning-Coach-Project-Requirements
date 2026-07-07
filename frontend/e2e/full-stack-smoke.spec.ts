@@ -52,5 +52,12 @@ test('full-stack smoke boots both apps and completes seeded review flow', async 
   await page.goto('/progress')
   await expect(page.getByTestId('progress-en-completed')).toHaveText('2')
 
+  await page.goto('/progress?tab=review')
+  await expect(page).toHaveURL(/\/progress\?tab=review$/)
+  await expect(page.getByTestId('srs-review-row').first()).toBeVisible()
+  await expect(page.getByText('Vocabulary').first()).toBeVisible()
+  await expect(page.getByText('Weak').first()).toBeVisible()
+  await expect(page.getByText('grammar').first()).toBeVisible()
+
   await resetDemoSeed(request)
 })

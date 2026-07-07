@@ -5,6 +5,7 @@ import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from config import settings
@@ -14,6 +15,30 @@ from time_utils import local_now
 
 def _local_now() -> datetime:
     return local_now()
+
+
+def _json_loads_dict(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _json_loads_list(value: Any) -> List[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
 
 
 class Database:
@@ -855,6 +880,432 @@ class Database:
             item["data"] = json.loads(item["data"])
             result.append(item)
         return result
+
+    def upsert_learning_item(
+        self,
+        *,
+        user_id: str,
+        item_type: str,
+        item_key: str,
+        language: str,
+        level: Optional[str],
+        lesson_id: Optional[str],
+        content: Dict[str, Any],
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        normalized_key = str(item_key).strip()
+        if not normalized_key:
+            raise ValueError("item_key is required")
+
+        now = _local_now().isoformat()
+        content_json = json.dumps(content, ensure_ascii=False, default=str)
+        tags_json = json.dumps(tags or [], ensure_ascii=False)
+        item_id: Optional[str] = None
+
+        with self.get_connection() as conn:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM learning_items
+                WHERE user_id = ? AND item_type = ? AND item_key = ? AND language = ?
+                """,
+                (user_id, item_type, normalized_key, language),
+            ).fetchone()
+            item_id = str(existing["id"]) if existing else str(uuid4())
+            conn.execute(
+                """
+                INSERT INTO learning_items (
+                    id, user_id, item_type, item_key, language, level, lesson_id,
+                    content_json, category, tags, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, item_type, item_key, language) DO UPDATE SET
+                    level = excluded.level,
+                    lesson_id = excluded.lesson_id,
+                    content_json = excluded.content_json,
+                    category = excluded.category,
+                    tags = excluded.tags,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    item_id,
+                    user_id,
+                    item_type,
+                    normalized_key,
+                    language,
+                    level,
+                    lesson_id,
+                    content_json,
+                    category,
+                    tags_json,
+                    now,
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO learning_item_srs (item_id, due_at)
+                VALUES (?, ?)
+                ON CONFLICT(item_id) DO NOTHING
+                """,
+                (item_id, now),
+            )
+
+        return self.get_learning_item(user_id=user_id, item_id=item_id) or {}
+
+    def get_learning_item(self, *, user_id: str, item_id: str) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                       ls.due_at, ls.last_reviewed_at, ls.mastery_state
+                FROM learning_items AS li
+                JOIN learning_item_srs AS ls ON ls.item_id = li.id
+                WHERE li.user_id = ? AND li.id = ?
+                """,
+                (user_id, item_id),
+            ).fetchone()
+        return self._decode_learning_item_row(row) if row else None
+
+    def get_learning_item_by_key(
+        self,
+        *,
+        user_id: str,
+        item_type: str,
+        item_key: str,
+        language: str,
+    ) -> Optional[Dict[str, Any]]:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                       ls.due_at, ls.last_reviewed_at, ls.mastery_state
+                FROM learning_items AS li
+                JOIN learning_item_srs AS ls ON ls.item_id = li.id
+                WHERE li.user_id = ? AND li.item_type = ? AND li.item_key = ? AND li.language = ?
+                """,
+                (user_id, item_type, str(item_key).strip(), language),
+            ).fetchone()
+        return self._decode_learning_item_row(row) if row else None
+
+    def _decode_learning_item_row(self, row: sqlite3.Row | None) -> Dict[str, Any]:
+        if row is None:
+            return {}
+        item = dict(row)
+        item["content"] = _json_loads_dict(item.pop("content_json", {}))
+        item["tags"] = _json_loads_list(item.get("tags"))
+        return item
+
+    def record_learning_item_review(
+        self,
+        *,
+        user_id: str,
+        item_id: str,
+        rating: int,
+        correct: bool,
+        response_time_ms: Optional[int] = None,
+        source: str = "manual",
+    ) -> Dict[str, Any]:
+        existing = self.get_learning_item(user_id=user_id, item_id=item_id)
+        if not existing:
+            raise ValueError("learning item not found")
+
+        from srs import srs_engine
+
+        srs_data = srs_engine.calculate(
+            quality=rating,
+            prev_interval=int(existing.get("interval_days") or 0),
+            prev_ease_factor=float(existing.get("ease_factor") or 2.5),
+            repetition=int(existing.get("repetitions") or 0),
+        )
+        now = _local_now().isoformat()
+        repetitions = int(srs_data["repetition"])
+        lapses = int(existing.get("lapses") or 0) + (1 if rating < 3 else 0)
+        if rating < 3:
+            mastery_state = "weak" if lapses > 1 or not correct else "learning"
+        elif repetitions >= 5:
+            mastery_state = "mastered"
+        elif repetitions >= 2:
+            mastery_state = "review"
+        else:
+            mastery_state = "learning"
+
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE learning_item_srs
+                SET interval_days = ?, ease_factor = ?, repetitions = ?, lapses = ?,
+                    due_at = ?, last_reviewed_at = ?, mastery_state = ?
+                WHERE item_id = ?
+                """,
+                (
+                    int(srs_data["interval"]),
+                    float(srs_data["ease_factor"]),
+                    repetitions,
+                    lapses,
+                    srs_data["next_review"].isoformat(),
+                    now,
+                    mastery_state,
+                    item_id,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO learning_item_reviews (
+                    id, item_id, rating, correct, response_time_ms, source, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid4()),
+                    item_id,
+                    rating,
+                    1 if correct else 0,
+                    response_time_ms,
+                    source,
+                    now,
+                ),
+            )
+
+        updated = self.get_learning_item(user_id=user_id, item_id=item_id) or {}
+        self._sync_imported_vocabulary_mastery(
+            user_id=user_id,
+            item_type=str(updated.get("item_type") or ""),
+            item_key=str(updated.get("item_key") or ""),
+            language=str(updated.get("language") or ""),
+            mastery_state=str(updated.get("mastery_state") or "new"),
+        )
+        return updated
+
+    def _sync_imported_vocabulary_mastery(
+        self,
+        *,
+        user_id: str,
+        item_type: str,
+        item_key: str,
+        language: str,
+        mastery_state: str,
+    ) -> None:
+        if item_type != "vocabulary":
+            return
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE imported_vocabulary
+                SET mastery_state = ?
+                WHERE user_id = ? AND word = ? AND language = ?
+                """,
+                (mastery_state, user_id, item_key, language),
+            )
+
+    def list_due_learning_items(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        item_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        where = ["li.user_id = ?", "ls.due_at <= ?"]
+        params: List[Any] = [user_id, _local_now().isoformat()]
+        if language:
+            where.append("li.language = ?")
+            params.append(language)
+        if item_type:
+            where.append("li.item_type = ?")
+            params.append(item_type)
+
+        query = f"""
+            SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                   ls.due_at, ls.last_reviewed_at, ls.mastery_state
+            FROM learning_items AS li
+            JOIN learning_item_srs AS ls ON ls.item_id = li.id
+            WHERE {' AND '.join(where)}
+            ORDER BY ls.due_at ASC, li.updated_at DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        with self.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._decode_learning_item_row(row) for row in rows]
+
+    def get_weak_learning_items(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        where = ["li.user_id = ?", "ls.mastery_state IN ('weak', 'learning')"]
+        params: List[Any] = [user_id]
+        if language:
+            where.append("li.language = ?")
+            params.append(language)
+        query = f"""
+            SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                   ls.due_at, ls.last_reviewed_at, ls.mastery_state
+            FROM learning_items AS li
+            JOIN learning_item_srs AS ls ON ls.item_id = li.id
+            WHERE {' AND '.join(where)}
+            ORDER BY
+                CASE ls.mastery_state WHEN 'weak' THEN 0 ELSE 1 END,
+                ls.last_reviewed_at DESC,
+                li.updated_at DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        with self.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._decode_learning_item_row(row) for row in rows]
+
+    def get_recent_learning_items(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        item_type: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        where = ["li.user_id = ?"]
+        params: List[Any] = [user_id]
+        if language:
+            where.append("li.language = ?")
+            params.append(language)
+        if item_type:
+            where.append("li.item_type = ?")
+            params.append(item_type)
+        query = f"""
+            SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                   ls.due_at, ls.last_reviewed_at, ls.mastery_state
+            FROM learning_items AS li
+            JOIN learning_item_srs AS ls ON ls.item_id = li.id
+            WHERE {' AND '.join(where)}
+            ORDER BY COALESCE(ls.last_reviewed_at, li.updated_at) DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        with self.get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._decode_learning_item_row(row) for row in rows]
+
+    def get_learning_item_stats(self, *, user_id: str, language: Optional[str] = None) -> Dict[str, Any]:
+        where = ["li.user_id = ?"]
+        params: List[Any] = [user_id]
+        if language:
+            where.append("li.language = ?")
+            params.append(language)
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT li.item_type, ls.mastery_state, COUNT(1) AS count
+                FROM learning_items AS li
+                JOIN learning_item_srs AS ls ON ls.item_id = li.id
+                WHERE {' AND '.join(where)}
+                GROUP BY li.item_type, ls.mastery_state
+                """,
+                params,
+            ).fetchall()
+        summary: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            item_type = str(row["item_type"])
+            mastery_state = str(row["mastery_state"])
+            summary.setdefault(item_type, {})[mastery_state] = int(row["count"])
+        return summary
+
+    def sync_lesson_items_to_learning_items(
+        self,
+        *,
+        user_id: str,
+        lesson_data: Dict[str, Any],
+        language: str,
+        level: Optional[str],
+        lesson_id: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        synced: List[Dict[str, Any]] = []
+
+        for vocab in lesson_data.get("vocabulary", []) or []:
+            if not isinstance(vocab, dict):
+                continue
+            word = str(vocab.get("word", "")).strip()
+            if not word:
+                continue
+            synced.append(
+                self.upsert_learning_item(
+                    user_id=user_id,
+                    item_type="vocabulary",
+                    item_key=word,
+                    language=language,
+                    level=level,
+                    lesson_id=lesson_id,
+                    content=vocab,
+                    category=str(vocab.get("category")).strip() if vocab.get("category") else None,
+                    tags=[str(tag) for tag in vocab.get("tags", []) if str(tag).strip()],
+                )
+            )
+
+        grammar = lesson_data.get("grammar", {})
+        if isinstance(grammar, dict):
+            title = str(grammar.get("title", "")).strip()
+            if title:
+                synced.append(
+                    self.upsert_learning_item(
+                        user_id=user_id,
+                        item_type="grammar",
+                        item_key=title,
+                        language=language,
+                        level=level,
+                        lesson_id=lesson_id,
+                        content=grammar,
+                        category="grammar",
+                        tags=[],
+                    )
+                )
+
+        for pattern in lesson_data.get("sentence_patterns", []) or []:
+            if not isinstance(pattern, dict):
+                continue
+            item_key = str(pattern.get("pattern", "")).strip()
+            if not item_key:
+                continue
+            synced.append(
+                self.upsert_learning_item(
+                    user_id=user_id,
+                    item_type="sentence_pattern",
+                    item_key=item_key,
+                    language=language,
+                    level=level,
+                    lesson_id=lesson_id,
+                    content=pattern,
+                    category="sentence_pattern",
+                    tags=[],
+                )
+            )
+
+        return synced
+
+    def save_feynman_feedback_history(
+        self,
+        *,
+        user_id: str,
+        lesson_id: str,
+        explanation: str,
+        feedback: Dict[str, Any],
+    ) -> None:
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO feynman_feedback_history (
+                    id, user_id, lesson_id, explanation, feedback_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid4()),
+                    user_id,
+                    lesson_id,
+                    explanation,
+                    json.dumps(feedback, ensure_ascii=False, default=str),
+                    _local_now().isoformat(),
+                ),
+            )
 
     def save_imported_vocabulary(self, user_id: str, language: str, item: Dict[str, Any]) -> None:
         word_family = item.get("word_family")

@@ -130,7 +130,12 @@
         @export-pdf="exportPdf"
       />
       <ReviewPanel v-if="reviewResult" :result="reviewResult" />
-      <FeynmanSection :feynman="lesson.feynman_prompt" />
+      <FeynmanSection
+        :feynman="lesson.feynman_prompt"
+        :lesson-id="lesson.metadata.lesson_id"
+        :language="lesson.metadata.language"
+        :lesson-snapshot="lesson"
+      />
       <ReviewPlanSection :review-plan="lesson.review_plan" />
     </template>
   </section>

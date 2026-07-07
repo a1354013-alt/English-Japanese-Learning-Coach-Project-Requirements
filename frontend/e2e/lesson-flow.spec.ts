@@ -236,6 +236,20 @@ async function installMockApi(page: Page) {
       return
     }
 
+    if (path === '/api/micro-lessons/today' && method === 'GET') {
+      await fulfillJson(route, {
+        success: true,
+        diagnostic_completed: true,
+        learning_plan: {
+          estimated_total_days: 90,
+          current_day: 1,
+          summary_zh: 'Mock learner already completed the diagnostic.',
+        },
+        lesson: null,
+      })
+      return
+    }
+
     if (path === '/api/lessons/today/EN' && method === 'GET') {
       await fulfillJson(route, { success: true, lesson: currentLesson })
       return

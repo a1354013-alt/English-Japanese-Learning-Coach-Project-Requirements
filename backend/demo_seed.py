@@ -23,6 +23,13 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
     user_id = settings.default_user_id
     _clear_runtime_artifacts()
     _clear_database(db, user_id)
+    db.save_diagnostic_state(
+        user_id=user_id,
+        estimated_total_days=90,
+        current_day=1,
+        summary_zh="Demo learner has completed the placement diagnostic and can start the seeded lesson flow.",
+        correct_count=4,
+    )
 
     now = _local_now()
     local_today = now.date()
@@ -195,6 +202,12 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
         correct_answer="午後三時まで",
         source_lesson_id="demo-jp-archive",
     )
+    _seed_learning_intelligence_demo_data(
+        db,
+        user_id=user_id,
+        source_lesson_id=today_lesson_id,
+        now=now,
+    )
 
     progress = db.get_progress(user_id)
     progress["english_progress"]["current_level"] = "A2"
@@ -260,6 +273,12 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
 
 def _clear_database(db: Database, user_id: str) -> None:
     tables = [
+        "learning_item_reviews",
+        "learning_item_srs",
+        "feynman_feedback_history",
+        "learning_items",
+        "micro_lessons",
+        "diagnostic_state",
         "generation_tasks",
         "exercise_results",
         "srs_vocabulary",
@@ -270,7 +289,27 @@ def _clear_database(db: Database, user_id: str) -> None:
         "lessons",
     ]
     with db.get_connection() as conn:
-        for table in tables:
+        conn.execute(
+            """
+            DELETE FROM learning_item_reviews
+            WHERE item_id IN (
+                SELECT id FROM learning_items WHERE user_id = ?
+            )
+            """,
+            (user_id,),
+        )
+        conn.execute(
+            """
+            DELETE FROM learning_item_srs
+            WHERE item_id IN (
+                SELECT id FROM learning_items WHERE user_id = ?
+            )
+            """,
+            (user_id,),
+        )
+        conn.execute("DELETE FROM feynman_feedback_history WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM learning_items WHERE user_id = ?", (user_id,))
+        for table in tables[4:]:
             conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
 
 
@@ -279,6 +318,137 @@ def _clear_runtime_artifacts() -> None:
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
         path.mkdir(parents=True, exist_ok=True)
+
+
+def _seed_learning_intelligence_demo_data(
+    db: Database,
+    *,
+    user_id: str,
+    source_lesson_id: str,
+    now: datetime,
+) -> None:
+    seeded_items: list[dict[str, Any]] = [
+        {
+            "item_type": "vocabulary",
+            "item_key": "blocker",
+            "language": "EN",
+            "level": "A2",
+            "category": "workflow",
+            "tags": ["standup", "weak"],
+            "content": {
+                "word": "blocker",
+                "definition_zh": "An issue that stops progress.",
+                "root": "block",
+                "memory_tip": "Picture a road block that pauses the task.",
+            },
+            "mastery_state": "weak",
+            "due_at": now - timedelta(days=1),
+            "last_reviewed_at": now - timedelta(hours=6),
+            "interval_days": 1,
+            "ease_factor": 2.1,
+            "repetitions": 1,
+            "lapses": 2,
+        },
+        {
+            "item_type": "vocabulary",
+            "item_key": "ship",
+            "language": "EN",
+            "level": "A2",
+            "category": "workflow",
+            "tags": ["recent"],
+            "content": {
+                "word": "ship",
+                "definition_zh": "To release work for users.",
+                "root": "ship",
+                "memory_tip": "Imagine shipping a finished feature out the door.",
+            },
+            "mastery_state": "learning",
+            "due_at": now + timedelta(days=2),
+            "last_reviewed_at": now - timedelta(minutes=45),
+            "interval_days": 2,
+            "ease_factor": 2.5,
+            "repetitions": 1,
+            "lapses": 0,
+        },
+        {
+            "item_type": "grammar",
+            "item_key": "Present Simple for status updates",
+            "language": "EN",
+            "level": "A2",
+            "category": "grammar",
+            "tags": ["standup", "weak"],
+            "content": {
+                "title": "Present Simple for status updates",
+                "explanation": "Use the present simple to describe routine updates and current work status.",
+            },
+            "mastery_state": "weak",
+            "due_at": now - timedelta(hours=4),
+            "last_reviewed_at": now - timedelta(hours=2),
+            "interval_days": 1,
+            "ease_factor": 2.2,
+            "repetitions": 1,
+            "lapses": 2,
+        },
+        {
+            "item_type": "sentence_pattern",
+            "item_key": "I report blockers in the standup.",
+            "language": "EN",
+            "level": "A2",
+            "category": "sentence_pattern",
+            "tags": ["snowball"],
+            "content": {
+                "pattern": "I report blockers in the standup.",
+                "meaning_zh": "A sentence pattern for a short status update.",
+            },
+            "mastery_state": "learning",
+            "due_at": now - timedelta(minutes=30),
+            "last_reviewed_at": now - timedelta(days=1),
+            "interval_days": 1,
+            "ease_factor": 2.4,
+            "repetitions": 1,
+            "lapses": 0,
+        },
+    ]
+
+    for item in seeded_items:
+        db.upsert_learning_item(
+            user_id=user_id,
+            item_type=item["item_type"],
+            item_key=item["item_key"],
+            language=item["language"],
+            level=item["level"],
+            lesson_id=source_lesson_id,
+            content=item["content"],
+            category=item["category"],
+            tags=item["tags"],
+        )
+        saved = db.get_learning_item_by_key(
+            user_id=user_id,
+            item_type=item["item_type"],
+            item_key=item["item_key"],
+            language=item["language"],
+        )
+        if not saved:
+            continue
+        with db.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE learning_item_srs
+                SET interval_days = ?, ease_factor = ?, repetitions = ?, lapses = ?,
+                    due_at = ?, last_reviewed_at = ?, mastery_state = ?
+                WHERE item_id = ?
+                """,
+                (
+                    item["interval_days"],
+                    item["ease_factor"],
+                    item["repetitions"],
+                    item["lapses"],
+                    item["due_at"].isoformat(),
+                    item["last_reviewed_at"].isoformat(),
+                    item["mastery_state"],
+                    str(saved["id"]),
+                ),
+            )
 
 
 def _seed_lesson(
