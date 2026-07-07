@@ -37,6 +37,8 @@ npm run e2e:install
 npm run test:e2e -- --project=chromium
 ```
 
+`npm run e2e:install` maps to `playwright install chromium`. On Windows, if script resolution is noisy, run `cd frontend && npx playwright install chromium` after `npm ci`, then rerun the E2E command.
+
 For real backend/frontend coverage, use:
 
 ```bash

@@ -375,7 +375,9 @@
       "description": "先聽懂意思，再跟讀、分塊重複並逐步加速。",
       "shadowing": "跟讀",
       "repeatChunks": "重複語塊",
-      "listeningTips": "聽力提示"
+      "listeningTips": "聽力提示",
+      "ttsUnavailable": "文字跟讀模式：未設定 TTS 提供者時，不會產生真實音訊。",
+      "ttsLive": "已連接設定的 TTS 提供者，可產生真實音訊。"
     },
     "feynman": {
       "title": "費曼檢核",

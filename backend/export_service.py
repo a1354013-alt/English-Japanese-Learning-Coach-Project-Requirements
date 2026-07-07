@@ -1,5 +1,6 @@
 """PDF export service with full lesson support."""
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 from xml.sax.saxutils import escape
@@ -23,22 +24,7 @@ class PDFExporter:
         self.font_name = "Helvetica"
         self.font_source: str | None = None
         self.font_warning: str | None = None
-        # Cross-platform font paths for CJK support
-        candidate_paths = font_paths or [
-            # Linux (Noto CJK)
-            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
-            "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
-            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-            # macOS (system fonts)
-            "/System/Library/Fonts/PingFang.ttc",
-            "/Library/Fonts/Arial Unicode.ttf",
-            # Windows (common locations)
-            "C:/Windows/Fonts/msyh.ttc",  # Microsoft YaHei
-            "C:/Windows/Fonts/simsun.ttc",  # SimSun
-            "C:/Windows/Fonts/msgothic.ttc",  # MS Gothic
-        ]
+        candidate_paths = font_paths or self._candidate_font_paths()
         for path in candidate_paths:
             p = Path(path)
             if p.exists():
@@ -47,7 +33,8 @@ class PDFExporter:
                     self.font_name = "CJKFont"
                     self.font_source = str(p)
                     break
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Unable to register CJK PDF font %s: %s", p, exc)
                     continue
         if self.font_source is None:
             self.font_warning = (
@@ -55,6 +42,36 @@ class PDFExporter:
                 "CJK glyph rendering may be incomplete."
             )
             logger.warning(self.font_warning)
+
+    @staticmethod
+    def _candidate_font_paths() -> list[str]:
+        env_path = os.environ.get("PDF_CJK_FONT_PATH")
+        candidate_paths = [
+            # Linux (Noto CJK)
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansJP-Regular.otf",
+            "/usr/share/fonts/opentype/noto/NotoSansTC-Regular.otf",
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+            # macOS (system fonts)
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+            # Windows (common locations)
+            "C:/Windows/Fonts/msyh.ttc",  # Microsoft YaHei
+            "C:/Windows/Fonts/msjh.ttc",  # Microsoft JhengHei
+            "C:/Windows/Fonts/mingliu.ttc",  # MingLiU / PMingLiU
+            "C:/Windows/Fonts/simsun.ttc",  # SimSun
+            "C:/Windows/Fonts/msgothic.ttc",  # MS Gothic
+            "C:/Windows/Fonts/YuGothM.ttc",  # Yu Gothic
+        ]
+        if env_path:
+            return [env_path, *candidate_paths]
+        return candidate_paths
 
     @staticmethod
     def _escape_text(value: Any, *, preserve_newlines: bool = False) -> str:

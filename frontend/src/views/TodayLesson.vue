@@ -115,7 +115,11 @@
         :answers="answers.reading"
         @update-answer="setReadingAnswer"
       />
-      <ImmersionSection :immersion="lesson.immersion" />
+      <ImmersionSection
+        :immersion="lesson.immersion"
+        :tts-available="ttsAvailability.available"
+        :tts-message="ttsAvailability.message"
+      />
       <LessonActions
         :answered-questions="answeredQuestions"
         :total-questions="totalQuestions"
@@ -198,6 +202,13 @@ const learningPlan = ref<LearningPlan | null>(null)
 const microDiagnosticCompleted = ref(true)
 const microLoaded = ref(false)
 const microLoading = ref(false)
+const ttsAvailability = reactive<{
+  available: boolean
+  message: string | null
+}>({
+  available: false,
+  message: null,
+})
 
 const answers = reactive<{
   grammar: Record<number, string>
@@ -243,6 +254,31 @@ const resetAnswers = () => {
   reviewResult.value = null
 }
 
+const firstTtsProbeText = (currentLesson: Lesson) =>
+  currentLesson.immersion?.shadowing_text?.[0]?.text ||
+  currentLesson.dialogue?.dialogue?.[0]?.text ||
+  currentLesson.reading?.content ||
+  currentLesson.metadata.topic
+
+const refreshTtsAvailability = async (currentLesson: Lesson | null) => {
+  ttsAvailability.available = false
+  ttsAvailability.message = null
+  if (!currentLesson) return
+
+  try {
+    const response = await lessonApi.getTts(
+      firstTtsProbeText(currentLesson),
+      currentLesson.metadata.language,
+    )
+    ttsAvailability.available = response.available && response.mode === 'live'
+    ttsAvailability.message = response.available
+      ? null
+      : response.message || t('lessonSections.immersion.ttsUnavailable')
+  } catch {
+    ttsAvailability.message = t('lessonSections.immersion.ttsUnavailable')
+  }
+}
+
 const setGrammarAnswer = (index: number, value: string) => {
   answers.grammar[index] = value
 }
@@ -259,6 +295,7 @@ const loadTodayLesson = async () => {
     const res = await lessonApi.getTodayLesson(request.language)
     lesson.value = res.lesson
     resetAnswers()
+    await refreshTtsAvailability(lesson.value)
   } catch (err) {
     console.error(err)
     error.value = t('today.loadError')
@@ -310,6 +347,7 @@ const generateLesson = async () => {
     })
     lesson.value = res.lesson
     resetAnswers()
+    await refreshTtsAvailability(lesson.value)
     await loadStreak()
   } catch (err) {
     console.error(err)

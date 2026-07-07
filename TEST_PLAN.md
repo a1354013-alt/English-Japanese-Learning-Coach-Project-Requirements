@@ -55,6 +55,8 @@ npm run test:e2e:fullstack:smoke -- --project=chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```
 
+`npm run e2e:install` runs `playwright install chromium`. On local Windows checkouts, `cd frontend && npx playwright install chromium` is the direct fallback command after `npm ci`.
+
 ## Release Verification
 
 ```bash

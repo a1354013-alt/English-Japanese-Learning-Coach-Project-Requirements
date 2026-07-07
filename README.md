@@ -8,6 +8,10 @@ This project currently runs as a single-user/local demo learning coach. It does 
 
 TTS is integration-ready but disabled by default. No real TTS provider is enabled unless configured; `POST /api/tts` returns `available=false` with an explicit message unless a real runtime provider is configured.
 
+## Local Demo Security Boundary
+
+This repository is intentionally scoped as a local-first demo and portfolio project. Authentication, authorization, user isolation, rate limiting, and audit logging are out of scope for this release line; do not expose the demo API or SQLite data directory as a production multi-user service without adding those controls first.
+
 ## Highlights
 
 - FastAPI backend with typed APIs for lessons, review, analytics, imports, demo reset, and tutor tools
@@ -183,7 +187,7 @@ docker compose up --build
 
 The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness is available at [http://localhost:8000/api/health](http://localhost:8000/api/health) and checks only app + DB basics. Readiness is available at [http://localhost:8000/api/ready](http://localhost:8000/api/ready) and reports Ollama/RAG status. The compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
 
-The backend image installs `fonts-noto-cjk` and `fontconfig` so PDF export can render Japanese and Chinese text reliably. The PDF exporter prefers an installed CJK font and logs a warning before falling back to Helvetica if no compatible font is available.
+The backend image installs `fonts-noto-cjk` and `fontconfig` so PDF export can render Japanese and Chinese text reliably. The PDF exporter prefers an installed CJK font and logs a warning before falling back to Helvetica if no compatible font is available. For local Windows development, the exporter checks common system CJK fonts such as Microsoft YaHei, Microsoft JhengHei, MingLiU, SimSun, MS Gothic, and Yu Gothic. Set `PDF_CJK_FONT_PATH=C:\Windows\Fonts\msjh.ttc` or another known CJK font path if your machine uses a nonstandard font install.
 
 ## Testing
 
@@ -237,6 +241,8 @@ npm ci
 npm run e2e:install
 RUN_E2E=1 npm run test:e2e -- --project=chromium
 ```
+
+On Windows, `npm run e2e:install` runs `playwright install chromium`. If the npm script is unavailable, run `cd frontend && npx playwright install chromium` after `npm ci`.
 
 Playwright mocked E2E starts only the Vite dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
 

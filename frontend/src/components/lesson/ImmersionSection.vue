@@ -6,6 +6,9 @@
         <p class="section-description">
           {{ t('lessonSections.immersion.description') }}
         </p>
+        <p class="tts-status" data-testid="tts-status">
+          {{ ttsStatusText }}
+        </p>
       </div>
     </div>
     <div class="immersion-grid">
@@ -41,7 +44,11 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ImmersionSection } from '@/types'
 
-const props = defineProps<{ immersion?: ImmersionSection }>()
+const props = defineProps<{
+  immersion?: ImmersionSection
+  ttsAvailable?: boolean
+  ttsMessage?: string | null
+}>()
 const { t } = useI18n()
 
 const safeImmersion = computed<ImmersionSection>(() => ({
@@ -56,6 +63,11 @@ const hasContent = computed(
     safeImmersion.value.repeat_chunks.length > 0 ||
     safeImmersion.value.listening_tips.length > 0,
 )
+
+const ttsStatusText = computed(() => {
+  if (props.ttsAvailable) return t('lessonSections.immersion.ttsLive')
+  return props.ttsMessage || t('lessonSections.immersion.ttsUnavailable')
+})
 </script>
 
 <style scoped>
@@ -85,5 +97,11 @@ const hasContent = computed(
 .immersion-grid small {
   display: block;
   color: #64748b;
+}
+
+.tts-status {
+  margin: 8px 0 0;
+  color: #92400e;
+  font-size: 0.95rem;
 }
 </style>

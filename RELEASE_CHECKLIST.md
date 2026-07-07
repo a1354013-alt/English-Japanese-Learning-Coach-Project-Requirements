@@ -8,6 +8,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Review `CHANGELOG.md` and add release-facing notes under the upcoming version.
 - Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
+- Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
 ## 2. Backend verification
 
@@ -20,6 +21,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` for the optional RAG smoke gate
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - If Docker is part of the release, confirm the backend image still installs CJK-capable PDF fonts (`fonts-noto-cjk` plus `fontconfig` or equivalent) so Japanese and Chinese exports do not silently regress to broken glyph rendering.
+- For local Windows PDF smoke checks, use an installed CJK font or set `PDF_CJK_FONT_PATH` to a known font such as `C:\Windows\Fonts\msjh.ttc`.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
 
 ## 3. Frontend verification
@@ -42,6 +44,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run mocked smoke coverage with `cd frontend && npm ci && npm run e2e:install && RUN_E2E=1 npm run test:e2e -- --project=chromium`
 - Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack:smoke -- --project=chromium`
 - Run full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack -- --project=chromium`
+- If Playwright browsers are missing on Windows, run `cd frontend && npx playwright install chromium` after `npm ci`, then repeat the E2E command.
 - Confirm the full-stack run resets deterministic demo data before the scenario and leaves the demo resettable afterward.
 - Confirm the stable lesson flow coverage still demonstrates `lesson generate -> review submit -> progress updated` without relying on a live Ollama model.
 
@@ -54,7 +57,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 - Run `docker compose config`
 - If shipping containers, also run `docker compose build`
-- Smoke-check PDF export with Japanese or Chinese content and confirm it completes without backend errors; if a CJK font is missing, the app should log a clear warning instead of failing silently.
+- Smoke-check PDF export with Japanese kana/kanji and Traditional Chinese content and confirm the extracted PDF text is not replacement characters or tofu boxes; if a CJK font is missing, the app should log a clear warning instead of failing silently.
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
 - Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.
@@ -64,5 +67,5 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
-- Known limitations should include: TTS is integration-ready but disabled by default; core mode works without RAG dependencies; RAG mode requires additional dependencies and separate verification.
+- Known limitations should include: TTS is integration-ready but disabled by default; auth, authorization, user isolation, rate limiting, and audit logging are out of scope for the local demo; core mode works without RAG dependencies; RAG mode requires additional dependencies and separate verification.
 - Publish the release only after all checks above pass.

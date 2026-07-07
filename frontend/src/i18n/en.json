@@ -375,7 +375,9 @@
       "description": "Shadow, repeat, and listen for meaning before speed.",
       "shadowing": "Shadowing",
       "repeatChunks": "Repeat Chunks",
-      "listeningTips": "Listening Tips"
+      "listeningTips": "Listening Tips",
+      "ttsUnavailable": "Text-only shadowing: no real TTS audio is available until a provider is configured.",
+      "ttsLive": "Live TTS audio is available from the configured provider."
     },
     "feynman": {
       "title": "Feynman Check",

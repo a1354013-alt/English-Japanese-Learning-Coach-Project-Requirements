@@ -39,6 +39,7 @@ const apiMocks = vi.hoisted(() => ({
   retryWrongAnswer: vi.fn(),
   getTodayLesson: vi.fn(),
   generateLesson: vi.fn(),
+  getTts: vi.fn(),
   submitReview: vi.fn(),
   getStreak: vi.fn(),
   resetDemo: vi.fn(),
@@ -95,6 +96,7 @@ vi.mock('@/services/api', () => ({
     getTodayLesson: apiMocks.getTodayLesson,
     generateLesson: apiMocks.generateLesson,
     exportPdf: apiMocks.exportPdf,
+    getTts: apiMocks.getTts,
   },
   reviewApi: {
     submitReview: apiMocks.submitReview,
@@ -676,6 +678,14 @@ describe('TodayLesson.vue', () => {
     vi.clearAllMocks()
     feedbackMocks.requestConfirmation.mockResolvedValue(true)
     apiMocks.getMicroToday.mockResolvedValue(microTodayPayload())
+    apiMocks.getTts.mockResolvedValue({
+      success: true,
+      available: false,
+      audio_url: null,
+      mode: 'preview',
+      message:
+        'TTS is integration-ready but no runtime provider is configured.',
+    })
   })
 
   it('renders DiagnosticFlow questions before diagnosis is complete', async () => {
@@ -775,8 +785,34 @@ describe('TodayLesson.vue', () => {
     expect(wrapper.text()).toContain('I would like tea.')
     expect(wrapper.text()).toContain('A short reading.')
     expect(wrapper.text()).toContain('Hello there')
+    expect(wrapper.get('[data-testid="tts-status"]').text()).toContain(
+      'TTS is integration-ready but no runtime provider is configured.',
+    )
     expect(wrapper.text()).toContain('Explain the cafe greeting.')
     expect(wrapper.text()).toContain('Retake questions.')
+  })
+
+  it('shows live TTS state only when the API reports a configured provider', async () => {
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.getTts.mockResolvedValueOnce({
+      success: true,
+      available: true,
+      audio_url: '/api/audio/audio_123.mp3',
+      mode: 'live',
+      message: null,
+    })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(apiMocks.getTts).toHaveBeenCalledWith('Hello there.', 'EN')
+    expect(wrapper.get('[data-testid="tts-status"]').text()).toContain(
+      'lessonSections.immersion.ttsLive',
+    )
   })
 
   it('does not crash when older lesson data omits textbook extension fields', async () => {
