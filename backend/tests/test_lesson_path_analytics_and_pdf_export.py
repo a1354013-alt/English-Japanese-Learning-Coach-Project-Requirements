@@ -252,6 +252,10 @@ def test_pdf_export_handles_empty_content_without_crashing(tmp_path):
 
 def test_pdf_export_extracts_japanese_and_traditional_chinese_text(tmp_path):
     exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
+    assert exporter.font_source is not None, (
+        "CJK PDF regression requires a registered CJK-capable font. "
+        "Install fonts-noto-cjk and fontconfig on Linux CI, or set PDF_CJK_FONT_PATH."
+    )
     pdf_path = exporter.export_lesson(
         {
             "metadata": {

@@ -18,6 +18,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Install CJK PDF fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig
+          fc-cache -f
       - name: Install dependencies
         run: |
           python -m pip install -U pip
@@ -106,6 +111,11 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install CJK PDF fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig
+          fc-cache -f
       - name: Install backend dependencies
         run: |
           python -m pip install -U pip
@@ -161,6 +171,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install CJK PDF fonts
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig
+          fc-cache -f
 
       - name: Install backend dependencies
         working-directory: backend
@@ -301,6 +317,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Install CJK PDF fonts
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk fontconfig
+          fc-cache -f
 
       - name: Install backend dependencies
         working-directory: backend

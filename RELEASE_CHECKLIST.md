@@ -21,6 +21,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
 - Optional RAG verification requires `backend/requirements-rag.txt`. Run `python -m pip install -r backend/requirements-rag.txt` and then `python -m pytest backend/tests -q -m rag` only when you are validating the RAG lane.
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
+- On Linux CI or Linux release hosts, install `fonts-noto-cjk` plus `fontconfig` before strict CJK PDF verification.
 - If Docker is part of the release, confirm the backend image still installs CJK-capable PDF fonts (`fonts-noto-cjk` plus `fontconfig` or equivalent) so Japanese and Chinese exports do not silently regress to broken glyph rendering.
 - For local Windows PDF smoke checks, use an installed CJK font or set `PDF_CJK_FONT_PATH` to a known font such as `C:\Windows\Fonts\msjh.ttc`.
 - Confirm `/api/health` succeeds with only app + DB available, and `/api/ready` reports optional Ollama / RAG dependency state without crashing.
