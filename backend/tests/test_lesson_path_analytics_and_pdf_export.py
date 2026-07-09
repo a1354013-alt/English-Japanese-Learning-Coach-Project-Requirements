@@ -254,7 +254,7 @@ def test_pdf_export_extracts_japanese_and_traditional_chinese_text(tmp_path):
     exporter = PDFExporter(output_dir=str(tmp_path / "exports"))
     assert exporter.font_source is not None, (
         "CJK PDF regression requires a registered CJK-capable font. "
-        "Install fonts-noto-cjk and fontconfig on Linux CI, or set PDF_CJK_FONT_PATH."
+        "Set PDF_CJK_FONT_PATH, provide a CJK font, or use ReportLab built-in CID fonts."
     )
     pdf_path = exporter.export_lesson(
         {
@@ -331,11 +331,88 @@ def test_pdf_export_extracts_japanese_and_traditional_chinese_text(tmp_path):
     assert "\u25a1" not in extracted_text
 
 
+def test_pdf_export_uses_builtin_cid_font_when_no_external_fonts_are_provided(tmp_path):
+    exporter = PDFExporter(
+        output_dir=str(tmp_path / "exports"),
+        font_paths=[],
+        allow_builtin_cjk=True,
+    )
+
+    assert exporter.font_source is not None
+    assert exporter.font_source.startswith("reportlab-builtin-cid:")
+    assert exporter.font_warning is None
+
+    pdf_path = exporter.export_lesson(
+        {
+            "metadata": {
+                "lesson_id": "builtin-cid-cjk-text",
+                "language": "JP",
+                "level": "N4",
+                "topic": "\u65e5\u672c\u8a9e\u3068\u7e41\u9ad4\u4e2d\u6587",
+            },
+            "vocabulary": [
+                {
+                    "word": "\u52c9\u5f37",
+                    "definition_zh": "\u5b78\u7fd2\u8207\u8907\u7fd2",
+                    "example_sentence": "\u304b\u306a\u3068\u6f22\u5b57\u3092\u8aad\u307f\u307e\u3059\u3002",
+                    "example_translation": "\u6211\u6703\u95b1\u8b80\u5047\u540d\u548c\u6f22\u5b57\u3002",
+                }
+            ],
+            "grammar": {
+                "title": "\u6587\u6cd5",
+                "explanation": "\u3053\u308c\u306f\u65e5\u672c\u8a9e\u306e\u8aac\u660e\u3067\u3059\u3002",
+                "exercises": [],
+            },
+            "reading": {
+                "content": (
+                    "\u4eca\u65e5\u306f\u65e5\u672c\u8a9e\u3092\u52c9\u5f37\u3057\u307e\u3059\u3002"
+                    "\u7e41\u9ad4\u4e2d\u6587\u4e5f\u8981\u6b63\u78ba\u986f\u793a\u3002"
+                ),
+                "questions": [],
+            },
+            "dialogue": {
+                "scenario": "\u6703\u8a71",
+                "context": "\u65e5\u672c\u8a9e\u7df4\u7fd2",
+                "dialogue": [
+                    {
+                        "speaker": "A",
+                        "text": "\u3053\u3093\u306b\u3061\u306f\u3002",
+                        "translation": "\u4f60\u597d\u3002",
+                    }
+                ],
+            },
+            "evidence": [
+                {
+                    "source": "\u6e2c\u8a66",
+                    "text": (
+                        "\u65e5\u672c\u8a9e kana \u304b\u306a \u30ab\u30ca "
+                        "\u6f22\u5b57\uff0c\u7e41\u9ad4\u4e2d\u6587\u6e2c\u8a66"
+                    ),
+                }
+            ],
+        }
+    )
+
+    extracted_text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+    for expected in [
+        "\u304b\u306a",
+        "\u30ab\u30ca",
+        "\u6f22\u5b57",
+        "\u7e41\u9ad4\u4e2d\u6587",
+        "\u5b78\u7fd2",
+        "\u3053\u3093\u306b\u3061\u306f",
+    ]:
+        assert expected in extracted_text
+    assert "\ufffd" not in extracted_text
+    assert "\u25a1" not in extracted_text
+
+
 def test_pdf_export_logs_warning_when_cjk_font_is_unavailable(tmp_path, caplog):
     caplog.set_level("WARNING")
     exporter = PDFExporter(
         output_dir=str(tmp_path / "exports"),
         font_paths=["/missing/font.ttf"],
+        allow_builtin_cjk=False,
     )
 
     pdf_path = exporter.export_lesson(

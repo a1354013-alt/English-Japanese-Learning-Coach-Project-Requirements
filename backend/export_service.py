@@ -10,6 +10,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
@@ -17,31 +18,51 @@ logger = logging.getLogger(__name__)
 
 
 class PDFExporter:
-    def __init__(self, output_dir: str | None = None, font_paths: list[str] | None = None):
+    def __init__(
+        self,
+        output_dir: str | None = None,
+        font_paths: list[str] | None = None,
+        allow_builtin_cjk: bool = True,
+    ):
         self.output_dir = Path(output_dir or settings.exports_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.font_name = "Helvetica"
         self.font_source: str | None = None
         self.font_warning: str | None = None
-        candidate_paths = font_paths or self._candidate_font_paths()
-        for path in candidate_paths:
-            p = Path(path)
-            if p.exists():
-                try:
-                    pdfmetrics.registerFont(TTFont("CJKFont", str(p)))
-                    self.font_name = "CJKFont"
-                    self.font_source = str(p)
-                    break
-                except Exception as exc:
-                    logger.debug("Unable to register CJK PDF font %s: %s", p, exc)
-                    continue
+        candidate_paths = self._candidate_font_paths() if font_paths is None else font_paths
+        self._register_external_font(candidate_paths)
+        if self.font_source is None and allow_builtin_cjk:
+            self._register_builtin_cid_font()
         if self.font_source is None:
             self.font_warning = (
                 "No CJK font was found for PDF export; falling back to Helvetica. "
                 "CJK glyph rendering may be incomplete."
             )
             logger.warning(self.font_warning)
+
+    def _register_external_font(self, candidate_paths: list[str]) -> None:
+        for path in candidate_paths:
+            p = Path(path)
+            if not p.exists():
+                continue
+            try:
+                pdfmetrics.registerFont(TTFont("CJKFont", str(p)))
+                self.font_name = "CJKFont"
+                self.font_source = str(p)
+                return
+            except Exception as exc:
+                logger.debug("Unable to register CJK PDF font %s: %s", p, exc)
+
+    def _register_builtin_cid_font(self) -> None:
+        for font_name in ["HeiseiMin-W3", "HeiseiKakuGo-W5", "MSung-Light", "STSong-Light"]:
+            try:
+                pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+                self.font_name = font_name
+                self.font_source = f"reportlab-builtin-cid:{font_name}"
+                return
+            except Exception as exc:
+                logger.debug("Unable to register built-in CJK PDF CID font %s: %s", font_name, exc)
 
     @staticmethod
     def _candidate_font_paths() -> list[str]:
