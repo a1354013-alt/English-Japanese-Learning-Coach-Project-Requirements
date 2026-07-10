@@ -6,6 +6,7 @@ from database import Database
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from routers import micro_lessons
+from services.micro_lesson_service import build_micro_lesson
 
 
 def _make_app() -> FastAPI:
@@ -53,7 +54,7 @@ def test_diagnostic_submit_returns_learning_plan(tmp_path, monkeypatch):
     assert plan == {
         "estimated_total_days": 90,
         "current_day": 1,
-        "summary_zh": "你已能掌握主詞、動詞與基本現在式，建議用 90 天建立 TOEIC 600 基礎。",
+        "summary_zh": "Placement complete: start a 90-day TOEIC 600 micro lesson plan.",
     }
 
 
@@ -106,14 +107,19 @@ def test_micro_lesson_template_bank_changes_by_current_day(tmp_path, monkeypatch
 
 
 def test_micro_lesson_template_bank_has_at_least_seven_stable_day_templates():
-    lessons = [
-        micro_lessons_router._build_micro_lesson(day_index=day, total_days=90)
-        for day in range(1, 8)
-    ]
+    lessons = [build_micro_lesson(day_index=day, total_days=90) for day in range(1, 8)]
 
     assert len({lesson.sentence for lesson in lessons}) == 7
     assert lessons[0].sentence == "We raise prices today."
     assert lessons[-1].sentence == "We review one sentence again."
+
+
+def test_micro_lesson_generation_is_deterministic_without_live_llm():
+    first = build_micro_lesson(day_index=3, total_days=90)
+    second = build_micro_lesson(day_index=3, total_days=90)
+
+    assert first.sentence == second.sentence
+    assert first.fill_blank_question.correct_answer == second.fill_blank_question.correct_answer
 
 
 def test_micro_lesson_sentence_and_vocabulary_bounds(tmp_path, monkeypatch):

@@ -13,6 +13,23 @@ All notable changes to this project will be documented in this file.
 - Added missing Traditional Chinese Feynman feedback translations.
 - Hardened release packaging and verification so local env files plus runtime DB/log artifacts are explicitly excluded from delivery zips.
 
+## [1.4.0-rc1] - 2026-07-10
+
+### Added
+
+- v1.4 Adaptive Learning Intelligence release candidate documentation and demo flow.
+- Deterministic demo reset review history for weak vocabulary, grammar, sentence patterns, and recent 7-day Analytics activity.
+- Analytics UI block for recent 7-day learning item review activity.
+
+### Changed
+
+- Shared micro lesson template and learning-plan construction now lives in `backend/services/micro_lesson_service.py` for both micro lesson and study mission routers.
+- Version metadata is aligned to `1.4.0-rc1` across root and frontend package metadata.
+
+### Fixed
+
+- Demo reset now produces immediately meaningful Analytics 2.0 weakest-item and review-activity data.
+
 ## [1.3.0] - 2026-07-05
 
 ### Added

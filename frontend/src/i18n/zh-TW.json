@@ -376,7 +376,11 @@
     "weakestLearningItems": "??????",
     "vocabularyGroup": "??",
     "grammarGroup": "??",
-    "sentencePatternGroup": "??"
+    "sentencePatternGroup": "??",
+    "recentReviewActivity": "Recent learning item reviews",
+    "recentReviewActivityHint": "Review counts from the last seven days.",
+    "reviewCount": "{count} reviews",
+    "noLearningItemReviewHistory": "No learning item reviews yet."
   },
   "lesson": {
     "title": "課程詳情",

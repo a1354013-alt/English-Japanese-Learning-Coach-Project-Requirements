@@ -376,6 +376,10 @@
     "vocabularyGroup": "Vocabulary",
     "grammarGroup": "Grammar",
     "sentencePatternGroup": "Pattern",
+    "recentReviewActivity": "Recent learning item reviews",
+    "recentReviewActivityHint": "Review counts from the last seven days.",
+    "reviewCount": "{count} reviews",
+    "noLearningItemReviewHistory": "No learning item reviews yet.",
     "loadError": "Unable to load analytics. Please try again later."
   },
   "lesson": {

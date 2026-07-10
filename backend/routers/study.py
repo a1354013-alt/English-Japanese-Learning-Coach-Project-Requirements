@@ -14,10 +14,10 @@ from models import (
     SuggestedNextLesson,
     WeakLearningItemCounts,
 )
+from services.micro_lesson_service import build_micro_lesson, learning_plan_from_state
 from services.streak_service import get_streak_snapshot
 
 from routers.deps import require_demo_user_id
-from routers.micro_lessons import _build_micro_lesson, _learning_plan_from_state
 
 router = APIRouter(prefix="/api", tags=["study"], responses=COMMON_ERROR_RESPONSES)
 
@@ -30,10 +30,10 @@ async def get_today_study_mission(user_id: str = Depends(require_demo_user_id)):
     micro_status = "diagnostic_required"
 
     if diagnostic_state:
-        learning_plan = _learning_plan_from_state(diagnostic_state)
+        learning_plan = learning_plan_from_state(diagnostic_state)
         micro_lesson = db.get_micro_lesson_by_day(user_id, learning_plan.current_day)
         if not micro_lesson:
-            micro_lesson = _build_micro_lesson(
+            micro_lesson = build_micro_lesson(
                 day_index=learning_plan.current_day,
                 total_days=learning_plan.estimated_total_days,
             ).model_dump()

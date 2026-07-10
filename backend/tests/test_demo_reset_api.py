@@ -88,6 +88,15 @@ def test_demo_reset_rebuilds_seed_data(tmp_path, monkeypatch):
     assert context["weak_grammar"]
     assert context["recent_vocabulary"]
 
+    analytics_response = client.get("/api/analytics")
+    assert analytics_response.status_code == 200
+    analytics = analytics_response.json()["analytics"]
+    assert analytics["weakest_vocabulary"][0]["item_key"] == "blocker"
+    assert analytics["weakest_grammar"][0]["item_key"] == "Present Simple for status updates"
+    assert analytics["weakest_sentence_patterns"][0]["item_key"] == "I report blockers in the standup."
+    assert len(analytics["recent_7_day_review_counts"]) >= 4
+    assert sum(point["count"] for point in analytics["recent_7_day_review_counts"]) >= 9
+
 
 def test_demo_reset_clears_stale_micro_lesson_state(tmp_path, monkeypatch):
     test_db = Database(str(tmp_path / "t.db"))

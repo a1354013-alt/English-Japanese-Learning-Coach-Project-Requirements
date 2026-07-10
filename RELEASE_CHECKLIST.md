@@ -5,8 +5,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 1. Prepare the release candidate
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.3.0`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.3.0`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.0-rc1`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.0-rc1`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
@@ -53,6 +53,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 5. Demo and packaging checks
 
 - Only for local demo validation, start the backend with `ALLOW_DEMO_RESET=true`, then call `POST /api/demo/reset` and confirm the summary returns the expected seeded lesson id plus item-level SRS demo data. Do not enable this in production.
+- Confirm the v1.4 Adaptive Learning demo path works after reset: Today page opens, Today Mission Panel shows the Daily Study Mission, the deterministic micro lesson loads, due SRS / weak items are present, and Analytics shows weakest vocabulary, grammar, sentence patterns, plus recent 7-day review activity.
 - Run `python scripts/verify_delivery.py`
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
@@ -64,7 +65,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
-- Verify the v1.3 learning-intelligence demo path still works manually: item-level SRS due items load, weak items group correctly, snowball-aware lesson generation still succeeds, and Feynman feedback returns either AI output or deterministic fallback without breaking the page.
+- Verify the v1.4 Adaptive Learning demo path still works manually: item-level SRS due items load, weak items group correctly, micro lessons do not require a live LLM, snowball-aware lesson generation still succeeds, and Feynman feedback returns either AI output or deterministic fallback without breaking the page.
 - Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release local env files, runtime DBs, logs, user data, test reports, or cache directories.
 - Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.
 

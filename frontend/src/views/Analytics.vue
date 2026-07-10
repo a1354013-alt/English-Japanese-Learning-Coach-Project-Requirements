@@ -148,6 +148,28 @@
             </div>
           </div>
         </div>
+
+        <div class="panel-section">
+          <h3>{{ t('analytics.recentReviewActivity') }}</h3>
+          <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem">
+            {{ t('analytics.recentReviewActivityHint') }}
+          </p>
+          <ul v-if="recentReviewActivity.length" class="word-list">
+            <li
+              v-for="point in recentReviewActivity"
+              :key="point.date"
+              class="word-item"
+            >
+              <span class="word">{{ point.date }}</span>
+              <span>
+                {{ t('analytics.reviewCount', { count: point.count }) }}
+              </span>
+            </li>
+          </ul>
+          <p v-else style="color: #94a3b8">
+            {{ t('analytics.noLearningItemReviewHistory') }}
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -190,6 +212,10 @@ const weakestLearningItems = computed(() => [
     group: t('analytics.sentencePatternGroup'),
   })),
 ])
+
+const recentReviewActivity = computed(
+  () => analytics.value?.recent_7_day_review_counts ?? [],
+)
 
 const loadAnalytics = async () => {
   loading.value = true

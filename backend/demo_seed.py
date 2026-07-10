@@ -348,6 +348,11 @@ def _seed_learning_intelligence_demo_data(
             "ease_factor": 2.1,
             "repetitions": 1,
             "lapses": 2,
+            "reviews": [
+                {"days_ago": 6, "rating": 2, "correct": False, "source": "manual"},
+                {"days_ago": 3, "rating": 1, "correct": False, "source": "manual"},
+                {"days_ago": 1, "rating": 2, "correct": False, "source": "manual"},
+            ],
         },
         {
             "item_type": "vocabulary",
@@ -369,6 +374,10 @@ def _seed_learning_intelligence_demo_data(
             "ease_factor": 2.5,
             "repetitions": 1,
             "lapses": 0,
+            "reviews": [
+                {"days_ago": 4, "rating": 4, "correct": True, "source": "manual"},
+                {"days_ago": 0, "rating": 3, "correct": True, "source": "manual"},
+            ],
         },
         {
             "item_type": "grammar",
@@ -388,6 +397,10 @@ def _seed_learning_intelligence_demo_data(
             "ease_factor": 2.2,
             "repetitions": 1,
             "lapses": 2,
+            "reviews": [
+                {"days_ago": 5, "rating": 2, "correct": False, "source": "manual"},
+                {"days_ago": 2, "rating": 1, "correct": False, "source": "manual"},
+            ],
         },
         {
             "item_type": "sentence_pattern",
@@ -406,7 +419,11 @@ def _seed_learning_intelligence_demo_data(
             "interval_days": 1,
             "ease_factor": 2.4,
             "repetitions": 1,
-            "lapses": 0,
+            "lapses": 2,
+            "reviews": [
+                {"days_ago": 6, "rating": 3, "correct": True, "source": "manual"},
+                {"days_ago": 1, "rating": 2, "correct": False, "source": "manual"},
+            ],
         },
     ]
 
@@ -449,6 +466,24 @@ def _seed_learning_intelligence_demo_data(
                     str(saved["id"]),
                 ),
             )
+            for review in item.get("reviews", []):
+                review_created_at = now - timedelta(days=int(review["days_ago"]))
+                conn.execute(
+                    """
+                    INSERT INTO learning_item_reviews (
+                        id, item_id, rating, correct, response_time_ms, source, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        f"demo-review-{saved['id']}-{review['days_ago']}-{review['rating']}",
+                        str(saved["id"]),
+                        int(review["rating"]),
+                        1 if bool(review["correct"]) else 0,
+                        1200,
+                        str(review["source"]),
+                        review_created_at.isoformat(),
+                    ),
+                )
 
 
 def _seed_lesson(

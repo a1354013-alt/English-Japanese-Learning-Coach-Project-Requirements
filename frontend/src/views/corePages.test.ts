@@ -556,12 +556,45 @@ describe('Analytics.vue', () => {
     expect(wrapper.text()).toContain('Present Simple')
   })
 
+  it('renders mastery state counts and weakest learning item groups', async () => {
+    apiMocks.getAnalytics.mockResolvedValueOnce(analyticsPayload())
+
+    const wrapper = mount(Analytics)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('vocabulary: weak')
+    expect(wrapper.text()).toContain('grammar: learning')
+    expect(wrapper.text()).toContain('sentence_pattern: review')
+    expect(wrapper.text()).toContain('analytics.vocabularyGroup')
+    expect(wrapper.text()).toContain('analytics.grammarGroup')
+  })
+
+  it('renders recent seven-day learning item review activity', async () => {
+    apiMocks.getAnalytics.mockResolvedValueOnce(analyticsPayload())
+
+    const wrapper = mount(Analytics)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('analytics.recentReviewActivity')
+    expect(wrapper.text()).toContain('2026-05-11')
+    expect(wrapper.text()).toContain('analytics.reviewCount 3')
+  })
+
   it('renders empty data state', async () => {
     apiMocks.getAnalytics.mockResolvedValueOnce(
       analyticsPayload({
         hardest_words: [],
         weakest_category: null,
         accuracy_trend: [],
+        mastery_state_counts: {
+          vocabulary: {},
+          grammar: {},
+          sentence_pattern: {},
+        },
+        weakest_vocabulary: [],
+        weakest_grammar: [],
+        weakest_sentence_patterns: [],
+        recent_7_day_review_counts: [],
       }),
     )
 
@@ -571,6 +604,7 @@ describe('Analytics.vue', () => {
     expect(wrapper.text()).toContain('analytics.noWrongAnswers')
     expect(wrapper.text()).toContain('analytics.notEnoughData')
     expect(wrapper.text()).toContain('analytics.noReviewHistory')
+    expect(wrapper.text()).toContain('analytics.noLearningItemReviewHistory')
   })
 })
 
