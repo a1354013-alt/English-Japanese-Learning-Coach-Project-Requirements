@@ -308,6 +308,56 @@ export interface LearningItemWeakResponse {
   sentence_pattern: LearningItemDue[]
 }
 
+export interface DueLearningItemCounts {
+  vocabulary: number
+  grammar: number
+  sentence_pattern: number
+  legacy_vocabulary: number
+  total: number
+}
+
+export interface WeakLearningItemCounts {
+  vocabulary: number
+  grammar: number
+  sentence_pattern: number
+}
+
+export interface SuggestedNextLesson {
+  language: Language
+  level: string
+  topic: string
+}
+
+export interface CompletionSummary {
+  current_streak: number
+  longest_streak: number
+  today_completed: boolean
+  last_active_date: string | null
+  text: string
+}
+
+export interface DailyStudyMission {
+  diagnostic_completed: boolean
+  micro_lesson_status:
+    | 'diagnostic_required'
+    | 'available'
+    | 'completed'
+    | 'unavailable'
+  learning_plan: LearningPlan | null
+  micro_lesson: MicroLesson | null
+  due_counts: DueLearningItemCounts
+  weak_counts: WeakLearningItemCounts
+  weak_items: LearningItemWeakResponse
+  suggested_next_lesson: SuggestedNextLesson
+  today_goal_text: string
+  completion_summary: CompletionSummary
+}
+
+export interface DailyStudyMissionResponse {
+  success: boolean
+  mission: DailyStudyMission
+}
+
 export interface LearningItemReviewResult {
   success: boolean
   item_id: string
@@ -480,6 +530,27 @@ export interface AnalyticsPayload {
   weakest_category: AnalyticsWeakestCategory | null
   accuracy_trend: AnalyticsTrendPoint[]
   today_completed: boolean
+  mastery_state_counts?: Record<
+    LearningItemType,
+    Partial<Record<LearningMasteryState, number>>
+  >
+  weakest_vocabulary?: AnalyticsWeakLearningItem[]
+  weakest_grammar?: AnalyticsWeakLearningItem[]
+  weakest_sentence_patterns?: AnalyticsWeakLearningItem[]
+  recent_7_day_review_counts?: AnalyticsReviewCountPoint[]
+}
+
+export interface AnalyticsWeakLearningItem {
+  item_key: string
+  mastery_state: LearningMasteryState
+  review_count: number
+  incorrect_count: number
+  average_rating: number
+}
+
+export interface AnalyticsReviewCountPoint {
+  date: string
+  count: number
 }
 
 export interface AnalyticsResponse {

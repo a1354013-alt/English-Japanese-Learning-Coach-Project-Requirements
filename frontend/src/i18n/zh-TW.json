@@ -133,6 +133,21 @@
     "resetDemoConfirmTitle": "重設 Demo 資料？",
     "resetDemoConfirmMessage": "這會重建目前 demo 使用者的種子課程、進度與複習資料。"
   },
+  "todayMission": {
+    "eyebrow": "每日學習任務",
+    "microStatus": "微課狀態",
+    "dueSrs": "待複習 SRS",
+    "weakVocabulary": "弱點單字",
+    "weakGrammar": "弱點文法",
+    "weakSentencePatterns": "弱點句型",
+    "suggestedNext": "建議下一課",
+    "micro": {
+      "diagnostic_required": "需完成診斷",
+      "available": "可學習",
+      "completed": "已完成",
+      "unavailable": "暫不可用"
+    }
+  },
   "materials": {
     "title": "RAG 教材",
     "upload": "上傳",
@@ -355,7 +370,13 @@
     "latestAccuracyValue": "最近一次：{rate}%",
     "bestAccuracyValue": "最佳：{rate}%",
     "noReviewHistory": "目前尚無複習紀錄。",
-    "loadError": "目前無法載入分析資料，請稍後再試。"
+    "loadError": "目前無法載入分析資料，請稍後再試。",
+    "learningItemsTitle": "??????",
+    "masteryStates": "????",
+    "weakestLearningItems": "??????",
+    "vocabularyGroup": "??",
+    "grammarGroup": "??",
+    "sentencePatternGroup": "??"
   },
   "lesson": {
     "title": "課程詳情",

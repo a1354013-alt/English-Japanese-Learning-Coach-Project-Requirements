@@ -10,6 +10,7 @@ from main import app
 from routers import imports as imports_router
 from routers import lessons as lessons_router
 from routers import review as review_router
+from routers import study as study_router
 from routers import system as system_router
 
 
@@ -27,6 +28,7 @@ def _patch_test_state(monkeypatch, tmp_path):
     monkeypatch.setattr(system_router, "db", test_db, raising=False)
     monkeypatch.setattr(lessons_router, "db", test_db, raising=False)
     monkeypatch.setattr(review_router, "db", test_db, raising=False)
+    monkeypatch.setattr(study_router, "db", test_db, raising=False)
     monkeypatch.setattr(imports_router, "db", test_db, raising=False)
 
     gen = lesson_generator_module.LessonGenerator()
@@ -47,6 +49,7 @@ def test_openapi_exposes_typed_response_schemas():
     assert paths["/api/generate/lesson"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/GeneratedLessonResponse")
     assert paths["/api/progress"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/ProgressResponse")
     assert paths["/api/analytics"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/AnalyticsResponse")
+    assert paths["/api/study/today"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/DailyStudyMissionResponse")
     assert paths["/api/review"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("/ReviewSubmitResponse")
     assert "ApiErrorPayload" in schemas
 
@@ -111,6 +114,12 @@ def test_response_models_keep_key_fields_for_lesson_review_progress_and_analytic
     assert "latest_accuracy_rate" in analytics["accuracy_trend"][0]
     assert "best_accuracy_rate" in analytics["accuracy_trend"][0]
     assert "today_completed" in analytics
+    assert "mastery_state_counts" in analytics
+
+    mission = client.get("/api/study/today").json()["mission"]
+    assert "today_goal_text" in mission
+    assert "due_counts" in mission
+    assert "weak_items" in mission
 
 
 def test_response_models_keep_import_and_rag_outer_contract(monkeypatch):

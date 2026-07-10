@@ -95,7 +95,13 @@ class LessonGenerator:
             "word_roots item fields: root, meaning_zh, examples, memory_tip. "
             "sentence_patterns item fields: pattern, meaning_zh, usage_note, examples; each example has sentence and translation. "
             "Grammar fields: title, explanation, examples, exercises. "
+            "Every grammar exercise must include related_vocabulary, related_grammar, and "
+            "related_sentence_patterns arrays that reference this lesson's vocabulary words, grammar title, "
+            "or sentence_patterns when possible. "
             "Reading fields: title, content, word_count, questions. "
+            "Every reading question must include related_vocabulary, related_grammar, and "
+            "related_sentence_patterns arrays that reference this lesson's vocabulary words, grammar title, "
+            "or sentence_patterns when possible. "
             "Dialogue fields: scenario, context, dialogue, alternatives. "
             "immersion fields: shadowing_text, repeat_chunks, listening_tips. "
             "feynman_prompt fields: prompt, checklist. "
@@ -437,6 +443,12 @@ class LessonGenerator:
                 raise RuntimeError("generated lesson choices must be non-empty strings")
             if not isinstance(answer, str) or answer not in options:
                 raise RuntimeError("generated lesson correct_answer must match one of the choices")
+            if vocabulary and not item.get("related_vocabulary"):
+                raise RuntimeError("generated lesson item must include related_vocabulary refs")
+            if grammar.get("title") and not item.get("related_grammar"):
+                raise RuntimeError("generated lesson item must include related_grammar refs")
+            if sentence_patterns and not item.get("related_sentence_patterns"):
+                raise RuntimeError("generated lesson item must include related_sentence_patterns refs")
 
     def _attach_related_item_refs(self, content: dict[str, Any]) -> None:
         vocabulary = [
@@ -469,9 +481,12 @@ class LessonGenerator:
                         for key in ("question", "correct_answer", "explanation")
                     )
                 )
-                exercise.setdefault("related_vocabulary", related_vocab)
-                exercise.setdefault("related_grammar", related_grammar or ([grammar_title] if grammar_title else []))
-                exercise.setdefault("related_sentence_patterns", related_patterns)
+                if not exercise.get("related_vocabulary"):
+                    exercise["related_vocabulary"] = related_vocab or vocabulary[:1]
+                if not exercise.get("related_grammar"):
+                    exercise["related_grammar"] = related_grammar or ([grammar_title] if grammar_title else [])
+                if not exercise.get("related_sentence_patterns"):
+                    exercise["related_sentence_patterns"] = related_patterns or patterns[:1]
 
         reading = content.get("reading", {})
         reading_context = ""
@@ -493,9 +508,12 @@ class LessonGenerator:
                         for key in ("question", "correct_answer", "explanation")
                     )
                 )
-                question.setdefault("related_vocabulary", related_vocab)
-                question.setdefault("related_grammar", related_grammar)
-                question.setdefault("related_sentence_patterns", related_patterns)
+                if not question.get("related_vocabulary"):
+                    question["related_vocabulary"] = related_vocab or vocabulary[:1]
+                if not question.get("related_grammar"):
+                    question["related_grammar"] = related_grammar or ([grammar_title] if grammar_title else [])
+                if not question.get("related_sentence_patterns"):
+                    question["related_sentence_patterns"] = related_patterns or patterns[:1]
 
     def _save_lesson_file(self, lesson_data: dict[str, Any]) -> Path:
         metadata = lesson_data["metadata"]

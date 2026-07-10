@@ -140,6 +140,13 @@ async def get_analytics(user_id: str = Depends(require_demo_user_id)):
         }
         for result in reversed(recent)
     ]
+    mastery_state_counts = db.get_learning_item_stats(user_id=user_id)
+    weakest_vocabulary = _analytics_learning_items(db.get_reviewed_learning_items(user_id=user_id, item_type="vocabulary"))
+    weakest_grammar = _analytics_learning_items(db.get_reviewed_learning_items(user_id=user_id, item_type="grammar"))
+    weakest_sentence_patterns = _analytics_learning_items(
+        db.get_reviewed_learning_items(user_id=user_id, item_type="sentence_pattern")
+    )
+    recent_review_counts = db.get_recent_learning_item_review_counts(user_id=user_id)
 
     return {
         "success": True,
@@ -153,5 +160,23 @@ async def get_analytics(user_id: str = Depends(require_demo_user_id)):
             "weakest_category": weakest_category,
             "accuracy_trend": accuracy_trend,
             "today_completed": streak_info["today_completed"],
+            "mastery_state_counts": mastery_state_counts,
+            "weakest_vocabulary": weakest_vocabulary,
+            "weakest_grammar": weakest_grammar,
+            "weakest_sentence_patterns": weakest_sentence_patterns,
+            "recent_7_day_review_counts": recent_review_counts,
         },
     }
+
+
+def _analytics_learning_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "item_key": item.get("item_key"),
+            "mastery_state": item.get("mastery_state"),
+            "review_count": item.get("review_count", 0),
+            "incorrect_count": item.get("incorrect_count", 0),
+            "average_rating": item.get("average_rating", 0.0),
+        }
+        for item in items
+    ]

@@ -86,6 +86,36 @@ def test_micro_lesson_schema_contains_required_fields(tmp_path, monkeypatch):
     } <= set(lesson)
 
 
+def test_micro_lesson_template_bank_changes_by_current_day(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+
+    day_one = client.get("/api/micro-lessons/today").json()["lesson"]
+    micro_lessons_router.db.save_diagnostic_state(
+        user_id="default_user",
+        estimated_total_days=90,
+        current_day=2,
+        summary_zh="day two",
+        correct_count=4,
+    )
+    day_two = client.get("/api/micro-lessons/today").json()["lesson"]
+
+    assert day_one["sentence"] != day_two["sentence"]
+    assert day_two["day_index"] == 2
+    assert {"lesson_id", "sentence", "fill_blank_question", "vocabulary_items"} <= set(day_two)
+
+
+def test_micro_lesson_template_bank_has_at_least_seven_stable_day_templates():
+    lessons = [
+        micro_lessons_router._build_micro_lesson(day_index=day, total_days=90)
+        for day in range(1, 8)
+    ]
+
+    assert len({lesson.sentence for lesson in lessons}) == 7
+    assert lessons[0].sentence == "We raise prices today."
+    assert lessons[-1].sentence == "We review one sentence again."
+
+
 def test_micro_lesson_sentence_and_vocabulary_bounds(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     _submit_diagnostic(client)

@@ -133,6 +133,21 @@
     "answerAtLeastOne": "Please answer at least one question before submitting.",
     "unansweredConfirm": "Please answer all {total} questions before submitting. Currently answered {answered}."
   },
+  "todayMission": {
+    "eyebrow": "Daily study mission",
+    "microStatus": "Micro lesson",
+    "dueSrs": "Due SRS",
+    "weakVocabulary": "Weak vocabulary",
+    "weakGrammar": "Weak grammar",
+    "weakSentencePatterns": "Weak patterns",
+    "suggestedNext": "Suggested next lesson",
+    "micro": {
+      "diagnostic_required": "Diagnostic needed",
+      "available": "Available",
+      "completed": "Completed",
+      "unavailable": "Unavailable"
+    }
+  },
   "materials": {
     "title": "RAG Materials",
     "upload": "Upload",
@@ -355,6 +370,12 @@
     "latestAccuracyValue": "Latest: {rate}%",
     "bestAccuracyValue": "Best: {rate}%",
     "noReviewHistory": "No review history yet.",
+    "learningItemsTitle": "Learning Item Analytics",
+    "masteryStates": "Mastery states",
+    "weakestLearningItems": "Weakest learning items",
+    "vocabularyGroup": "Vocabulary",
+    "grammarGroup": "Grammar",
+    "sentencePatternGroup": "Pattern",
     "loadError": "Unable to load analytics. Please try again later."
   },
   "lesson": {

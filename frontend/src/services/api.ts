@@ -40,6 +40,7 @@ import type {
   MicroLesson,
   MicroLessonAnswerResponse,
   MicroLessonTodayResponse,
+  DailyStudyMissionResponse,
 } from '@/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').trim()
@@ -244,6 +245,13 @@ export const microLessonApi = {
       `/micro-lessons/${encodeURIComponent(lessonId)}/answer`,
       { answer },
     )
+    return response.data
+  },
+}
+
+export const studyApi = {
+  async getTodayMission() {
+    const response = await api.get<DailyStudyMissionResponse>('/study/today')
     return response.data
   },
 }

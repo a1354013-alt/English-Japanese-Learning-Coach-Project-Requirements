@@ -113,13 +113,48 @@
             {{ t('analytics.noReviewHistory') }}
           </p>
         </div>
+
+        <div class="panel-section">
+          <h3>{{ t('analytics.learningItemsTitle') }}</h3>
+          <div class="item-analytics-grid">
+            <div>
+              <h4>{{ t('analytics.masteryStates') }}</h4>
+              <ul class="word-list">
+                <li
+                  v-for="item in masteryRows"
+                  :key="item.label"
+                  class="word-item"
+                >
+                  <span class="word">{{ item.label }}</span>
+                  <span>{{ item.count }}</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4>{{ t('analytics.weakestLearningItems') }}</h4>
+              <ul v-if="weakestLearningItems.length" class="word-list">
+                <li
+                  v-for="item in weakestLearningItems"
+                  :key="`${item.group}-${item.item_key}`"
+                  class="word-item"
+                >
+                  <span class="word">{{ item.item_key }}</span>
+                  <span class="mistakes">{{ item.group }}</span>
+                </li>
+              </ul>
+              <p v-else style="color: #94a3b8">
+                {{ t('analytics.notEnoughData') }}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
@@ -130,6 +165,31 @@ const { t } = useI18n()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const analytics = ref<AnalyticsPayload | null>(null)
+
+const masteryRows = computed(() => {
+  const counts = analytics.value?.mastery_state_counts ?? {}
+  return Object.entries(counts).flatMap(([type, states]) =>
+    Object.entries(states ?? {}).map(([state, count]) => ({
+      label: `${type}: ${state}`,
+      count,
+    })),
+  )
+})
+
+const weakestLearningItems = computed(() => [
+  ...(analytics.value?.weakest_vocabulary ?? []).map((item) => ({
+    ...item,
+    group: t('analytics.vocabularyGroup'),
+  })),
+  ...(analytics.value?.weakest_grammar ?? []).map((item) => ({
+    ...item,
+    group: t('analytics.grammarGroup'),
+  })),
+  ...(analytics.value?.weakest_sentence_patterns ?? []).map((item) => ({
+    ...item,
+    group: t('analytics.sentencePatternGroup'),
+  })),
+])
 
 const loadAnalytics = async () => {
   loading.value = true
@@ -250,9 +310,25 @@ onMounted(loadAnalytics)
   font-size: 0.85rem;
 }
 
+.item-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.item-analytics-grid h4 {
+  margin: 0 0 0.5rem;
+}
+
 .error-panel {
   text-align: center;
   padding: 2rem;
   color: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .item-analytics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

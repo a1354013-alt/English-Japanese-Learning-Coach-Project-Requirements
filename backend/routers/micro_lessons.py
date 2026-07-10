@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
 from fastapi import APIRouter, Depends
@@ -160,7 +162,7 @@ def _learning_plan_from_state(state: dict) -> LearningPlan:
     )
 
 
-def _build_micro_lesson(day_index: int, total_days: int) -> MicroLesson:
+def _build_micro_lesson_legacy(day_index: int, total_days: int) -> MicroLesson:
     return MicroLesson(
         day_index=day_index,
         total_days=total_days,
@@ -235,6 +237,165 @@ def _build_micro_lesson(day_index: int, total_days: int) -> MicroLesson:
             choices=["raise", "raises", "raising"],
             correct_answer="raise",
             explanation="主詞 We 搭配現在簡單式原形動詞 raise。",
+        ),
+    )
+
+
+def _vocab(word: str, definition: str, example: str) -> MicroVocabularyItem:
+    return MicroVocabularyItem(
+        word=word,
+        phonetic=f"/{word}/",
+        pronunciation_zh=word,
+        definition_zh=definition,
+        example_sentence=example,
+        example_translation=f"{example} 的意思。",
+    )
+
+
+MICRO_LESSON_TEMPLATES: list[dict[str, object]] = [
+    {
+        "theme": "subject/verb/object",
+        "sentence": "We raise prices today.",
+        "translation_zh": "我們今天調高價格。",
+        "subject_text": "We",
+        "verb_text": "raise",
+        "object_text": "prices",
+        "grammar_note": "A simple business sentence often follows subject, verb, then object.",
+        "toeic_usage_note": "TOEIC notices often use raise prices, raise questions, and raise concerns.",
+        "blank": "We ___ prices today.",
+        "choices": ["raise", "raises", "raising"],
+        "answer": "raise",
+        "words": [("raise", "提高", "We raise prices today."), ("price", "價格", "The price is high."), ("today", "今天", "We meet today."), ("customer", "顧客", "Customers need help."), ("report", "報告", "I read the report.")],
+    },
+    {
+        "theme": "present simple",
+        "sentence": "She checks email every morning.",
+        "translation_zh": "她每天早上查看電子郵件。",
+        "subject_text": "She",
+        "verb_text": "checks",
+        "object_text": "email",
+        "grammar_note": "Use present simple for routines. Add -s or -es after he, she, or it.",
+        "toeic_usage_note": "Work routines in TOEIC often use present simple verbs.",
+        "blank": "She ___ email every morning.",
+        "choices": ["checks", "check", "checking"],
+        "answer": "checks",
+        "words": [("check", "查看", "She checks email every morning."), ("email", "電子郵件", "I send an email."), ("morning", "早上", "The meeting is in the morning."), ("routine", "例行事項", "This is my routine."), ("desk", "辦公桌", "The file is on the desk.")],
+    },
+    {
+        "theme": "be verb",
+        "sentence": "The report is ready.",
+        "translation_zh": "報告準備好了。",
+        "subject_text": "The report",
+        "verb_text": "is",
+        "object_text": "ready",
+        "grammar_note": "Use be verbs to connect a subject with a state or description.",
+        "toeic_usage_note": "Office updates often say a report is ready or a room is available.",
+        "blank": "The report ___ ready.",
+        "choices": ["is", "are", "be"],
+        "answer": "is",
+        "words": [("report", "報告", "The report is ready."), ("ready", "準備好的", "The room is ready."), ("available", "可用的", "The manager is available."), ("room", "房間", "The room is quiet."), ("file", "檔案", "The file is ready.")],
+    },
+    {
+        "theme": "noun phrase",
+        "sentence": "The new invoice needs approval.",
+        "translation_zh": "新的發票需要核准。",
+        "subject_text": "The new invoice",
+        "verb_text": "needs",
+        "object_text": "approval",
+        "grammar_note": "A noun phrase can include small words before the main noun.",
+        "toeic_usage_note": "Invoices, forms, and requests often need approval in TOEIC messages.",
+        "blank": "The new invoice ___ approval.",
+        "choices": ["needs", "need", "needing"],
+        "answer": "needs",
+        "words": [("invoice", "發票", "The invoice needs approval."), ("approval", "核准", "We need approval today."), ("new", "新的", "This is a new form."), ("form", "表格", "Please sign the form."), ("request", "請求", "The request is urgent.")],
+    },
+    {
+        "theme": "TOEIC email sentence",
+        "sentence": "Please confirm the meeting time.",
+        "translation_zh": "請確認會議時間。",
+        "subject_text": "Please",
+        "verb_text": "confirm",
+        "object_text": "the meeting time",
+        "grammar_note": "Please plus a base verb makes a polite email request.",
+        "toeic_usage_note": "TOEIC emails often ask readers to confirm, review, or attach information.",
+        "blank": "Please ___ the meeting time.",
+        "choices": ["confirm", "confirms", "confirmed"],
+        "answer": "confirm",
+        "words": [("confirm", "確認", "Please confirm the meeting time."), ("meeting", "會議", "The meeting starts at ten."), ("time", "時間", "What time is the call?"), ("attach", "附上", "Please attach the file."), ("review", "檢閱", "Please review the note.")],
+    },
+    {
+        "theme": "business phone sentence",
+        "sentence": "May I speak with Anna?",
+        "translation_zh": "我可以和 Anna 通話嗎？",
+        "subject_text": "I",
+        "verb_text": "speak",
+        "object_text": "with Anna",
+        "grammar_note": "May I plus a base verb is a polite phone expression.",
+        "toeic_usage_note": "Phone messages in TOEIC often use May I speak with...?",
+        "blank": "May I ___ with Anna?",
+        "choices": ["speak", "speaks", "speaking"],
+        "answer": "speak",
+        "words": [("speak", "說話", "May I speak with Anna?"), ("call", "電話", "I have a call."), ("message", "訊息", "Please leave a message."), ("available", "有空的", "Anna is available now."), ("phone", "電話", "The phone is ringing.")],
+    },
+    {
+        "theme": "review day",
+        "sentence": "We review one sentence again.",
+        "translation_zh": "我們再次複習一個句子。",
+        "subject_text": "We",
+        "verb_text": "review",
+        "object_text": "one sentence",
+        "grammar_note": "Review days reuse old patterns so they become faster and easier.",
+        "toeic_usage_note": "A short review strengthens email, phone, and office sentence patterns.",
+        "blank": "We ___ one sentence again.",
+        "choices": ["review", "reviews", "reviewing"],
+        "answer": "review",
+        "words": [("review", "複習", "We review one sentence again."), ("sentence", "句子", "This sentence is useful."), ("again", "再次", "Please say it again."), ("practice", "練習", "Practice every day."), ("goal", "目標", "My goal is clear.")],
+    },
+]
+
+
+def _build_micro_lesson(day_index: int, total_days: int) -> MicroLesson:
+    template = MICRO_LESSON_TEMPLATES[(day_index - 1) % len(MICRO_LESSON_TEMPLATES)]
+    template_words = cast(list[tuple[str, str, str]], template["words"])
+    template_choices = cast(list[str], template["choices"])
+    words = [
+        _vocab(str(word), str(definition), str(example))
+        for word, definition, example in template_words
+    ]
+    sentence = str(template["sentence"])
+    return MicroLesson(
+        day_index=day_index,
+        total_days=total_days,
+        target_exam="TOEIC 600",
+        sentence=sentence,
+        translation_zh=str(template["translation_zh"]),
+        subject_text=str(template["subject_text"]),
+        verb_text=str(template["verb_text"]),
+        object_text=str(template["object_text"]),
+        reading_order_steps=[
+            f"Find the subject: {template['subject_text']}.",
+            f"Find the verb: {template['verb_text']}.",
+            f"Find the object or complement: {template['object_text']}.",
+        ],
+        grammar_note=str(template["grammar_note"]),
+        toeic_usage_note=str(template["toeic_usage_note"]),
+        vocabulary_items=words,
+        dialogue_lines=[
+            MicroDialogueLine(speaker="A", english=sentence, translation_zh=str(template["translation_zh"])),
+            MicroDialogueLine(speaker="B", english="Good. Please say it again.", translation_zh="很好。請再說一次。"),
+        ],
+        reading_passage=f"A learner reads the sentence. The coach asks for the subject, verb, and object. The learner says: {sentence}",
+        comic_panels=[
+            ComicPanel(panel=1, english=f"Day {day_index}: {template['theme']}", translation_zh="今日重點", scene_prompt="A friendly coach showing a sentence card."),
+            ComicPanel(panel=2, english=f"Subject: {template['subject_text']}", translation_zh="主詞", scene_prompt="Highlight the subject phrase."),
+            ComicPanel(panel=3, english=f"Verb: {template['verb_text']}", translation_zh="動詞", scene_prompt="Highlight the verb."),
+            ComicPanel(panel=4, english=sentence, translation_zh=str(template["translation_zh"]), scene_prompt="Learner reading the full sentence."),
+        ],
+        fill_blank_question=FillBlankQuestion(
+            prompt=str(template["blank"]),
+            choices=[str(choice) for choice in template_choices],
+            correct_answer=str(template["answer"]),
+            explanation=str(template["grammar_note"]),
         ),
     )
 

@@ -174,6 +174,26 @@ def test_review_creates_item_level_srs_and_new_endpoints_work(tmp_path, monkeypa
     review = client.post("/api/review", json=answers)
     assert review.status_code == 200
 
+    with test_db.get_connection() as conn:
+        reviewed_types = {
+            row["item_type"]
+            for row in conn.execute(
+                """
+                SELECT DISTINCT li.item_type
+                FROM learning_item_reviews AS lir
+                JOIN learning_items AS li ON li.id = lir.item_id
+                WHERE li.user_id = ?
+                """,
+                (user_id,),
+            ).fetchall()
+        }
+        legacy_srs_count = conn.execute(
+            "SELECT COUNT(1) AS c FROM srs_vocabulary WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    assert reviewed_types == {"vocabulary", "grammar", "sentence_pattern"}
+    assert int(legacy_srs_count["c"]) == 0
+
     weak = client.get("/api/srs/items/weak?language=EN")
     assert weak.status_code == 200
     weak_body = weak.json()

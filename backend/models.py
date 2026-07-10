@@ -542,6 +542,52 @@ class MicroLessonTodayResponse(BaseModel):
     lesson: Optional[MicroLesson] = None
 
 
+class DueLearningItemCounts(BaseModel):
+    vocabulary: int = 0
+    grammar: int = 0
+    sentence_pattern: int = 0
+    legacy_vocabulary: int = 0
+    total: int = 0
+
+
+class WeakLearningItemCounts(BaseModel):
+    vocabulary: int = 0
+    grammar: int = 0
+    sentence_pattern: int = 0
+
+
+class SuggestedNextLesson(BaseModel):
+    language: LanguageCode
+    level: str
+    topic: str
+
+
+class CompletionSummary(BaseModel):
+    current_streak: int
+    longest_streak: int
+    today_completed: bool
+    last_active_date: Optional[str] = None
+    text: str
+
+
+class DailyStudyMission(BaseModel):
+    diagnostic_completed: bool
+    micro_lesson_status: Literal["diagnostic_required", "available", "completed", "unavailable"]
+    learning_plan: Optional[LearningPlan] = None
+    micro_lesson: Optional[MicroLesson] = None
+    due_counts: DueLearningItemCounts
+    weak_counts: WeakLearningItemCounts
+    weak_items: LearningItemGroupResponse
+    suggested_next_lesson: SuggestedNextLesson
+    today_goal_text: str
+    completion_summary: CompletionSummary
+
+
+class DailyStudyMissionResponse(BaseModel):
+    success: bool = True
+    mission: DailyStudyMission
+
+
 class MicroLessonResponse(BaseModel):
     success: bool = True
     lesson: MicroLesson
@@ -924,6 +970,19 @@ class AnalyticsTrendPoint(BaseModel):
     submitted_at: datetime
 
 
+class AnalyticsWeakLearningItem(BaseModel):
+    item_key: str
+    mastery_state: LearningMasteryState
+    review_count: int = 0
+    incorrect_count: int = 0
+    average_rating: float = 0.0
+
+
+class AnalyticsReviewCountPoint(BaseModel):
+    date: str
+    count: int
+
+
 class AnalyticsPayload(BaseModel):
     total_xp: int
     level: int
@@ -934,6 +993,11 @@ class AnalyticsPayload(BaseModel):
     weakest_category: Optional[AnalyticsWeakestCategory] = None
     accuracy_trend: List[AnalyticsTrendPoint]
     today_completed: bool
+    mastery_state_counts: Dict[str, Dict[str, int]] = Field(default_factory=dict)
+    weakest_vocabulary: List[AnalyticsWeakLearningItem] = Field(default_factory=list)
+    weakest_grammar: List[AnalyticsWeakLearningItem] = Field(default_factory=list)
+    weakest_sentence_patterns: List[AnalyticsWeakLearningItem] = Field(default_factory=list)
+    recent_7_day_review_counts: List[AnalyticsReviewCountPoint] = Field(default_factory=list)
 
 
 class AnalyticsResponse(SuccessResponse):

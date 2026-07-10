@@ -9,6 +9,7 @@ import Vocabulary from '@/views/Vocabulary.vue'
 import WrongAnswers from '@/views/WrongAnswers.vue'
 import type {
   AnalyticsResponse,
+  DailyStudyMissionResponse,
   Language,
   Lesson,
   MicroLesson,
@@ -48,6 +49,7 @@ const apiMocks = vi.hoisted(() => ({
   submitDiagnostic: vi.fn(),
   getMicroToday: vi.fn(),
   answerMicroLesson: vi.fn(),
+  getTodayMission: vi.fn(),
 }))
 
 const feedbackMocks = vi.hoisted(() => ({
@@ -114,6 +116,9 @@ vi.mock('@/services/api', () => ({
   microLessonApi: {
     getToday: apiMocks.getMicroToday,
     answer: apiMocks.answerMicroLesson,
+  },
+  studyApi: {
+    getTodayMission: apiMocks.getTodayMission,
   },
 }))
 
@@ -206,6 +211,31 @@ const analyticsPayload = (
       },
     ],
     today_completed: true,
+    mastery_state_counts: {
+      vocabulary: { weak: 1 },
+      grammar: { learning: 1 },
+      sentence_pattern: { review: 1 },
+    },
+    weakest_vocabulary: [
+      {
+        item_key: 'invoice',
+        mastery_state: 'weak',
+        review_count: 2,
+        incorrect_count: 2,
+        average_rating: 1,
+      },
+    ],
+    weakest_grammar: [
+      {
+        item_key: 'Present Simple',
+        mastery_state: 'learning',
+        review_count: 1,
+        incorrect_count: 0,
+        average_rating: 4,
+      },
+    ],
+    weakest_sentence_patterns: [],
+    recent_7_day_review_counts: [{ date: '2026-05-11', count: 3 }],
     ...overrides,
   },
 })
@@ -419,6 +449,51 @@ const microTodayPayload = (
   lesson,
 })
 
+const todayMissionPayload = (): DailyStudyMissionResponse => ({
+  success: true,
+  mission: {
+    diagnostic_completed: true,
+    micro_lesson_status: 'available',
+    learning_plan: {
+      estimated_total_days: 90,
+      current_day: 1,
+      summary_zh: 'ready',
+    },
+    micro_lesson: microLessonPayload(),
+    due_counts: {
+      vocabulary: 2,
+      grammar: 1,
+      sentence_pattern: 1,
+      legacy_vocabulary: 1,
+      total: 5,
+    },
+    weak_counts: {
+      vocabulary: 2,
+      grammar: 1,
+      sentence_pattern: 1,
+    },
+    weak_items: {
+      success: true,
+      vocabulary: [],
+      grammar: [],
+      sentence_pattern: [],
+    },
+    suggested_next_lesson: {
+      language: 'EN',
+      level: 'A2',
+      topic: 'Repair grammar: Present Simple',
+    },
+    today_goal_text: 'Clear 5 due review items, then study: Present Simple.',
+    completion_summary: {
+      current_streak: 3,
+      longest_streak: 5,
+      today_completed: false,
+      last_active_date: '2026-07-09',
+      text: 'Keep your 3-day streak alive with one review.',
+    },
+  },
+})
+
 const mountOptions = {
   global: {
     stubs: {
@@ -477,6 +552,8 @@ describe('Analytics.vue', () => {
     expect(wrapper.text()).toContain('analytics.latestAccuracyValue 75.0')
     expect(wrapper.text()).toContain('analytics.bestAccuracyValue 90.0')
     expect(wrapper.text()).toContain('analytics.bestAccuracyValue 100.0')
+    expect(wrapper.text()).toContain('invoice')
+    expect(wrapper.text()).toContain('Present Simple')
   })
 
   it('renders empty data state', async () => {
@@ -678,6 +755,7 @@ describe('TodayLesson.vue', () => {
     vi.clearAllMocks()
     feedbackMocks.requestConfirmation.mockResolvedValue(true)
     apiMocks.getMicroToday.mockResolvedValue(microTodayPayload())
+    apiMocks.getTodayMission.mockResolvedValue(todayMissionPayload())
     apiMocks.getTts.mockResolvedValue({
       success: true,
       available: false,
@@ -735,6 +813,23 @@ describe('TodayLesson.vue', () => {
       'microLesson.dayLabel 1 90',
     )
     expect(wrapper.text()).toContain('We raise prices today.')
+  })
+
+  it('renders the adaptive today mission panel', async () => {
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    const panel = wrapper.get('[data-testid="today-mission-panel"]')
+    expect(panel.text()).toContain('Clear 5 due review items')
+    expect(panel.text()).toContain('todayMission.micro.available')
+    expect(panel.text()).toContain('5')
+    expect(panel.text()).toContain('Repair grammar: Present Simple')
   })
 
   it('marks the micro lesson complete after a correct answer', async () => {

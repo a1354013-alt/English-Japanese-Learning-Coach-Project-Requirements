@@ -881,6 +881,16 @@ class Database:
             result.append(item)
         return result
 
+    def count_due_srs_items(self, user_id: str, language: Optional[str] = None) -> int:
+        query = "SELECT COUNT(1) AS count FROM srs_vocabulary WHERE user_id = ? AND next_review <= ?"
+        params: List[Any] = [user_id, _local_now().isoformat()]
+        if language:
+            query += " AND language = ?"
+            params.append(language)
+        with self.get_connection() as conn:
+            row = conn.execute(query, params).fetchone()
+        return int(row["count"]) if row else 0
+
     def upsert_learning_item(
         self,
         *,
@@ -1128,6 +1138,25 @@ class Database:
             rows = conn.execute(query, params).fetchall()
         return [self._decode_learning_item_row(row) for row in rows]
 
+    def count_due_learning_items_by_type(self, *, user_id: str, language: Optional[str] = None) -> Dict[str, int]:
+        where = ["li.user_id = ?", "ls.due_at <= ?"]
+        params: List[Any] = [user_id, _local_now().isoformat()]
+        if language:
+            where.append("li.language = ?")
+            params.append(language)
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT li.item_type, COUNT(1) AS count
+                FROM learning_items AS li
+                JOIN learning_item_srs AS ls ON ls.item_id = li.id
+                WHERE {' AND '.join(where)}
+                GROUP BY li.item_type
+                """,
+                params,
+            ).fetchall()
+        return {str(row["item_type"]): int(row["count"]) for row in rows}
+
     def get_weak_learning_items(
         self,
         *,
@@ -1210,6 +1239,63 @@ class Database:
             mastery_state = str(row["mastery_state"])
             summary.setdefault(item_type, {})[mastery_state] = int(row["count"])
         return summary
+
+    def get_reviewed_learning_items(
+        self,
+        *,
+        user_id: str,
+        item_type: str,
+        limit: int = 5,
+        weakest: bool = True,
+    ) -> List[Dict[str, Any]]:
+        order = (
+            "SUM(CASE WHEN lir.correct = 0 THEN 1 ELSE 0 END) DESC, "
+            "AVG(lir.rating) ASC, MAX(lir.created_at) DESC"
+            if weakest
+            else "MAX(lir.created_at) DESC"
+        )
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT li.*, ls.interval_days, ls.ease_factor, ls.repetitions, ls.lapses,
+                       ls.due_at, ls.last_reviewed_at, ls.mastery_state,
+                       COUNT(lir.id) AS review_count,
+                       SUM(CASE WHEN lir.correct = 0 THEN 1 ELSE 0 END) AS incorrect_count,
+                       AVG(lir.rating) AS average_rating
+                FROM learning_items AS li
+                JOIN learning_item_srs AS ls ON ls.item_id = li.id
+                JOIN learning_item_reviews AS lir ON lir.item_id = li.id
+                WHERE li.user_id = ? AND li.item_type = ?
+                GROUP BY li.id
+                ORDER BY {order}
+                LIMIT ?
+                """,
+                (user_id, item_type, limit),
+            ).fetchall()
+        items = []
+        for row in rows:
+            item = self._decode_learning_item_row(row)
+            item["review_count"] = int(row["review_count"] or 0)
+            item["incorrect_count"] = int(row["incorrect_count"] or 0)
+            item["average_rating"] = float(row["average_rating"] or 0)
+            items.append(item)
+        return items
+
+    def get_recent_learning_item_review_counts(self, *, user_id: str, days: int = 7) -> List[Dict[str, Any]]:
+        start_date = (_local_now() - timedelta(days=days - 1)).date().isoformat()
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT SUBSTR(lir.created_at, 1, 10) AS review_date, COUNT(1) AS count
+                FROM learning_item_reviews AS lir
+                JOIN learning_items AS li ON li.id = lir.item_id
+                WHERE li.user_id = ? AND SUBSTR(lir.created_at, 1, 10) >= ?
+                GROUP BY SUBSTR(lir.created_at, 1, 10)
+                ORDER BY review_date ASC
+                """,
+                (user_id, start_date),
+            ).fetchall()
+        return [{"date": str(row["review_date"]), "count": int(row["count"])} for row in rows]
 
     def sync_lesson_items_to_learning_items(
         self,

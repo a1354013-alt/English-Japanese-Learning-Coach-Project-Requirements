@@ -22,6 +22,8 @@
       @reset-demo="resetDemo"
     />
 
+    <TodayMissionPanel v-if="studyMission" :mission="studyMission" />
+
     <LoadingState
       v-if="(loading && !lesson) || microLoading"
       :message="t('today.loadingLesson')"
@@ -147,6 +149,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DiagnosticFlow from '@/components/DiagnosticFlow.vue'
 import MicroLesson from '@/components/MicroLesson.vue'
+import TodayMissionPanel from '@/components/TodayMissionPanel.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import DialogueSection from '@/components/lesson/DialogueSection.vue'
@@ -165,6 +168,7 @@ import {
   lessonApi,
   microLessonApi,
   reviewApi,
+  studyApi,
   streakApi,
   systemApi,
 } from '@/services/api'
@@ -177,6 +181,7 @@ import type {
   MicroLesson as MicroLessonType,
   ReviewResult,
   StreakResponse,
+  DailyStudyMission,
 } from '@/types'
 import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 import { buildReviewPayload } from '@/utils/buildReviewPayload'
@@ -207,6 +212,7 @@ const learningPlan = ref<LearningPlan | null>(null)
 const microDiagnosticCompleted = ref(true)
 const microLoaded = ref(false)
 const microLoading = ref(false)
+const studyMission = ref<DailyStudyMission | null>(null)
 const ttsAvailability = reactive<{
   available: boolean
   message: string | null
@@ -296,7 +302,7 @@ const loadTodayLesson = async () => {
   loading.value = true
   error.value = null
   try {
-    await loadMicroLesson()
+    await Promise.all([loadMicroLesson(), loadStudyMission()])
     const res = await lessonApi.getTodayLesson(request.language)
     lesson.value = res.lesson
     resetAnswers()
@@ -306,6 +312,16 @@ const loadTodayLesson = async () => {
     error.value = t('today.loadError')
   } finally {
     loading.value = false
+  }
+}
+
+const loadStudyMission = async () => {
+  try {
+    const res = await studyApi.getTodayMission()
+    studyMission.value = res.mission
+  } catch (err) {
+    console.error(err)
+    studyMission.value = null
   }
 }
 
@@ -325,12 +341,12 @@ const loadMicroLesson = async () => {
 const handleDiagnosticComplete = async (plan: LearningPlan) => {
   learningPlan.value = plan
   microDiagnosticCompleted.value = true
-  await loadMicroLesson()
+  await Promise.all([loadMicroLesson(), loadStudyMission()])
 }
 
 const handleMicroCompleted = async (nextLesson: MicroLessonType) => {
   microLesson.value = nextLesson
-  await loadStreak()
+  await Promise.all([loadStreak(), loadStudyMission()])
 }
 
 const loadStreak = async () => {
@@ -385,7 +401,7 @@ const submitReview = async () => {
   submitting.value = true
   try {
     reviewResult.value = await reviewApi.submitReview(payload)
-    await loadStreak()
+    await Promise.all([loadStreak(), loadStudyMission()])
   } catch (err) {
     console.error(err)
     error.value = axios.isAxiosError(err)
@@ -424,7 +440,7 @@ const resetDemo = async () => {
   error.value = null
   try {
     await systemApi.resetDemo()
-    await Promise.all([loadTodayLesson(), loadStreak()])
+    await Promise.all([loadTodayLesson(), loadStreak(), loadStudyMission()])
   } catch (err) {
     console.error(err)
     error.value = t('today.resetError')

@@ -18,7 +18,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from logging_config import configure_logging
 from ollama_client import ollama_client
-from routers import ai_tools, imports, lessons, micro_lessons, review, streak, system, wrong_answers
+from routers import (
+    ai_tools,
+    imports,
+    lessons,
+    micro_lessons,
+    review,
+    streak,
+    study,
+    system,
+    wrong_answers,
+)
 from scheduler import lesson_scheduler
 from version import get_app_version
 
@@ -96,6 +106,7 @@ app.include_router(system.root_router)
 app.include_router(system.api_router)
 app.include_router(lessons.router)
 app.include_router(micro_lessons.router)
+app.include_router(study.router)
 app.include_router(review.router)
 app.include_router(wrong_answers.router)
 app.include_router(streak.router)
