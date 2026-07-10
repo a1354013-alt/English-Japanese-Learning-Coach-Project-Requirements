@@ -409,11 +409,10 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while excluding runtime DBs, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while explicitly excluding local env files, runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps, [TEST_PLAN.md](TEST_PLAN.md) for the reproducible validation command set, and [DEPLOYMENT.md](DEPLOYMENT.md) for Docker and PDF font deployment notes.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-

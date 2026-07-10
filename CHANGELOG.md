@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Added
+
+- Automated frontend i18n completeness coverage to keep Traditional Chinese keys aligned with English.
+
+### Fixed
+
+- Added missing Traditional Chinese Feynman feedback translations.
+- Hardened release packaging and verification so local env files plus runtime DB/log artifacts are explicitly excluded from delivery zips.
 
 ## [1.3.0] - 2026-07-05
 

@@ -251,4 +251,4 @@ async def delete_imported_vocabulary(item_id: int, user_id: str = Depends(requir
 async def export_lesson_pdf(lesson_id: str, user_id: str = Depends(require_demo_user_id)):
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     pdf_path = pdf_exporter.export_lesson(lesson_data)
-    return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf")
+    return FileResponse(pdf_path, filename=f"lesson_{lesson_id}.pdf", media_type="application/pdf")

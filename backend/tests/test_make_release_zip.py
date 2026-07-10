@@ -20,7 +20,18 @@ def _load_make_release_zip() -> ModuleType:
     return module
 
 
+def _load_verify_delivery() -> ModuleType:
+    module_path = REPO_ROOT / "scripts" / "verify_delivery.py"
+    spec = importlib.util.spec_from_file_location("verify_delivery", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load verifier script: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 make_release_zip = _load_make_release_zip()
+verify_delivery = _load_verify_delivery()
 
 
 def _write_text(path: Path, content: str = "x") -> None:
@@ -33,8 +44,17 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     dist_dir = repo_root / "dist"
     _write_text(repo_root / "VERSION", "9.9.9")
     _write_text(repo_root / "README.md", "keep me")
+    _write_text(repo_root / ".env", "SECRET=1")
+    _write_text(repo_root / ".env.local", "SECRET=1")
+    _write_text(repo_root / "backend" / ".env", "SECRET=1")
+    _write_text(repo_root / "frontend" / ".env.local", "SECRET=1")
+    _write_text(repo_root / "ops.env.production", "SECRET=1")
+    _write_text(repo_root / "backend" / "api.log", "log")
+    _write_text(repo_root / "backend" / "data" / "runtime.json", "{}")
     _write_text(repo_root / "data" / ".gitkeep", "")
     _write_text(repo_root / "data" / "language_coach.db", "db")
+    _write_text(repo_root / "data" / "language_coach.sqlite", "db")
+    _write_text(repo_root / "data" / "language_coach.sqlite3", "db")
     _write_text(repo_root / "data" / "language_coach.db-wal", "wal")
     _write_text(repo_root / "data" / "language_coach.db-shm", "shm")
     _write_text(repo_root / "data" / "chroma" / "index.bin", "vector")
@@ -47,6 +67,9 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     _write_text(repo_root / "frontend" / "playwright-report" / "index.html", "report")
     _write_text(repo_root / "frontend" / "coverage" / "lcov.info", "coverage")
     _write_text(repo_root / "frontend" / "node_modules" / "dep.js", "dep")
+    _write_text(repo_root / ".cache" / "tool" / "state", "cache")
+    _write_text(repo_root / "htmlcov" / "index.html", "coverage")
+    _write_text(repo_root / "coverage" / "coverage.xml", "coverage")
     _write_text(repo_root / "backend" / ".playwright-data" / "language_coach.db", "db")
     _write_text(repo_root / "backend" / ".pytest_cache" / "state", "cache")
     _write_text(repo_root / "__pycache__" / "module.pyc", "pyc")
@@ -64,12 +87,24 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
 
     assert "README.md" in names
     assert "data/.gitkeep" in names
+    assert ".env" not in names
+    assert ".env.local" not in names
+    assert "backend/.env" not in names
+    assert "frontend/.env.local" not in names
+    assert "ops.env.production" not in names
+    assert "backend/api.log" not in names
     assert "data/language_coach.db" not in names
+    assert "data/language_coach.sqlite" not in names
+    assert "data/language_coach.sqlite3" not in names
     assert "data/language_coach.db-wal" not in names
     assert "data/language_coach.db-shm" not in names
     assert not any(name.endswith(".db") for name in names)
+    assert not any(name.endswith(".log") for name in names)
+    assert not any(name.endswith(".sqlite") for name in names)
+    assert not any(name.endswith(".sqlite3") for name in names)
     assert not any(name.endswith(".db-wal") for name in names)
     assert not any(name.endswith(".db-shm") for name in names)
+    assert not any(name.startswith("backend/data/") for name in names)
     assert not any(name.startswith("data/chroma/") for name in names)
     assert not any(name.startswith("data/chroma_db/") for name in names)
     assert not any(name.startswith("data/audio/") for name in names)
@@ -80,11 +115,22 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     assert not any(name.startswith("frontend/playwright-report/") for name in names)
     assert not any(name.startswith("frontend/coverage/") for name in names)
     assert not any(name.startswith("frontend/node_modules/") for name in names)
+    assert not any(name.startswith(".cache/") for name in names)
+    assert not any(name.startswith("htmlcov/") for name in names)
+    assert not any(name.startswith("coverage/") for name in names)
     assert not any(name.startswith("backend/.playwright-data/") for name in names)
 
 
 def test_should_skip_covers_required_artifact_patterns():
+    assert make_release_zip.should_skip(Path(".env"))
+    assert make_release_zip.should_skip(Path(".env.local"))
+    assert make_release_zip.should_skip(Path("backend/.env"))
+    assert make_release_zip.should_skip(Path("frontend/.env.local"))
+    assert make_release_zip.should_skip(Path("ops.env.production"))
+    assert make_release_zip.should_skip(Path("backend/api.log"))
     assert make_release_zip.should_skip(Path("data/language_coach.db"))
+    assert make_release_zip.should_skip(Path("data/language_coach.sqlite"))
+    assert make_release_zip.should_skip(Path("data/language_coach.sqlite3"))
     assert make_release_zip.should_skip(Path("data/language_coach.db-wal"))
     assert make_release_zip.should_skip(Path("data/language_coach.db-shm"))
     assert make_release_zip.should_skip(Path("data/chroma/index.bin"))
@@ -93,7 +139,27 @@ def test_should_skip_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path("frontend/test-results/index.html"))
     assert make_release_zip.should_skip(Path("frontend/playwright-report/index.html"))
     assert make_release_zip.should_skip(Path("frontend/node_modules/pkg/index.js"))
+    assert make_release_zip.should_skip(Path(".cache/tool/state"))
+    assert make_release_zip.should_skip(Path("htmlcov/index.html"))
+    assert make_release_zip.should_skip(Path("coverage/coverage.xml"))
+    assert make_release_zip.should_skip(Path("backend/data/runtime.json"))
     assert make_release_zip.should_skip(Path("backend/.playwright-data/language_coach.db"))
     assert make_release_zip.should_skip(Path("backend/.pytest_cache/state"))
     assert make_release_zip.should_skip(Path("__pycache__/module.pyc"))
     assert not make_release_zip.should_skip(Path("data/.gitkeep"))
+
+
+def test_verify_release_archive_rejects_excluded_artifacts(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    with ZipFile(archive_path, "w") as archive:
+        archive.writestr("README.md", "keep")
+        archive.writestr("backend/.env", "SECRET=1")
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    try:
+        verify_delivery.verify_release_archive()
+    except verify_delivery.StepFailed as exc:
+        assert "excluded local env file" in str(exc)
+    else:
+        raise AssertionError("Expected release archive verification to reject backend/.env")

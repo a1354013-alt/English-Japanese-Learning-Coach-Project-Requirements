@@ -398,7 +398,15 @@
     },
     "feynman": {
       "title": "費曼檢核",
-      "placeholder": "用自己的話解釋本單元..."
+      "placeholder": "用自己的話解釋本單元...",
+      "submit": "取得回饋",
+      "submitting": "檢查中...",
+      "error": "目前無法產生費曼回饋。",
+      "score": "分數：{score}",
+      "strengths": "優點",
+      "missingPoints": "缺少的重點",
+      "corrections": "修正",
+      "simpleExplanation": "建議的簡明解釋"
     },
     "reviewPlan": {
       "title": "複習計畫",

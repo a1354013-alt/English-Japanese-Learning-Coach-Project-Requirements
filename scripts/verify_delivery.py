@@ -21,11 +21,18 @@ VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 RELEASE_ARCHIVE = REPO_ROOT / "dist" / f"english-japanese-learning-coach-v{VERSION}.zip"
 RELEASE_EXCLUDED_PREFIXES = (
     "backend/.playwright-data/",
+    "backend/.pytest_cache/",
+    "backend/data/",
+    ".cache/",
+    "cache/",
+    "caches/",
+    "coverage/",
     "data/chroma/",
     "data/chroma_db/",
     "data/audio/",
     "data/exports/",
     "data/lessons/",
+    "htmlcov/",
     "frontend/dist/",
     "frontend/test-results/",
     "frontend/playwright-report/",
@@ -33,7 +40,15 @@ RELEASE_EXCLUDED_PREFIXES = (
     "node_modules/",
     "frontend/node_modules/",
 )
-RELEASE_EXCLUDED_SUFFIXES = (".db", ".db-wal", ".db-shm")
+RELEASE_EXCLUDED_FILE_NAMES = (".env", ".env.local")
+RELEASE_EXCLUDED_SUFFIXES = (
+    ".db",
+    ".db-shm",
+    ".db-wal",
+    ".log",
+    ".sqlite",
+    ".sqlite3",
+)
 PYTHON_VERSION = (3, 11)
 NODE_VERSION = "22.18.0"
 REQUIRED_BACKEND_MODULES = (
@@ -405,8 +420,11 @@ def verify_release_archive() -> None:
         names = archive.namelist()
 
     for name in names:
+        path = Path(name)
+        if path.name in RELEASE_EXCLUDED_FILE_NAMES or path.match("*.env.*"):
+            raise StepFailed(f"Release archive contains excluded local env file: {name}")
         if name.endswith(RELEASE_EXCLUDED_SUFFIXES):
-            raise StepFailed(f"Release archive contains excluded runtime DB artifact: {name}")
+            raise StepFailed(f"Release archive contains excluded runtime artifact: {name}")
         if any(name.startswith(prefix) for prefix in RELEASE_EXCLUDED_PREFIXES):
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
         if "/node_modules/" in name:

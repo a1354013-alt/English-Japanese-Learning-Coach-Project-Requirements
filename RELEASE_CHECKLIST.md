@@ -56,7 +56,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python scripts/verify_delivery.py`
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
-- Inspect the zip contents and confirm it does not contain `data/language_coach.db`, any `*.db`, `*.db-wal`, `*.db-shm`, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
+- Inspect the zip contents and confirm it does not contain `.env`, `.env.local`, `*.env.*`, `backend/.env`, `frontend/.env.local`, `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, cache directories, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 
 * Docker checks require local Docker availability. Run `docker compose config` when Docker is installed locally.
 * If shipping containers and Docker is available locally, also run `docker compose build`
@@ -65,7 +65,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Verify the main portfolio/demo flow still works manually: lesson generate, review submit, progress updated.
 - Verify the v1.3 learning-intelligence demo path still works manually: item-level SRS due items load, weak items group correctly, snowball-aware lesson generation still succeeds, and Feynman feedback returns either AI output or deterministic fallback without breaking the page.
-- Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release runtime DBs, user data, test reports, or cache directories.
+- Confirm runtime data remains untracked: keep only `data/.gitkeep` in git, and never release local env files, runtime DBs, logs, user data, test reports, or cache directories.
 - Treat `npm audit --omit=dev` and `npm audit` as required release gates while the locked dependency tree remains vulnerability-free. If a future upstream toolchain regression affects only dev dependencies, downgrade that lane only after updating CI, docs, and `scripts/verify_delivery.py` together.
 
 ## 6. Finalize the release
