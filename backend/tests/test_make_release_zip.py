@@ -18,15 +18,23 @@ SAFE_ENV_TEMPLATES = (
 )
 SENSITIVE_ENV_CASES = (
     ".env",
+    ".envrc",
     ".env.local",
-    ".env.development.local",
-    ".env.test.local",
-    ".env.production.local",
-    "frontend/.env.production.local",
-    "backend/.env.development.local",
-    "service.env.production.local",
-    "production.env",
-    "secrets.env",
+    ".ENV.PRODUCTION.LOCAL",
+    "app.env",
+    "config.env",
+    "qa.env",
+    "uat.env",
+    "env.qa",
+    "env.uat",
+    "env.production",
+    "env.staging",
+    "env.local",
+    "frontend/service.env.qa",
+    "backend/config.env",
+    "backend/.env.backup",
+    "backend/.env.vault",
+    "service.env.uat",
 )
 REQUIRED_RELEASE_FILES = (
     "README.md",
@@ -82,6 +90,7 @@ def _seed_release_repo(repo_root: Path) -> None:
     _write_text(repo_root / "backend" / "main.py", "app = object()\n")
     _write_text(repo_root / "frontend" / "package.json", "{\"name\":\"frontend\"}")
     _write_text(repo_root / "frontend" / "package-lock.json", "{\"name\":\"frontend\",\"lockfileVersion\":3}")
+    _write_text(repo_root / "frontend" / "src" / "env.d.ts", "/// <reference types=\"vite/client\" />\n")
     _write_text(repo_root / "data" / ".gitkeep", "")
 
 
@@ -141,6 +150,7 @@ def _write_release_archive(archive_path: Path, extra_files: dict[str, str] | Non
                 archive.writestr(name, "{}")
             elif name == "docker-compose.yml":
                 archive.writestr(name, "services: {}\n")
+        archive.writestr("frontend/src/env.d.ts", "/// <reference types=\"vite/client\" />\n")
         for name, content in extra_files.items():
             archive.writestr(name, content)
 
@@ -174,6 +184,7 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
     for safe_template in SAFE_ENV_TEMPLATES:
         assert safe_template in names
     assert "data/.gitkeep" in names
+    assert "frontend/src/env.d.ts" in names
 
     for relative_path in SENSITIVE_ENV_CASES + (dummy_secret_name,):
         assert relative_path not in names
@@ -209,9 +220,15 @@ def test_shared_policy_marks_sensitive_env_files(relative_path):
     assert verify_delivery.is_excluded_release_env_file(Path(relative_path))
 
 
-@pytest.mark.parametrize("relative_path", SAFE_ENV_TEMPLATES + ("backend/.env.example",))
+@pytest.mark.parametrize(
+    "relative_path",
+    SAFE_ENV_TEMPLATES + ("backend/.env.example", "frontend/src/env.d.ts"),
+)
 def test_shared_policy_preserves_safe_templates(relative_path):
-    assert release_file_policy.is_safe_env_template(Path(relative_path))
+    if relative_path.endswith("env.d.ts"):
+        assert release_file_policy.is_safe_source_env_declaration(Path(relative_path))
+    else:
+        assert release_file_policy.is_safe_env_template(Path(relative_path))
     assert not release_file_policy.is_sensitive_env_file(Path(relative_path))
     assert not make_release_zip.should_skip(Path(relative_path))
     assert not verify_delivery.is_excluded_release_env_file(Path(relative_path))
@@ -243,12 +260,15 @@ def test_shared_policy_covers_required_artifact_patterns():
 @pytest.mark.parametrize("sensitive_name", SENSITIVE_ENV_CASES)
 def test_verify_release_archive_rejects_sensitive_env_files(tmp_path, monkeypatch, sensitive_name):
     archive_path = tmp_path / "release.zip"
-    _write_release_archive(archive_path, {sensitive_name: "SECRET=1\n"})
+    secret_value = "SUPER_SECRET_RELEASE_VALUE=do-not-print-me\n"
+    _write_release_archive(archive_path, {sensitive_name: secret_value})
 
     monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
 
-    with pytest.raises(verify_delivery.StepFailed, match="excluded local env file"):
+    with pytest.raises(verify_delivery.StepFailed, match="excluded local env file") as exc_info:
         verify_delivery.verify_release_archive()
+    assert sensitive_name in str(exc_info.value)
+    assert secret_value not in str(exc_info.value)
 
 
 def test_verify_release_archive_rejects_missing_required_files(tmp_path, monkeypatch):
@@ -281,6 +301,7 @@ def test_release_archive_extraction_bootstrap_smoke(tmp_path, monkeypatch):
     )
     assert (extract_root / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_TEMPLATE=1\n"
     assert (extract_root / "backend" / "main.py").exists()
+    assert (extract_root / "frontend" / "src" / "env.d.ts").exists()
 
 
 def test_shell_syntax_validation_runs_when_supported(tmp_path, monkeypatch):
@@ -310,3 +331,30 @@ def test_shell_syntax_validation_runs_when_supported(tmp_path, monkeypatch):
     ]
     assert all(call[1][0:2] == ["/bin/bash", "-n"] for call in recorded_calls)
     assert all(call[2] == extract_root for call in recorded_calls)
+
+
+def test_make_release_zip_rejects_includable_symlink(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    dist_dir = repo_root / "dist"
+    outside_root = tmp_path / "outside"
+    _seed_release_repo(repo_root)
+    outside_root.mkdir(parents=True, exist_ok=True)
+    target = outside_root / "secret.txt"
+    target.write_text("TOP_SECRET_VALUE=never-package-me\n", encoding="utf-8")
+    symlink_path = repo_root / "backend" / "linked-secret.txt"
+
+    try:
+        symlink_path.symlink_to(target)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"Symlink creation is unavailable on this host: {exc}")
+
+    monkeypatch.setattr(make_release_zip, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(make_release_zip, "DIST_DIR", dist_dir)
+    monkeypatch.setattr(make_release_zip, "VERSION", "9.9.9")
+
+    with pytest.raises(make_release_zip.ReleasePackagingError, match="backend/linked-secret.txt") as exc_info:
+        make_release_zip.build_release_archive()
+
+    assert str(target) not in str(exc_info.value)
+    assert "TOP_SECRET_VALUE=never-package-me" not in str(exc_info.value)
+    assert not (dist_dir / "english-japanese-learning-coach-v9.9.9.zip").exists()

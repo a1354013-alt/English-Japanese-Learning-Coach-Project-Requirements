@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0-rc5] - 2026-07-11
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc5` across root, frontend package, and release-facing documentation.
+- Release documentation now states the exact env-file classification rules enforced by packaging and archive verification, including the `env.*` / `env-*` stage-variant handling and the explicit `frontend/src/env.d.ts` allowlist.
+
+### Fixed
+
+- Release env-file filtering now excludes `.envrc`, every filename beginning with `.env` except `.env.example`, `.env.sample`, and `.env.template`, every filename ending with `.env`, and every filename containing `.env.` or `.env-`, with case-insensitive matching at any directory depth.
+- Release env-file filtering now rejects stage-style `env.*` and `env-*` variants generically instead of relying on a finite stage-token denylist, while still preserving `frontend/src/env.d.ts`.
+- Release ZIP creation no longer follows symlinks and now fails clearly with only the repository-relative symlink path when an otherwise includable symlink is encountered.
+
+### Tests
+
+- Added adversarial release regression coverage for `.envrc`, `app.env`, `config.env`, `qa.env`, `uat.env`, `frontend/service.env.qa`, `backend/config.env`, `backend/.env.backup`, `backend/.env.vault`, uppercase variants such as `.ENV.PRODUCTION.LOCAL`, preserved env templates, `frontend/src/env.d.ts`, crafted-archive rejection, extraction/bootstrap smoke, shell syntax validation, secret-redaction assertions, and symlink rejection.
+
 ## [1.4.0-rc4] - 2026-07-11
 
 ### Changed
