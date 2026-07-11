@@ -117,7 +117,6 @@ export const lessonApi = {
     payload: {
       explanation: string
       language: Language
-      lesson_snapshot?: Lesson
     },
   ) {
     const response = await api.post<FeynmanFeedbackResponse>(
@@ -250,8 +249,10 @@ export const microLessonApi = {
 }
 
 export const studyApi = {
-  async getTodayMission() {
-    const response = await api.get<DailyStudyMissionResponse>('/study/today')
+  async getTodayMission(language: Language) {
+    const response = await api.get<DailyStudyMissionResponse>('/study/today', {
+      params: { language },
+    })
     return response.data
   },
 }
@@ -299,7 +300,6 @@ export const reviewApi = {
   async submitLearningItemReview(payload: {
     item_id: string
     rating: number
-    correct: boolean
     response_time_ms?: number
     source?: 'lesson_review' | 'srs_review' | 'feynman_feedback' | 'manual'
   }) {

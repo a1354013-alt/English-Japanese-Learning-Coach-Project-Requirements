@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     StrictInt,
     StrictStr,
@@ -157,6 +158,10 @@ LearningItemType: TypeAlias = Literal["vocabulary", "grammar", "sentence_pattern
 LearningMasteryState: TypeAlias = Literal["new", "learning", "review", "weak", "mastered"]
 
 
+def review_rating_is_correct(rating: int) -> bool:
+    return rating >= 3
+
+
 class LearningItemContent(BaseModel):
     item_key: str
     content: Dict[str, Any] = Field(default_factory=dict)
@@ -196,7 +201,7 @@ class LearningItemGroupResponse(BaseModel):
 class LearningItemReviewRequest(BaseModel):
     item_id: str
     rating: int = Field(ge=0, le=5)
-    correct: bool
+    correct: Optional[bool] = None
     response_time_ms: Optional[int] = Field(default=None, ge=0)
     source: Literal["lesson_review", "srs_review", "feynman_feedback", "manual"] = "manual"
 
@@ -224,9 +229,9 @@ class FeynmanFeedback(BaseModel):
 
 
 class FeynmanFeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
     explanation: str
     language: LanguageCode
-    lesson_snapshot: Optional["Lesson"] = None
 
 
 class FeynmanFeedbackResponse(BaseModel):
@@ -448,8 +453,12 @@ class DiagnosticQuestion(BaseModel):
     question_id: str
     prompt: str
     choices: List[str]
-    correct_answer: str
     skill: Literal["subject", "verb", "present_simple"]
+
+
+class DiagnosticQuestionKey(DiagnosticQuestion):
+    question_id: str
+    correct_answer: str
 
 
 class DiagnosticQuestionsResponse(BaseModel):
@@ -458,8 +467,8 @@ class DiagnosticQuestionsResponse(BaseModel):
 
 
 class DiagnosticAnswer(BaseModel):
-    question_id: str
-    answer: str
+    question_id: StrictStr
+    answer: StrictStr
 
 
 class DiagnosticSubmitRequest(BaseModel):

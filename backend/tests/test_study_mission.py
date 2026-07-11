@@ -38,6 +38,8 @@ def _seed_item(
     item_type: str,
     item_key: str,
     mastery_state: str,
+    language: str = "EN",
+    level: str = "A1",
     rating: int = 1,
     correct: bool = False,
 ) -> None:
@@ -45,8 +47,8 @@ def _seed_item(
         user_id="default_user",
         item_type=item_type,
         item_key=item_key,
-        language="EN",
-        level="A1",
+        language=language,
+        level=level,
         lesson_id="lesson-1",
         content={"word": item_key, "title": item_key, "pattern": item_key},
         category=item_type,
@@ -69,7 +71,7 @@ def _seed_item(
 def test_today_study_mission_no_diagnostic_state_yet(tmp_path, monkeypatch):
     client, _db = _client(tmp_path, monkeypatch)
 
-    response = client.get("/api/study/today")
+    response = client.get("/api/study/today?language=EN")
 
     assert response.status_code == 200
     mission = response.json()["mission"]
@@ -97,7 +99,7 @@ def test_today_study_mission_seeded_demo_state_contract_and_counts(tmp_path, mon
     _seed_item(db, item_type="grammar", item_key="Present Simple", mastery_state="weak")
     _seed_item(db, item_type="sentence_pattern", item_key="I confirm ...", mastery_state="learning", rating=4, correct=True)
 
-    response = client.get("/api/study/today")
+    response = client.get("/api/study/today?language=EN")
 
     assert response.status_code == 200
     mission = response.json()["mission"]
@@ -121,6 +123,40 @@ def test_today_study_mission_seeded_demo_state_contract_and_counts(tmp_path, mon
     assert mission["weak_counts"] == {"vocabulary": 1, "grammar": 1, "sentence_pattern": 1}
     assert mission["weak_items"]["vocabulary"][0]["item_key"] == "invoice"
     assert mission["suggested_next_lesson"]["topic"].startswith("Repair grammar")
+
+
+def test_today_study_mission_uses_selected_language_filters_and_progress(tmp_path, monkeypatch):
+    client, db = _client(tmp_path, monkeypatch)
+    progress = db.get_progress("default_user")
+    progress["japanese_progress"]["current_level"] = "N4"
+    db.save_progress(progress)
+
+    _seed_item(db, item_type="grammar", item_key="ている", mastery_state="weak", language="JP", level="N4", rating=3)
+    _seed_item(db, item_type="vocabulary", item_key="invoice", mastery_state="weak", language="EN", level="A1")
+
+    response = client.get("/api/study/today?language=JP")
+
+    assert response.status_code == 200
+    mission = response.json()["mission"]
+    assert mission["diagnostic_completed"] is False
+    assert mission["micro_lesson_status"] == "unavailable"
+    assert mission["learning_plan"] is None
+    assert mission["micro_lesson"] is None
+    assert mission["due_counts"] == {
+        "vocabulary": 0,
+        "grammar": 1,
+        "sentence_pattern": 0,
+        "legacy_vocabulary": 0,
+        "total": 1,
+    }
+    assert mission["weak_counts"] == {"vocabulary": 0, "grammar": 1, "sentence_pattern": 0}
+    assert mission["weak_items"]["grammar"][0]["item_key"] == "ている"
+    assert mission["suggested_next_lesson"] == {
+        "language": "JP",
+        "level": "N4",
+        "topic": "Repair grammar: ている",
+    }
+    assert "diagnostic" not in mission["today_goal_text"].lower()
 
 
 def test_analytics_2_learning_item_fields(tmp_path, monkeypatch):

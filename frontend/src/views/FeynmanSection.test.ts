@@ -77,7 +77,6 @@ describe('FeynmanSection.vue', () => {
     expect(apiMocks.submitFeynmanFeedback).toHaveBeenCalledWith('lesson-1', {
       explanation: 'My explanation',
       language: 'EN',
-      lesson_snapshot: undefined,
     })
     expect(wrapper.get('[data-testid="feynman-feedback"]').text()).toContain(
       'Clear explanation.',

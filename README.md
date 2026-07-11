@@ -4,7 +4,7 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-Current release: `v1.4.0-rc1`.
+Current release: `v1.4.0-rc2`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -63,7 +63,7 @@ Immersion is currently text shadowing only. The TTS endpoint remains provider-re
 
 ## v1.4 Adaptive Learning Intelligence
 
-Version `1.4.0-rc1` turns the additive learning-intelligence work into a coherent adaptive study flow:
+Version `1.4.0-rc2` turns the additive learning-intelligence work into a coherent adaptive study flow:
 
 - Daily Study Mission is available at `GET /api/study/today` and combines diagnostic status, due SRS counts, weak item counts, a suggested next lesson, and a completion summary.
 - The Today Mission Panel surfaces that mission on the Today page so demos can start with one clear adaptive goal.

@@ -78,28 +78,28 @@
               <button
                 class="secondary"
                 :disabled="submitting"
-                @click="review(item, 0, false)"
+                @click="review(item, 0)"
               >
                 {{ t('review.forgot') }}
               </button>
               <button
                 class="secondary"
                 :disabled="submitting"
-                @click="review(item, 3, false)"
+                @click="review(item, 3)"
               >
                 {{ t('review.hard') }}
               </button>
               <button
                 class="secondary"
                 :disabled="submitting"
-                @click="review(item, 4, true)"
+                @click="review(item, 4)"
               >
                 {{ t('review.good') }}
               </button>
               <button
                 class="secondary"
                 :disabled="submitting"
-                @click="review(item, 5, true)"
+                @click="review(item, 5)"
               >
                 {{ t('review.easy') }}
               </button>
@@ -172,17 +172,12 @@ const load = async () => {
   }
 }
 
-const review = async (
-  item: LearningItemDue,
-  rating: number,
-  correct: boolean,
-) => {
+const review = async (item: LearningItemDue, rating: number) => {
   submitting.value = true
   try {
     await reviewApi.submitLearningItemReview({
       item_id: item.item_id,
       rating,
-      correct,
       source: 'srs_review',
     })
     await load()

@@ -819,7 +819,6 @@ describe('TodayLesson.vue', () => {
           question_id: 'subject-1',
           prompt: 'Which words are the subject?',
           choices: ['The manager', 'checks', 'email'],
-          correct_answer: 'The manager',
           skill: 'subject',
         },
       ],
@@ -864,6 +863,56 @@ describe('TodayLesson.vue', () => {
     expect(panel.text()).toContain('todayMission.micro.available')
     expect(panel.text()).toContain('5')
     expect(panel.text()).toContain('Repair grammar: Present Simple')
+    expect(apiMocks.getTodayMission).toHaveBeenCalledWith('EN')
+  })
+
+  it('reloads the language-aware mission and hides English micro lessons on JP', async () => {
+    apiMocks.getTodayLesson.mockResolvedValue({
+      success: true,
+      lesson: lessonPayload(),
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.getTodayMission
+      .mockResolvedValueOnce(todayMissionPayload())
+      .mockResolvedValueOnce({
+        success: true,
+        mission: {
+          ...todayMissionPayload().mission,
+          diagnostic_completed: false,
+          micro_lesson_status: 'unavailable',
+          learning_plan: null,
+          micro_lesson: null,
+          due_counts: {
+            vocabulary: 0,
+            grammar: 1,
+            sentence_pattern: 0,
+            legacy_vocabulary: 0,
+            total: 1,
+          },
+          weak_counts: {
+            vocabulary: 0,
+            grammar: 1,
+            sentence_pattern: 0,
+          },
+          suggested_next_lesson: {
+            language: 'JP',
+            level: 'N5',
+            topic: 'Repair grammar: ている',
+          },
+          today_goal_text:
+            "Continue with today's Japanese study: Repair grammar: ている.",
+        },
+      })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+    await wrapper.get('select').setValue('JP')
+    await flushPromises()
+
+    expect(apiMocks.getTodayMission).toHaveBeenLastCalledWith('JP')
+    expect(apiMocks.getMicroToday).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="micro-lesson"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Repair grammar: ている')
   })
 
   it('marks the micro lesson complete after a correct answer', async () => {

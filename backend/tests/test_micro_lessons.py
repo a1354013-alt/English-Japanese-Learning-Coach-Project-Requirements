@@ -2,15 +2,25 @@ import database as database_module
 import gamification_engine as gamification_module
 import routers.micro_lessons as micro_lessons_router
 import services.streak_service as streak_service_module
+from api_errors import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from database import Database
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from routers import micro_lessons
+from routers.micro_lessons import DIAGNOSTIC_QUESTIONS
 from services.micro_lesson_service import build_micro_lesson
 
 
 def _make_app() -> FastAPI:
     app = FastAPI()
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(micro_lessons.router)
     return app
 
@@ -26,7 +36,10 @@ def _client(tmp_path, monkeypatch) -> TestClient:
 
 def _submit_diagnostic(client: TestClient) -> dict:
     questions = client.get("/api/diagnostic/questions").json()["questions"]
-    answers = [{"question_id": item["question_id"], "answer": item["correct_answer"]} for item in questions]
+    correct_answers = {
+        question.question_id: question.correct_answer for question in DIAGNOSTIC_QUESTIONS
+    }
+    answers = [{"question_id": item["question_id"], "answer": correct_answers[item["question_id"]]} for item in questions]
     response = client.post("/api/diagnostic/submit", json={"answers": answers})
     assert response.status_code == 200
     return response.json()["learning_plan"]
@@ -42,8 +55,55 @@ def test_diagnostic_questions_contract(tmp_path, monkeypatch):
     assert body["success"] is True
     assert 3 <= len(body["questions"]) <= 5
     for question in body["questions"]:
-        assert {"question_id", "prompt", "choices", "correct_answer", "skill"} <= set(question)
+        assert {"question_id", "prompt", "choices", "skill"} <= set(question)
+        assert "correct_answer" not in question
         assert question["skill"] in {"subject", "verb", "present_simple"}
+
+
+def test_diagnostic_submit_rejects_partial_submissions(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/diagnostic/submit",
+        json={"answers": [{"question_id": "subject-1", "answer": "The manager"}]},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "diagnostic_answers_incomplete"
+
+
+def test_diagnostic_submit_rejects_duplicate_and_unknown_question_ids(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    duplicate = client.post(
+        "/api/diagnostic/submit",
+        json={
+            "answers": [
+                {"question_id": "subject-1", "answer": "The manager"},
+                {"question_id": "subject-1", "answer": "The manager"},
+                {"question_id": "verb-1", "answer": "raise"},
+                {"question_id": "present-1", "answer": "She works today."},
+                {"question_id": "subject-2", "answer": "Customers"},
+            ]
+        },
+    )
+    assert duplicate.status_code == 422
+    assert duplicate.json()["code"] == "diagnostic_question_id_duplicate"
+
+    unknown = client.post(
+        "/api/diagnostic/submit",
+        json={
+            "answers": [
+                {"question_id": "subject-1", "answer": "The manager"},
+                {"question_id": "verb-1", "answer": "raise"},
+                {"question_id": "present-1", "answer": "She works today."},
+                {"question_id": "subject-2", "answer": "Customers"},
+                {"question_id": "unknown-1", "answer": "??"},
+            ]
+        },
+    )
+    assert unknown.status_code == 422
+    assert unknown.json()["code"] == "diagnostic_question_id_unknown"
 
 
 def test_diagnostic_submit_returns_learning_plan(tmp_path, monkeypatch):

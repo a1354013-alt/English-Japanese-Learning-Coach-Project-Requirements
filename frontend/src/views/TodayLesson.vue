@@ -136,7 +136,6 @@
         :feynman="lesson.feynman_prompt"
         :lesson-id="lesson.metadata.lesson_id"
         :language="lesson.metadata.language"
-        :lesson-snapshot="lesson"
       />
       <ReviewPlanSection :review-plan="lesson.review_plan" />
     </template>
@@ -317,7 +316,7 @@ const loadTodayLesson = async () => {
 
 const loadStudyMission = async () => {
   try {
-    const res = await studyApi.getTodayMission()
+    const res = await studyApi.getTodayMission(request.language)
     studyMission.value = res.mission
   } catch (err) {
     console.error(err)
@@ -326,6 +325,14 @@ const loadStudyMission = async () => {
 }
 
 const loadMicroLesson = async () => {
+  if (request.language !== 'EN') {
+    microDiagnosticCompleted.value = true
+    learningPlan.value = null
+    microLesson.value = null
+    microLoaded.value = true
+    microLoading.value = false
+    return
+  }
   microLoading.value = true
   try {
     const res = await microLessonApi.getToday()

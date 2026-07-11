@@ -227,7 +227,7 @@ import StudyBlueprint from '@/components/StudyBlueprint.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import { progressApi } from '@/services/api'
-import type { Language, StreakResponse, UserProgress } from '@/types'
+import type { Language, StreakInfo, UserProgress } from '@/types'
 import Archive from '@/views/Archive.vue'
 import SrsReview from '@/views/SrsReview.vue'
 import WrongAnswers from '@/views/WrongAnswers.vue'
@@ -238,7 +238,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const progress = ref<UserProgress | null>(null)
-const streak = ref<StreakResponse | null>(null)
+const streak = ref<StreakInfo | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 

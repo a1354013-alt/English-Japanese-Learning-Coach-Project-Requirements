@@ -80,14 +80,13 @@ import axios from 'axios'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { lessonApi } from '@/services/api'
-import type { FeynmanFeedback, FeynmanPrompt, Language, Lesson } from '@/types'
+import type { FeynmanFeedback, FeynmanPrompt, Language } from '@/types'
 import { formatApiErrorDetail } from '@/utils/apiErrorDetail'
 
 const props = defineProps<{
   feynman?: FeynmanPrompt
   lessonId: string
   language: Language
-  lessonSnapshot?: Lesson
 }>()
 const { t } = useI18n()
 
@@ -114,7 +113,6 @@ const submit = async () => {
     const response = await lessonApi.submitFeynmanFeedback(props.lessonId, {
       explanation: draft.value.trim(),
       language: props.language,
-      lesson_snapshot: props.lessonSnapshot,
     })
     feedback.value = response.feedback
   } catch (err) {

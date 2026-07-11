@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 from gamification_engine import gamification_engine
 from models import (
     DiagnosticQuestion,
+    DiagnosticQuestionKey,
     DiagnosticQuestionsResponse,
     DiagnosticSubmitRequest,
     DiagnosticSubmitResponse,
@@ -24,28 +25,28 @@ from routers.deps import require_demo_user_id
 router = APIRouter(prefix="/api", tags=["micro-lessons"], responses=COMMON_ERROR_RESPONSES)
 
 DIAGNOSTIC_QUESTIONS = [
-    DiagnosticQuestion(
+    DiagnosticQuestionKey(
         question_id="subject-1",
         prompt="In 'The manager checks email,' which words are the subject?",
         choices=["The manager", "checks", "email"],
         correct_answer="The manager",
         skill="subject",
     ),
-    DiagnosticQuestion(
+    DiagnosticQuestionKey(
         question_id="verb-1",
         prompt="In 'We raise prices,' which word is the verb?",
         choices=["We", "raise", "prices"],
         correct_answer="raise",
         skill="verb",
     ),
-    DiagnosticQuestion(
+    DiagnosticQuestionKey(
         question_id="present-1",
         prompt="Choose the basic present simple sentence.",
         choices=["She works today.", "She working today.", "She worked today."],
         correct_answer="She works today.",
         skill="present_simple",
     ),
-    DiagnosticQuestion(
+    DiagnosticQuestionKey(
         question_id="subject-2",
         prompt="In 'Customers need help,' which word is the subject?",
         choices=["Customers", "need", "help"],
@@ -57,7 +58,18 @@ DIAGNOSTIC_QUESTIONS = [
 
 @router.get("/diagnostic/questions", response_model=DiagnosticQuestionsResponse)
 async def get_diagnostic_questions():
-    return {"success": True, "questions": DIAGNOSTIC_QUESTIONS}
+    return {
+        "success": True,
+        "questions": [
+            DiagnosticQuestion(
+                question_id=question.question_id,
+                prompt=question.prompt,
+                choices=question.choices,
+                skill=question.skill,
+            )
+            for question in DIAGNOSTIC_QUESTIONS
+        ],
+    }
 
 
 @router.post("/diagnostic/submit", response_model=DiagnosticSubmitResponse)
@@ -65,7 +77,7 @@ async def submit_diagnostic(
     request: DiagnosticSubmitRequest,
     user_id: str = Depends(require_demo_user_id),
 ):
-    answer_map = {item.question_id: item.answer.strip() for item in request.answers}
+    answer_map = _validated_diagnostic_answers(request)
     correct_count = 0
     for question in DIAGNOSTIC_QUESTIONS:
         if answer_map.get(question.question_id) == question.correct_answer:
@@ -89,6 +101,33 @@ async def submit_diagnostic(
         correct_count=correct_count,
     )
     return {"success": True, "learning_plan": plan}
+
+
+def _validated_diagnostic_answers(request: DiagnosticSubmitRequest) -> dict[str, str]:
+    expected_ids = [question.question_id for question in DIAGNOSTIC_QUESTIONS]
+    expected_id_set = set(expected_ids)
+    seen_ids: set[str] = set()
+    answer_map: dict[str, str] = {}
+
+    for answer in request.answers:
+        question_id = answer.question_id.strip()
+        if not question_id:
+            raise api_error(422, "Diagnostic question_id must be non-empty", "diagnostic_question_id_invalid")
+        if question_id not in expected_id_set:
+            raise api_error(422, f"Unknown diagnostic question_id: {question_id}", "diagnostic_question_id_unknown")
+        if question_id in seen_ids:
+            raise api_error(422, f"Duplicate diagnostic question_id: {question_id}", "diagnostic_question_id_duplicate")
+        seen_ids.add(question_id)
+        answer_map[question_id] = answer.answer.strip()
+
+    missing_ids = [question_id for question_id in expected_ids if question_id not in answer_map]
+    if missing_ids:
+        raise api_error(
+            422,
+            f"Diagnostic answers must include every question exactly once: missing {', '.join(missing_ids)}",
+            "diagnostic_answers_incomplete",
+        )
+    return answer_map
 
 
 @router.get("/micro-lessons/today", response_model=MicroLessonTodayResponse)

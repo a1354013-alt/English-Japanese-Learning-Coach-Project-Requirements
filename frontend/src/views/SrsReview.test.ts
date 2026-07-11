@@ -99,7 +99,6 @@ describe('SrsReview.vue', () => {
     expect(apiMocks.submitLearningItemReview).toHaveBeenCalledWith({
       item_id: 'item-en',
       rating: 0,
-      correct: false,
       source: 'srs_review',
     })
   })

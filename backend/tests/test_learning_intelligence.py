@@ -10,8 +10,14 @@ import gamification_engine as gamification_module
 import lesson_generator as lesson_generator_module
 import services.learning_intelligence as learning_intelligence_module
 import services.lesson_ops as lesson_ops_module
+from api_errors import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from database import Database
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from routers import lessons as lessons_router
 from routers import review as review_router
@@ -25,6 +31,9 @@ class _UnavailableOllama:
 
 def _make_app() -> FastAPI:
     app = FastAPI()
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(lessons_router.router)
     app.include_router(review_router.router)
     return app
@@ -206,12 +215,96 @@ def test_review_creates_item_level_srs_and_new_endpoints_work(tmp_path, monkeypa
         json={
             "item_id": vocab_item["item_id"],
             "rating": 5,
-            "correct": True,
             "source": "srs_review",
         },
     )
     assert submit.status_code == 200
     assert submit.json()["mastery_state"] in {"learning", "review", "mastered"}
+
+
+def test_learning_item_review_missing_item_returns_structured_404(tmp_path, monkeypatch):
+    test_db = Database(str(tmp_path / "learning-item-missing.db"))
+    _patch_modules(monkeypatch, test_db)
+    client = TestClient(_make_app())
+
+    response = client.post(
+        "/api/srs/items/review",
+        json={
+            "item_id": "missing-item",
+            "rating": 3,
+            "source": "srs_review",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": True,
+        "message": "Learning item not found",
+        "code": "learning_item_not_found",
+        "detail": "Learning item not found",
+    }
+
+
+def test_learning_item_review_derives_correctness_from_rating(tmp_path, monkeypatch):
+    test_db = Database(str(tmp_path / "learning-item-ratings.db"))
+    _patch_modules(monkeypatch, test_db)
+    client = TestClient(_make_app())
+    user_id = "default_user"
+
+    outcomes: dict[int, dict[str, int | bool]] = {}
+    for rating in (0, 3, 4, 5):
+        saved = test_db.upsert_learning_item(
+            user_id=user_id,
+            item_type="vocabulary",
+            item_key=f"word-{rating}",
+            language="EN",
+            level="A1",
+            lesson_id="lesson-1",
+            content={"word": f"word-{rating}"},
+            category="study",
+            tags=[],
+        )
+        with test_db.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE learning_item_srs
+                SET interval_days = 6, ease_factor = 2.5, repetitions = 2, lapses = 0, due_at = '2000-01-01T00:00:00'
+                WHERE item_id = ?
+                """,
+                (str(saved["id"]),),
+            )
+
+        response = client.post(
+            "/api/srs/items/review",
+            json={
+                "item_id": str(saved["id"]),
+                "rating": rating,
+                "correct": False,
+                "source": "srs_review",
+            },
+        )
+        assert response.status_code == 200
+
+        body = response.json()
+        with test_db.get_connection() as conn:
+            review_row = conn.execute(
+                "SELECT rating, correct FROM learning_item_reviews WHERE item_id = ? ORDER BY created_at DESC LIMIT 1",
+                (str(saved["id"]),),
+            ).fetchone()
+        outcomes[rating] = {
+            "interval_days": int(body["interval_days"]),
+            "lapses": int(body["lapses"]),
+            "correct": bool(review_row["correct"]),
+        }
+
+    assert outcomes[0] == {"interval_days": 1, "lapses": 1, "correct": False}
+    assert outcomes[3]["lapses"] == 0
+    assert outcomes[4]["lapses"] == 0
+    assert outcomes[5]["lapses"] == 0
+    assert outcomes[3]["correct"] is True
+    assert outcomes[4]["correct"] is True
+    assert outcomes[5]["correct"] is True
+    assert outcomes[3]["interval_days"] < outcomes[4]["interval_days"] < outcomes[5]["interval_days"]
 
 
 def test_snowball_context_and_prompt_include_recent_and_weak_items(tmp_path, monkeypatch):
@@ -315,3 +408,55 @@ def test_feynman_feedback_fallback_stores_history_and_marks_missing_items_weak(t
             (user_id,),
         ).fetchone()
     assert int(row["c"]) == 1
+
+
+def test_feynman_feedback_ignores_client_lesson_snapshot_and_uses_persisted_lesson(tmp_path, monkeypatch):
+    test_db = Database(str(tmp_path / "feynman-snapshot.db"))
+    _patch_modules(monkeypatch, test_db)
+    monkeypatch.setattr(learning_intelligence_module, "ollama_client", _UnavailableOllama(), raising=False)
+    user_id = "default_user"
+    lesson = _seed_textbook_lesson(test_db, tmp_path, user_id=user_id)
+    sync_lesson_items(user_id=user_id, lesson_data=lesson)
+
+    client = TestClient(_make_app())
+    response = client.post(
+        f"/api/lessons/{lesson['metadata']['lesson_id']}/feynman-feedback",
+        json={
+            "explanation": "I studied today.",
+            "language": "EN",
+            "lesson_snapshot": {
+                "metadata": {"language": "EN", "lesson_id": lesson["metadata"]["lesson_id"]},
+                "vocabulary": [{"word": "tampered-word"}],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert test_db.get_learning_item_by_key(
+        user_id=user_id,
+        item_type="vocabulary",
+        item_key="tampered-word",
+        language="EN",
+    ) is None
+    assert test_db.get_learning_item_by_key(
+        user_id=user_id,
+        item_type="vocabulary",
+        item_key="review",
+        language="EN",
+    ) is not None
+
+
+def test_feynman_feedback_rejects_language_mismatch(tmp_path, monkeypatch):
+    test_db = Database(str(tmp_path / "feynman-language.db"))
+    _patch_modules(monkeypatch, test_db)
+    user_id = "default_user"
+    lesson = _seed_textbook_lesson(test_db, tmp_path, user_id=user_id)
+
+    client = TestClient(_make_app())
+    response = client.post(
+        f"/api/lessons/{lesson['metadata']['lesson_id']}/feynman-feedback",
+        json={"explanation": "I studied today.", "language": "JP"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "lesson_language_mismatch"

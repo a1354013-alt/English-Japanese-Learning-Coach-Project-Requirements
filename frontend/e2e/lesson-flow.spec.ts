@@ -250,6 +250,64 @@ async function installMockApi(page: Page) {
       return
     }
 
+    if (path === '/api/study/today' && method === 'GET') {
+      const language = url.searchParams.get('language') === 'JP' ? 'JP' : 'EN'
+      await fulfillJson(route, {
+        success: true,
+        mission: {
+          diagnostic_completed: language === 'EN',
+          micro_lesson_status: language === 'EN' ? 'available' : 'unavailable',
+          learning_plan:
+            language === 'EN'
+              ? {
+                  estimated_total_days: 90,
+                  current_day: 1,
+                  summary_zh: 'Mock learner already completed the diagnostic.',
+                }
+              : null,
+          micro_lesson: null,
+          due_counts: {
+            vocabulary: 0,
+            grammar: 0,
+            sentence_pattern: 0,
+            legacy_vocabulary: 0,
+            total: 0,
+          },
+          weak_counts: {
+            vocabulary: 0,
+            grammar: 0,
+            sentence_pattern: 0,
+          },
+          weak_items: {
+            success: true,
+            vocabulary: [],
+            grammar: [],
+            sentence_pattern: [],
+          },
+          suggested_next_lesson: {
+            language,
+            level: language === 'EN' ? 'A2' : 'N5',
+            topic:
+              language === 'EN'
+                ? 'Daily business English practice'
+                : 'Daily Japanese practice',
+          },
+          today_goal_text:
+            language === 'EN'
+              ? 'Complete today\'s micro lesson and continue with: Daily business English practice.'
+              : "Continue with today's Japanese study: Daily Japanese practice.",
+          completion_summary: {
+            current_streak: streak.current_streak,
+            longest_streak: streak.longest_streak,
+            last_active_date: streak.last_active_date,
+            today_completed: streak.today_completed,
+            text: 'Mock completion summary.',
+          },
+        },
+      })
+      return
+    }
+
     if (path === '/api/lessons/today/EN' && method === 'GET') {
       await fulfillJson(route, { success: true, lesson: currentLesson })
       return

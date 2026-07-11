@@ -6,10 +6,11 @@ from typing import Any, cast
 
 from api_errors import COMMON_ERROR_RESPONSES
 from database import db
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from models import (
     DailyStudyMissionResponse,
     DueLearningItemCounts,
+    LanguageCode,
     LearningPlan,
     SuggestedNextLesson,
     WeakLearningItemCounts,
@@ -23,11 +24,14 @@ router = APIRouter(prefix="/api", tags=["study"], responses=COMMON_ERROR_RESPONS
 
 
 @router.get("/study/today", response_model=DailyStudyMissionResponse)
-async def get_today_study_mission(user_id: str = Depends(require_demo_user_id)):
-    diagnostic_state = db.get_diagnostic_state(user_id)
+async def get_today_study_mission(
+    language: LanguageCode = Query(default="EN"),
+    user_id: str = Depends(require_demo_user_id),
+):
+    diagnostic_state = db.get_diagnostic_state(user_id) if language == "EN" else None
     learning_plan: LearningPlan | None = None
     micro_lesson: dict[str, Any] | None = None
-    micro_status = "diagnostic_required"
+    micro_status = "diagnostic_required" if language == "EN" else "unavailable"
 
     if diagnostic_state:
         learning_plan = learning_plan_from_state(diagnostic_state)
@@ -40,8 +44,8 @@ async def get_today_study_mission(user_id: str = Depends(require_demo_user_id)):
             db.save_micro_lesson(user_id, micro_lesson)
         micro_status = "completed" if micro_lesson.get("completed") else "available"
 
-    due_by_type = db.count_due_learning_items_by_type(user_id=user_id)
-    legacy_due = db.count_due_srs_items(user_id)
+    due_by_type = db.count_due_learning_items_by_type(user_id=user_id, language=language)
+    legacy_due = db.count_due_srs_items(user_id, language=language)
     due_counts = DueLearningItemCounts(
         vocabulary=due_by_type.get("vocabulary", 0),
         grammar=due_by_type.get("grammar", 0),
@@ -56,7 +60,7 @@ async def get_today_study_mission(user_id: str = Depends(require_demo_user_id)):
     )
 
     grouped: dict[str, list[dict[str, Any]]] = {"vocabulary": [], "grammar": [], "sentence_pattern": []}
-    for item in db.get_weak_learning_items(user_id=user_id, limit=60):
+    for item in db.get_weak_learning_items(user_id=user_id, language=language, limit=60):
         payload = _learning_item_payload(item)
         grouped[str(item.get("item_type"))].append(payload)
     weak_counts = WeakLearningItemCounts(
@@ -66,9 +70,15 @@ async def get_today_study_mission(user_id: str = Depends(require_demo_user_id)):
     )
 
     progress = db.get_progress(user_id)
-    suggested = _suggest_next_lesson(progress, grouped, diagnostic_completed=diagnostic_state is not None)
+    suggested = _suggest_next_lesson(
+        progress,
+        grouped,
+        language=language,
+        diagnostic_completed=diagnostic_state is not None,
+    )
     streak = get_streak_snapshot(user_id)
     today_goal = _today_goal_text(
+        language=language,
         diagnostic_completed=diagnostic_state is not None,
         due_total=due_counts.total,
         weak_counts=weak_counts,
@@ -120,11 +130,18 @@ def _suggest_next_lesson(
     progress: dict[str, Any],
     grouped: dict[str, list[dict[str, Any]]],
     *,
+    language: LanguageCode,
     diagnostic_completed: bool,
 ) -> SuggestedNextLesson:
-    english = progress.get("english_progress", {})
-    if not diagnostic_completed:
-        return SuggestedNextLesson(language="EN", level=str(english.get("current_level") or "A1"), topic="Placement diagnostic")
+    key = "english_progress" if language == "EN" else "japanese_progress"
+    selected_progress = progress.get(key, {})
+    default_level = "A1" if language == "EN" else "N5"
+    if language == "EN" and not diagnostic_completed:
+        return SuggestedNextLesson(
+            language="EN",
+            level=str(selected_progress.get("current_level") or default_level),
+            topic="Placement diagnostic",
+        )
     if grouped["grammar"]:
         topic = f"Repair grammar: {grouped['grammar'][0]['item_key']}"
     elif grouped["sentence_pattern"]:
@@ -132,25 +149,36 @@ def _suggest_next_lesson(
     elif grouped["vocabulary"]:
         topic = f"Review vocabulary: {grouped['vocabulary'][0]['item_key']}"
     else:
-        topic = "Daily business English practice"
-    return SuggestedNextLesson(language="EN", level=str(english.get("current_level") or "A1"), topic=topic)
+        topic = (
+            "Daily business English practice"
+            if language == "EN"
+            else "Daily Japanese practice"
+        )
+    return SuggestedNextLesson(
+        language=language,
+        level=str(selected_progress.get("current_level") or default_level),
+        topic=topic,
+    )
 
 
 def _today_goal_text(
     *,
+    language: LanguageCode,
     diagnostic_completed: bool,
     due_total: int,
     weak_counts: WeakLearningItemCounts,
     suggested: SuggestedNextLesson,
 ) -> str:
-    if not diagnostic_completed:
+    if language == "EN" and not diagnostic_completed:
         return "Complete the diagnostic, then start your first micro lesson."
     weak_total = weak_counts.vocabulary + weak_counts.grammar + weak_counts.sentence_pattern
     if due_total:
         return f"Clear {due_total} due review items, then study: {suggested.topic}."
     if weak_total:
         return f"Repair {weak_total} weak learning items, then study: {suggested.topic}."
-    return f"Complete today's micro lesson and continue with: {suggested.topic}."
+    if language == "EN":
+        return f"Complete today's micro lesson and continue with: {suggested.topic}."
+    return f"Continue with today's Japanese study: {suggested.topic}."
 
 
 def _completion_text(streak: dict[str, Any]) -> str:

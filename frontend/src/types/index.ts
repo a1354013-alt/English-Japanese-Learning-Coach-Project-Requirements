@@ -245,7 +245,7 @@ export interface UserProgress {
 export interface ProgressResponse {
   success: boolean
   progress: UserProgress
-  streak: StreakResponse
+  streak: StreakInfo
 }
 
 export interface ReviewAnswer {
@@ -495,12 +495,15 @@ export interface WrongAnswerRetryResponse {
   item: WrongAnswer
 }
 
-export interface StreakResponse {
-  success: boolean
+export interface StreakInfo {
   current_streak: number
   longest_streak: number
   last_active_date: string | null
   today_completed: boolean
+}
+
+export interface StreakResponse extends StreakInfo {
+  success: boolean
 }
 
 export interface AnalyticsHardestWord {
@@ -651,7 +654,6 @@ export interface DiagnosticQuestion {
   question_id: string
   prompt: string
   choices: string[]
-  correct_answer: string
   skill: 'subject' | 'verb' | 'present_simple'
 }
 
@@ -723,5 +725,5 @@ export interface MicroLessonAnswerResponse {
   correct: boolean
   completed: boolean
   lesson: MicroLesson
-  streak: StreakResponse
+  streak: StreakInfo
 }

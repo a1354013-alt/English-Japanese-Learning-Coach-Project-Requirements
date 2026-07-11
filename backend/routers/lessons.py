@@ -88,11 +88,12 @@ async def create_feynman_feedback(
     request: FeynmanFeedbackRequest,
     user_id: str = Depends(require_demo_user_id),
 ):
-    lesson_data = (
-        request.lesson_snapshot.model_dump(mode="json")
-        if request.lesson_snapshot is not None
-        else load_lesson_payload(lesson_id, user_id=user_id)
-    )
+    lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
+    lesson_language = str(lesson_data.get("metadata", {}).get("language", "")).strip()
+    if lesson_language != request.language:
+        from api_errors import api_error
+
+        raise api_error(422, "Lesson language does not match request language", "lesson_language_mismatch")
     feedback = await generate_feynman_feedback(
         user_id=user_id,
         lesson_id=lesson_id,

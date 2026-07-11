@@ -13,6 +13,26 @@ All notable changes to this project will be documented in this file.
 - Added missing Traditional Chinese Feynman feedback translations.
 - Hardened release packaging and verification so local env files plus runtime DB/log artifacts are explicitly excluded from delivery zips.
 
+## [1.4.0-rc2] - 2026-07-11
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc2` across root and frontend package metadata.
+- Daily Study Mission now accepts a validated `language` query and uses language-specific due counts, weak items, progress, and suggested lesson metadata.
+- Feynman feedback now always loads the persisted lesson by `lesson_id` and ignores any client-provided lesson snapshot payload.
+
+### Fixed
+
+- `/api/srs/items/review` now converts missing learning-item lookups into the standard structured `404` response with code `learning_item_not_found`.
+- Learning-item review correctness is now derived from rating so `3`, `4`, and `5` are recorded consistently as successful reviews.
+- Diagnostic question responses no longer expose answer keys, and diagnostic submissions now reject duplicate, unknown, blank, or partial question-id sets.
+- Japanese study missions no longer silently surface the English-only micro lesson flow as if it were a Japanese mission.
+
+### Tests
+
+- Added backend regression coverage for valid and missing learning-item reviews, rating-derived learning outcomes for ratings `0`, `3`, `4`, and `5`, public diagnostic-question contracts, invalid diagnostic submissions, language-aware study missions, and Feynman lesson-source enforcement.
+- Added frontend regression coverage for language-aware study mission reloads, SRS review payload semantics, and Feynman feedback requests without client lesson snapshots.
+
 ## [1.4.0-rc1] - 2026-07-10
 
 ### Added

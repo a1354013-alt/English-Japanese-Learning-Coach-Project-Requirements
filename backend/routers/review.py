@@ -289,14 +289,16 @@ async def submit_learning_item_review(
     request: LearningItemReviewRequest,
     user_id: str = Depends(require_demo_user_id),
 ):
-    updated = db.record_learning_item_review(
-        user_id=user_id,
-        item_id=request.item_id,
-        rating=request.rating,
-        correct=request.correct,
-        response_time_ms=request.response_time_ms,
-        source=request.source,
-    )
+    try:
+        updated = db.record_learning_item_review(
+            user_id=user_id,
+            item_id=request.item_id,
+            rating=request.rating,
+            response_time_ms=request.response_time_ms,
+            source=request.source,
+        )
+    except ValueError:
+        raise api_error(404, "Learning item not found", "learning_item_not_found") from None
     return {
         "success": True,
         "item_id": updated.get("id"),

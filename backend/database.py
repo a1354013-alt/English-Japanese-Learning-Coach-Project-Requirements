@@ -9,7 +9,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from config import settings
-from models import UserRPGStats
+from models import UserRPGStats, review_rating_is_correct
 from time_utils import local_now
 
 
@@ -1012,13 +1012,14 @@ class Database:
         user_id: str,
         item_id: str,
         rating: int,
-        correct: bool,
+        correct: Optional[bool] = None,
         response_time_ms: Optional[int] = None,
         source: str = "manual",
     ) -> Dict[str, Any]:
         existing = self.get_learning_item(user_id=user_id, item_id=item_id)
         if not existing:
             raise ValueError("learning item not found")
+        derived_correct = review_rating_is_correct(rating)
 
         from srs import srs_engine
 
@@ -1032,7 +1033,7 @@ class Database:
         repetitions = int(srs_data["repetition"])
         lapses = int(existing.get("lapses") or 0) + (1 if rating < 3 else 0)
         if rating < 3:
-            mastery_state = "weak" if lapses > 1 or not correct else "learning"
+            mastery_state = "weak" if lapses > 1 or not derived_correct else "learning"
         elif repetitions >= 5:
             mastery_state = "mastered"
         elif repetitions >= 2:
@@ -1069,7 +1070,7 @@ class Database:
                     str(uuid4()),
                     item_id,
                     rating,
-                    1 if correct else 0,
+                    1 if derived_correct else 0,
                     response_time_ms,
                     source,
                     now,
