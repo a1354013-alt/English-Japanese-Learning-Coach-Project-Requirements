@@ -7,6 +7,7 @@ import collections
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +27,9 @@ BACKEND_DIR = REPO_ROOT / "backend"
 FRONTEND_DIR = REPO_ROOT / "frontend"
 VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 RELEASE_ARCHIVE = REPO_ROOT / "dist" / f"english-japanese-learning-coach-v{VERSION}.zip"
+README_PATH = REPO_ROOT / "README.md"
+RELEASE_CHECKLIST_PATH = REPO_ROOT / "RELEASE_CHECKLIST.md"
+DEMO_GUIDE_PATH = REPO_ROOT / "docs" / "DEMO_GUIDE.md"
 REQUIRED_RELEASE_FILES = (
     "README.md",
     "VERSION",
@@ -67,6 +71,7 @@ REQUIRED_BACKEND_MODULES = (
 
 is_excluded_runtime_artifact = _release_file_policy.is_excluded_runtime_artifact
 is_safe_env_template = _release_file_policy.is_safe_env_template
+is_sensitive_credential_file = _release_file_policy.is_sensitive_credential_file
 is_sensitive_env_file = _release_file_policy.is_sensitive_env_file
 
 
@@ -266,6 +271,46 @@ def is_excluded_release_env_file(path: Path) -> bool:
     return is_sensitive_env_file(path)
 
 
+def is_excluded_release_credential_file(path: Path) -> bool:
+    return is_sensitive_credential_file(path)
+
+
+def _current_release_reference_checks() -> tuple[tuple[str, Path, str, str], ...]:
+    return (
+        ("README current release", README_PATH, r"Current release: `(?P<version>v[^`]+)`\.", f"v{VERSION}"),
+        (
+            "README adaptive-learning heading",
+            README_PATH,
+            r"Version `(?P<version>[^`]+)` turns the additive learning-intelligence work into a coherent adaptive study flow:",
+            VERSION,
+        ),
+        (
+            "Release checklist changelog reference",
+            RELEASE_CHECKLIST_PATH,
+            r"Review `CHANGELOG\.md` and confirm the release-facing notes for `(?P<version>v[^`]+)`\.",
+            f"v{VERSION}",
+        ),
+        (
+            "Release checklist frontend sync reference",
+            RELEASE_CHECKLIST_PATH,
+            r"Keep `frontend/package\.json` in sync at `(?P<version>[^`]+)`; `scripts/verify_delivery\.py` checks this\.",
+            VERSION,
+        ),
+        (
+            "Demo guide release heading",
+            DEMO_GUIDE_PATH,
+            r"present the `(?P<version>v[^`]+)` Adaptive Learning project",
+            f"v{VERSION}",
+        ),
+        (
+            "Demo guide release limitation",
+            DEMO_GUIDE_PATH,
+            r"not part of the `(?P<version>v[^`]+)` release\.",
+            f"v{VERSION}",
+        ),
+    )
+
+
 def verify_version_consistency() -> None:
     package_json = json.loads((FRONTEND_DIR / "package.json").read_text(encoding="utf-8"))
     frontend_version = str(package_json.get("version", "")).strip()
@@ -274,6 +319,18 @@ def verify_version_consistency() -> None:
             f"Frontend package.json version ({frontend_version or '<missing>'}) "
             f"does not match root VERSION ({VERSION})"
         )
+
+    for label, path, pattern, expected_version in _current_release_reference_checks():
+        content = path.read_text(encoding="utf-8")
+        match = re.search(pattern, content)
+        if match is None:
+            raise StepFailed(f"{label} is missing in {path.relative_to(REPO_ROOT).as_posix()}")
+        found_version = match.group("version").strip()
+        if found_version != expected_version:
+            raise StepFailed(
+                f"{label} in {path.relative_to(REPO_ROOT).as_posix()} references {found_version} "
+                f"but expected {expected_version}"
+            )
     print(f"Verified version consistency: {VERSION}")
 
 
@@ -435,6 +492,8 @@ def verify_release_archive() -> None:
         path = Path(name)
         if is_excluded_release_env_file(path):
             raise StepFailed(f"Release archive contains excluded local env file: {name}")
+        if is_excluded_release_credential_file(path):
+            raise StepFailed(f"Release archive contains excluded credential file: {name}")
         if is_excluded_runtime_artifact(path):
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
 

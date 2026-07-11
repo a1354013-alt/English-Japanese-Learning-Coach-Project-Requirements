@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0-rc6] - 2026-07-12
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc6` across root, frontend package metadata, and release-facing documentation including `docs/DEMO_GUIDE.md`.
+- Release verification now checks current-release references in `README.md`, `RELEASE_CHECKLIST.md`, and `docs/DEMO_GUIDE.md` in addition to root `VERSION` and `frontend/package.json`, while leaving historical `CHANGELOG.md` entries untouched.
+
+### Fixed
+
+- Release ZIP creation is now atomic: includable symlink rejection happens before the final archive is touched, archive writes go through a temporary file in `dist`, successful builds replace the final ZIP atomically, failed builds clean up temporary files, and previously valid archives remain unchanged when a later build fails.
+- Release packaging and crafted-archive verification now also reject common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, and local runtime directories such as `.direnv`.
+
+### Tests
+
+- Added regression coverage for atomic archive failure cleanup and replacement behavior, stale current-release reference verification failures, common credential-file exclusion in packaging and crafted archives, and CLI-output redaction for symlink rejection.
+
 ## [1.4.0-rc5] - 2026-07-11
 
 ### Changed

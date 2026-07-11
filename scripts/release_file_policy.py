@@ -6,9 +6,21 @@ from pathlib import Path
 
 SAFE_ENV_TEMPLATE_NAMES = frozenset({".env.example", ".env.sample", ".env.template"})
 SAFE_SOURCE_ENV_DECLARATION_NAMES = frozenset({"env.d.ts"})
+SENSITIVE_CREDENTIAL_EXACT_NAMES = frozenset(
+    {
+        ".netrc",
+        ".npmrc",
+        ".pypirc",
+        "id_ed25519",
+        "id_rsa",
+        "service-account.json",
+    }
+)
+SENSITIVE_CREDENTIAL_SUFFIXES = frozenset({".key", ".p12", ".pem", ".pfx"})
 EXCLUDED_DIR_NAMES = frozenset(
     {
         ".git",
+        ".direnv",
         ".venv",
         ".cache",
         "node_modules",
@@ -53,6 +65,8 @@ EXCLUDED_RUNTIME_PREFIXES = (
     ("frontend", "playwright-report"),
     ("frontend", "coverage"),
 )
+
+
 def normalize_relative_path(relative_path: Path | str) -> Path:
     return relative_path if isinstance(relative_path, Path) else Path(relative_path)
 
@@ -92,6 +106,12 @@ def is_sensitive_env_file(relative_path: Path | str) -> bool:
     )
 
 
+def is_sensitive_credential_file(relative_path: Path | str) -> bool:
+    path = normalize_relative_path(relative_path)
+    name = path.name.lower()
+    return name in SENSITIVE_CREDENTIAL_EXACT_NAMES or path.suffix.lower() in SENSITIVE_CREDENTIAL_SUFFIXES
+
+
 def is_excluded_runtime_artifact(relative_path: Path | str) -> bool:
     path = normalize_relative_path(relative_path)
     parts = path.parts
@@ -106,4 +126,8 @@ def is_excluded_runtime_artifact(relative_path: Path | str) -> bool:
 
 def may_include_in_release_archive(relative_path: Path | str) -> bool:
     path = normalize_relative_path(relative_path)
-    return not is_sensitive_env_file(path) and not is_excluded_runtime_artifact(path)
+    return (
+        not is_sensitive_env_file(path)
+        and not is_sensitive_credential_file(path)
+        and not is_excluded_runtime_artifact(path)
+    )

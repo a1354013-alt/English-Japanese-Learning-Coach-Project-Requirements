@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -64,14 +65,25 @@ def _iter_release_files() -> list[tuple[Path, Path]]:
 
 
 def build_release_archive() -> Path:
+    release_files = _iter_release_files()
     DIST_DIR.mkdir(parents=True, exist_ok=True)
     archive_path = DIST_DIR / f"english-japanese-learning-coach-v{VERSION}.zip"
-    if archive_path.exists():
-        archive_path.unlink()
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f"{archive_path.name}.",
+        suffix=".tmp",
+        dir=DIST_DIR,
+    )
+    os.close(temp_fd)
+    temp_archive_path = Path(temp_name)
 
-    with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
-        for path, relative_path in _iter_release_files():
-            archive.write(path, arcname=relative_path.as_posix())
+    try:
+        with ZipFile(temp_archive_path, "w", compression=ZIP_DEFLATED) as archive:
+            for path, relative_path in release_files:
+                archive.write(path, arcname=relative_path.as_posix())
+        os.replace(temp_archive_path, archive_path)
+    except Exception:
+        temp_archive_path.unlink(missing_ok=True)
+        raise
 
     return archive_path
 

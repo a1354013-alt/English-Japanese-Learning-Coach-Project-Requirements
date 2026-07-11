@@ -16,6 +16,18 @@ SAFE_ENV_TEMPLATES = (
     ".env.sample",
     ".env.template",
 )
+SENSITIVE_CREDENTIAL_CASES = (
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    "id_rsa",
+    "id_ed25519",
+    "service-account.json",
+    "keys/private.pem",
+    "keys/private.key",
+    "keys/client.p12",
+    "keys/client.pfx",
+)
 SENSITIVE_ENV_CASES = (
     ".env",
     ".envrc",
@@ -112,6 +124,7 @@ def _seed_runtime_artifacts(repo_root: Path) -> None:
     _write_text(repo_root / "frontend" / "playwright-report" / "index.html", "report")
     _write_text(repo_root / "frontend" / "coverage" / "lcov.info", "coverage")
     _write_text(repo_root / "frontend" / "node_modules" / "dep.js", "dep")
+    _write_text(repo_root / ".direnv" / "python-version", "3.11")
     _write_text(repo_root / ".cache" / "tool" / "state", "cache")
     _write_text(repo_root / "htmlcov" / "index.html", "coverage")
     _write_text(repo_root / "coverage" / "coverage.xml", "coverage")
@@ -163,6 +176,8 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
 
     for relative_path in SENSITIVE_ENV_CASES:
         _write_text(repo_root / relative_path, "SECRET=1\n")
+    for relative_path in SENSITIVE_CREDENTIAL_CASES:
+        _write_text(repo_root / relative_path, "PRIVATE=1\n")
 
     dummy_secret_name = "backend/.env.staging.local"
     dummy_secret_value = "DUMMY_RELEASE_SECRET=super-secret-value-12345\n"
@@ -188,6 +203,8 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
 
     for relative_path in SENSITIVE_ENV_CASES + (dummy_secret_name,):
         assert relative_path not in names
+    for relative_path in SENSITIVE_CREDENTIAL_CASES:
+        assert relative_path not in names
     assert "backend/api.log" not in names
     assert "data/language_coach.db" not in names
     assert "data/language_coach.sqlite" not in names
@@ -205,6 +222,7 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
     assert not any(name.startswith("frontend/playwright-report/") for name in names)
     assert not any(name.startswith("frontend/coverage/") for name in names)
     assert not any(name.startswith("frontend/node_modules/") for name in names)
+    assert not any(name.startswith(".direnv/") for name in names)
     assert not any(name.startswith(".cache/") for name in names)
     assert not any(name.startswith("htmlcov/") for name in names)
     assert not any(name.startswith("coverage/") for name in names)
@@ -218,6 +236,13 @@ def test_shared_policy_marks_sensitive_env_files(relative_path):
     assert release_file_policy.is_sensitive_env_file(Path(relative_path))
     assert make_release_zip.should_skip(Path(relative_path))
     assert verify_delivery.is_excluded_release_env_file(Path(relative_path))
+
+
+@pytest.mark.parametrize("relative_path", SENSITIVE_CREDENTIAL_CASES)
+def test_shared_policy_marks_sensitive_credential_files(relative_path):
+    assert release_file_policy.is_sensitive_credential_file(Path(relative_path))
+    assert make_release_zip.should_skip(Path(relative_path))
+    assert verify_delivery.is_excluded_release_credential_file(Path(relative_path))
 
 
 @pytest.mark.parametrize(
@@ -247,6 +272,7 @@ def test_shared_policy_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path("frontend/test-results/index.html"))
     assert make_release_zip.should_skip(Path("frontend/playwright-report/index.html"))
     assert make_release_zip.should_skip(Path("frontend/node_modules/pkg/index.js"))
+    assert make_release_zip.should_skip(Path(".direnv/python-version"))
     assert make_release_zip.should_skip(Path(".cache/tool/state"))
     assert make_release_zip.should_skip(Path("htmlcov/index.html"))
     assert make_release_zip.should_skip(Path("coverage/coverage.xml"))
@@ -266,6 +292,20 @@ def test_verify_release_archive_rejects_sensitive_env_files(tmp_path, monkeypatc
     monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
 
     with pytest.raises(verify_delivery.StepFailed, match="excluded local env file") as exc_info:
+        verify_delivery.verify_release_archive()
+    assert sensitive_name in str(exc_info.value)
+    assert secret_value not in str(exc_info.value)
+
+
+@pytest.mark.parametrize("sensitive_name", SENSITIVE_CREDENTIAL_CASES)
+def test_verify_release_archive_rejects_sensitive_credential_files(tmp_path, monkeypatch, sensitive_name):
+    archive_path = tmp_path / "release.zip"
+    secret_value = "PRIVATE_KEY_MATERIAL=do-not-print-me\n"
+    _write_release_archive(archive_path, {sensitive_name: secret_value})
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="excluded credential file") as exc_info:
         verify_delivery.verify_release_archive()
     assert sensitive_name in str(exc_info.value)
     assert secret_value not in str(exc_info.value)
@@ -333,7 +373,7 @@ def test_shell_syntax_validation_runs_when_supported(tmp_path, monkeypatch):
     assert all(call[2] == extract_root for call in recorded_calls)
 
 
-def test_make_release_zip_rejects_includable_symlink(tmp_path, monkeypatch):
+def _seed_symlink_repo(tmp_path: Path, monkeypatch) -> tuple[Path, Path, Path, Path]:
     repo_root = tmp_path / "repo"
     dist_dir = repo_root / "dist"
     outside_root = tmp_path / "outside"
@@ -351,6 +391,11 @@ def test_make_release_zip_rejects_includable_symlink(tmp_path, monkeypatch):
     monkeypatch.setattr(make_release_zip, "REPO_ROOT", repo_root)
     monkeypatch.setattr(make_release_zip, "DIST_DIR", dist_dir)
     monkeypatch.setattr(make_release_zip, "VERSION", "9.9.9")
+    return repo_root, dist_dir, target, symlink_path
+
+
+def test_make_release_zip_rejects_includable_symlink(tmp_path, monkeypatch):
+    _repo_root, dist_dir, target, _symlink_path = _seed_symlink_repo(tmp_path, monkeypatch)
 
     with pytest.raises(make_release_zip.ReleasePackagingError, match="backend/linked-secret.txt") as exc_info:
         make_release_zip.build_release_archive()
@@ -358,3 +403,160 @@ def test_make_release_zip_rejects_includable_symlink(tmp_path, monkeypatch):
     assert str(target) not in str(exc_info.value)
     assert "TOP_SECRET_VALUE=never-package-me" not in str(exc_info.value)
     assert not (dist_dir / "english-japanese-learning-coach-v9.9.9.zip").exists()
+
+
+def test_make_release_zip_failure_leaves_no_new_final_or_temp_archive(tmp_path, monkeypatch):
+    _repo_root, dist_dir, _target, _symlink_path = _seed_symlink_repo(tmp_path, monkeypatch)
+
+    with pytest.raises(make_release_zip.ReleasePackagingError):
+        make_release_zip.build_release_archive()
+
+    assert dist_dir.exists()
+    assert list(dist_dir.iterdir()) == []
+
+
+def test_make_release_zip_failure_preserves_previous_archive_bytes(tmp_path, monkeypatch):
+    repo_root, dist_dir, _target, _symlink_path = _seed_symlink_repo(tmp_path, monkeypatch)
+    archive_path = dist_dir / "english-japanese-learning-coach-v9.9.9.zip"
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    original_bytes = b"previous-good-archive"
+    archive_path.write_bytes(original_bytes)
+
+    with pytest.raises(make_release_zip.ReleasePackagingError):
+        make_release_zip.build_release_archive()
+
+    assert archive_path.read_bytes() == original_bytes
+    assert [path.name for path in dist_dir.iterdir()] == [archive_path.name]
+
+
+def test_make_release_zip_success_replaces_previous_archive_atomically(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    dist_dir = repo_root / "dist"
+    _seed_release_repo(repo_root)
+    monkeypatch.setattr(make_release_zip, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(make_release_zip, "DIST_DIR", dist_dir)
+    monkeypatch.setattr(make_release_zip, "VERSION", "9.9.9")
+
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    archive_path = dist_dir / "english-japanese-learning-coach-v9.9.9.zip"
+    archive_path.write_bytes(b"old-archive")
+    original_bytes = archive_path.read_bytes()
+
+    _write_text(repo_root / "README.md", "new content for replacement")
+    built_path = make_release_zip.build_release_archive()
+
+    assert built_path == archive_path
+    assert archive_path.read_bytes() != original_bytes
+    with ZipFile(archive_path) as archive:
+        assert archive.read("README.md").decode("utf-8") == "new content for replacement"
+    assert [path.name for path in dist_dir.iterdir()] == [archive_path.name]
+
+
+def test_make_release_zip_main_redacts_symlink_target_from_output(tmp_path, monkeypatch, capsys):
+    _repo_root, dist_dir, target, _symlink_path = _seed_symlink_repo(tmp_path, monkeypatch)
+
+    assert make_release_zip.main() == 1
+
+    captured = capsys.readouterr()
+    combined_output = captured.out + captured.err
+    assert "backend/linked-secret.txt" in combined_output
+    assert str(target) not in combined_output
+    assert "TOP_SECRET_VALUE=never-package-me" not in combined_output
+    assert not (dist_dir / "english-japanese-learning-coach-v9.9.9.zip").exists()
+    assert list(dist_dir.iterdir()) == []
+
+
+def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path, Path, Path]:
+    frontend_dir = root / "frontend"
+    frontend_dir.mkdir(parents=True, exist_ok=True)
+    package_json_path = frontend_dir / "package.json"
+    package_json_path.write_text(
+        f'{{"name":"frontend","version":"{version}"}}',
+        encoding="utf-8",
+    )
+
+    readme_path = root / "README.md"
+    readme_path.write_text(
+        "\n".join(
+            (
+                f"Current release: `v{version}`.",
+                f"Version `{version}` turns the additive learning-intelligence work into a coherent adaptive study flow:",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    checklist_path = root / "RELEASE_CHECKLIST.md"
+    checklist_path.write_text(
+        "\n".join(
+            (
+                f"- Review `CHANGELOG.md` and confirm the release-facing notes for `v{version}`.",
+                f"- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `{version}`; `scripts/verify_delivery.py` checks this.",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    demo_guide_path = root / "docs" / "DEMO_GUIDE.md"
+    demo_guide_path.parent.mkdir(parents=True, exist_ok=True)
+    demo_guide_path.write_text(
+        "\n".join(
+            (
+                f"Use this guide when you want to present the `v{version}` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
+                f"- Real recording and speech comparison are not part of the `v{version}` release.",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return package_json_path, readme_path, checklist_path, demo_guide_path
+
+
+@pytest.mark.parametrize(
+    ("stale_path_name", "old_text", "new_text"),
+    (
+        ("README.md", "Current release: `v9.9.9`.", "Current release: `v9.9.8`."),
+        (
+            "RELEASE_CHECKLIST.md",
+            "- Review `CHANGELOG.md` and confirm the release-facing notes for `v9.9.9`.",
+            "- Review `CHANGELOG.md` and confirm the release-facing notes for `v9.9.8`.",
+        ),
+        (
+            "DEMO_GUIDE.md",
+            "Use this guide when you want to present the `v9.9.9` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
+            "Use this guide when you want to present the `v9.9.8` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
+        ),
+    ),
+)
+def test_verify_version_consistency_rejects_stale_current_release_reference(
+    tmp_path,
+    monkeypatch,
+    stale_path_name,
+    old_text,
+    new_text,
+):
+    version = "9.9.9"
+    package_json_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+    target_map = {
+        "README.md": readme_path,
+        "RELEASE_CHECKLIST.md": checklist_path,
+        "DEMO_GUIDE.md": demo_guide_path,
+    }
+    target_path = target_map[stale_path_name]
+    target_path.write_text(
+        target_path.read_text(encoding="utf-8").replace(old_text, new_text),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match=stale_path_name) as exc_info:
+        verify_delivery.verify_version_consistency()
+    assert "9.9.8" in str(exc_info.value)
+    assert "9.9.9" in str(exc_info.value)
