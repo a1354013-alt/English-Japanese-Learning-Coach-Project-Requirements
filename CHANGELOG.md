@@ -11,7 +11,24 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Added missing Traditional Chinese Feynman feedback translations.
-- Hardened release packaging and verification so local env files plus runtime DB/log artifacts are explicitly excluded from delivery zips.
+
+## [1.4.0-rc3] - 2026-07-11
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc3` across root, frontend package, and release-facing documentation.
+- Learning-item review requests still accept the legacy `correct` field for backward compatibility, but the schema now marks it deprecated and the backend continues to ignore it in favor of rating-derived correctness.
+
+### Fixed
+
+- Release packaging now preserves safe environment templates such as `.env.example`, `.env.sample`, and `.env.template` while continuing to exclude real local env files and explicit secret-oriented env variants.
+- Release archive verification now fails clearly when required startup and delivery files are missing instead of only checking for forbidden artifacts.
+- Release extraction smoke now proves `backend/.env.example` can bootstrap `backend/.env` and that the documented relative startup paths resolve from the extracted archive.
+- `frontend/e2e/lesson-flow.spec.ts` now matches the repository Prettier string style and no longer blocks `npm run format:check`.
+
+### Tests
+
+- Added backend regression coverage for preserved env templates, required-file archive validation, extraction/bootstrap smoke, and deprecated learning-item review schema metadata while keeping the contradictory-client-correctness regression in place.
 
 ## [1.4.0-rc2] - 2026-07-11
 

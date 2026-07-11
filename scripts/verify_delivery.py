@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,21 @@ RELEASE_EXCLUDED_PREFIXES = (
     "frontend/node_modules/",
 )
 RELEASE_EXCLUDED_FILE_NAMES = (".env", ".env.local")
+RELEASE_SAFE_ENV_TEMPLATE_NAMES = (".env.example", ".env.sample", ".env.template")
+RELEASE_EXCLUDED_ENV_SUFFIXES = (
+    ".env.local",
+    ".env.development",
+    ".env.dev",
+    ".env.test",
+    ".env.staging",
+    ".env.production",
+    ".env.prod",
+    ".env.secret",
+    ".env.secrets",
+    ".env.private",
+    ".env.credentials",
+    ".env.credential",
+)
 RELEASE_EXCLUDED_SUFFIXES = (
     ".db",
     ".db-shm",
@@ -48,6 +64,20 @@ RELEASE_EXCLUDED_SUFFIXES = (
     ".log",
     ".sqlite",
     ".sqlite3",
+)
+REQUIRED_RELEASE_FILES = (
+    "README.md",
+    "VERSION",
+    "backend/.env.example",
+    "backend/requirements.txt",
+    "backend/main.py",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "start_backend.sh",
+    "start_frontend.sh",
+    ".vscode/launch.json",
+    ".vscode/tasks.json",
+    "docker-compose.yml",
 )
 PYTHON_VERSION = (3, 11)
 NODE_VERSION = "22.18.0"
@@ -262,6 +292,18 @@ def warn_optional(label: str, reason: str) -> None:
     print(f"\n[WARNING] {label}: {reason}")
 
 
+def is_safe_release_env_template(path: Path) -> bool:
+    return path.name in RELEASE_SAFE_ENV_TEMPLATE_NAMES
+
+
+def is_excluded_release_env_file(path: Path) -> bool:
+    if is_safe_release_env_template(path):
+        return False
+    if path.name in RELEASE_EXCLUDED_FILE_NAMES:
+        return True
+    return any(path.name.endswith(suffix) for suffix in RELEASE_EXCLUDED_ENV_SUFFIXES)
+
+
 def verify_version_consistency() -> None:
     package_json = json.loads((FRONTEND_DIR / "package.json").read_text(encoding="utf-8"))
     frontend_version = str(package_json.get("version", "")).strip()
@@ -311,6 +353,7 @@ def run_standard_verification() -> None:
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
+    verify_release_archive_bootstrap_smoke()
 
 
 def require_rag_dependencies() -> None:
@@ -418,10 +461,17 @@ def verify_release_archive() -> None:
 
     with ZipFile(RELEASE_ARCHIVE) as archive:
         names = archive.namelist()
+    name_set = set(names)
 
-    for name in names:
+    missing_required = [required for required in REQUIRED_RELEASE_FILES if required not in name_set]
+    if missing_required:
+        raise StepFailed(
+            "Release archive is missing required files: " + ", ".join(missing_required)
+        )
+
+    for name in sorted(name_set):
         path = Path(name)
-        if path.name in RELEASE_EXCLUDED_FILE_NAMES or path.match("*.env.*"):
+        if is_excluded_release_env_file(path):
             raise StepFailed(f"Release archive contains excluded local env file: {name}")
         if name.endswith(RELEASE_EXCLUDED_SUFFIXES):
             raise StepFailed(f"Release archive contains excluded runtime artifact: {name}")
@@ -431,6 +481,47 @@ def verify_release_archive() -> None:
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
 
     print(f"Verified release archive contents: {RELEASE_ARCHIVE}")
+
+
+def verify_release_archive_bootstrap_smoke() -> None:
+    if not RELEASE_ARCHIVE.exists():
+        raise StepFailed(f"Release archive not found: {RELEASE_ARCHIVE}")
+
+    with TemporaryDirectory(prefix="release-archive-smoke-") as temp_dir:
+        extract_root = Path(temp_dir)
+        with ZipFile(RELEASE_ARCHIVE) as archive:
+            archive.extractall(extract_root)
+
+        missing_paths = [relative for relative in REQUIRED_RELEASE_FILES if not (extract_root / relative).exists()]
+        if missing_paths:
+            raise StepFailed(
+                "Extracted release archive is missing required files: " + ", ".join(missing_paths)
+            )
+
+        backend_dir = extract_root / "backend"
+        env_template = backend_dir / ".env.example"
+        env_copy = backend_dir / ".env"
+        if not env_template.exists():
+            raise StepFailed("Extracted release archive is missing backend/.env.example")
+        shutil.copyfile(env_template, env_copy)
+        if not env_copy.exists():
+            raise StepFailed("Backend bootstrap smoke could not create backend/.env from backend/.env.example")
+
+        startup_paths = (
+            extract_root / "start_backend.sh",
+            backend_dir / "requirements.txt",
+            backend_dir / "main.py",
+            extract_root / "start_frontend.sh",
+            extract_root / "frontend" / "package.json",
+            extract_root / "frontend" / "package-lock.json",
+        )
+        unresolved = [str(path.relative_to(extract_root)).replace("\\", "/") for path in startup_paths if not path.exists()]
+        if unresolved:
+            raise StepFailed(
+                "Release archive extraction smoke found unresolved startup paths: " + ", ".join(unresolved)
+            )
+
+    print(f"Verified release archive extraction/bootstrap smoke: {RELEASE_ARCHIVE}")
 
 
 def parse_args() -> argparse.Namespace:

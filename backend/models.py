@@ -201,7 +201,11 @@ class LearningItemGroupResponse(BaseModel):
 class LearningItemReviewRequest(BaseModel):
     item_id: str
     rating: int = Field(ge=0, le=5)
-    correct: Optional[bool] = None
+    correct: Optional[bool] = Field(
+        default=None,
+        deprecated=True,
+        description="Deprecated. Correctness is derived from rating and this field is ignored.",
+    )
     response_time_ms: Optional[int] = Field(default=None, ge=0)
     source: Literal["lesson_review", "srs_review", "feynman_feedback", "manual"] = "manual"
 

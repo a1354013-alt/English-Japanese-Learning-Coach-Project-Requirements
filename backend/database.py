@@ -1012,7 +1012,6 @@ class Database:
         user_id: str,
         item_id: str,
         rating: int,
-        correct: Optional[bool] = None,
         response_time_ms: Optional[int] = None,
         source: str = "manual",
     ) -> Dict[str, Any]:

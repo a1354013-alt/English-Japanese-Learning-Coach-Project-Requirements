@@ -143,7 +143,6 @@ def apply_item_reviews_from_lesson(
                     user_id=user_id,
                     item_id=str(learning_item["id"]),
                     rating=4 if correct else 1,
-                    correct=correct,
                     source="lesson_review",
                 )
                 updated_count += 1
@@ -375,6 +374,5 @@ def _mark_missing_items_from_feedback(
             user_id=user_id,
             item_id=str(matched["id"]),
             rating=1,
-            correct=False,
             source="feynman_feedback",
         )

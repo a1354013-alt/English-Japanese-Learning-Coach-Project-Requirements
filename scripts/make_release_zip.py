@@ -29,7 +29,21 @@ EXCLUDED_DIR_NAMES = {
     "test-results",
 }
 EXCLUDED_FILE_NAMES = {".env", ".env.local"}
-EXCLUDED_FILE_PATTERNS = ("*.env.*",)
+SAFE_ENV_TEMPLATE_NAMES = {".env.example", ".env.sample", ".env.template"}
+EXCLUDED_ENV_SUFFIXES = (
+    ".env.local",
+    ".env.development",
+    ".env.dev",
+    ".env.test",
+    ".env.staging",
+    ".env.production",
+    ".env.prod",
+    ".env.secret",
+    ".env.secrets",
+    ".env.private",
+    ".env.credentials",
+    ".env.credential",
+)
 EXCLUDED_FILE_SUFFIXES = {
     ".db",
     ".db-shm",
@@ -56,15 +70,25 @@ EXCLUDED_RUNTIME_PREFIXES = (
 )
 
 
+def is_safe_env_template(relative_path: Path) -> bool:
+    return relative_path.name in SAFE_ENV_TEMPLATE_NAMES
+
+
+def is_excluded_env_file(relative_path: Path) -> bool:
+    if is_safe_env_template(relative_path):
+        return False
+    if relative_path.name in EXCLUDED_FILE_NAMES:
+        return True
+    return any(relative_path.name.endswith(suffix) for suffix in EXCLUDED_ENV_SUFFIXES)
+
+
 def should_skip(relative_path: Path) -> bool:
     parts = relative_path.parts
     if set(parts) & EXCLUDED_DIR_NAMES:
         return True
     if any(part.endswith(".egg-info") for part in relative_path.parts):
         return True
-    if relative_path.name in EXCLUDED_FILE_NAMES:
-        return True
-    if any(relative_path.match(pattern) for pattern in EXCLUDED_FILE_PATTERNS):
+    if is_excluded_env_file(relative_path):
         return True
     if relative_path.suffix in EXCLUDED_FILE_SUFFIXES:
         return True

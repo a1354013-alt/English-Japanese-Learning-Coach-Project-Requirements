@@ -41,7 +41,6 @@ def _seed_item(
     language: str = "EN",
     level: str = "A1",
     rating: int = 1,
-    correct: bool = False,
 ) -> None:
     saved = db.upsert_learning_item(
         user_id="default_user",
@@ -58,7 +57,6 @@ def _seed_item(
         user_id="default_user",
         item_id=str(saved["id"]),
         rating=rating,
-        correct=correct,
         source="manual",
     )
     with db.get_connection() as conn:
@@ -97,7 +95,7 @@ def test_today_study_mission_seeded_demo_state_contract_and_counts(tmp_path, mon
     )
     _seed_item(db, item_type="vocabulary", item_key="invoice", mastery_state="weak")
     _seed_item(db, item_type="grammar", item_key="Present Simple", mastery_state="weak")
-    _seed_item(db, item_type="sentence_pattern", item_key="I confirm ...", mastery_state="learning", rating=4, correct=True)
+    _seed_item(db, item_type="sentence_pattern", item_key="I confirm ...", mastery_state="learning", rating=4)
 
     response = client.get("/api/study/today?language=EN")
 
@@ -163,7 +161,7 @@ def test_analytics_2_learning_item_fields(tmp_path, monkeypatch):
     client, db = _client(tmp_path, monkeypatch)
     _seed_item(db, item_type="vocabulary", item_key="invoice", mastery_state="weak")
     _seed_item(db, item_type="grammar", item_key="Present Simple", mastery_state="weak")
-    _seed_item(db, item_type="sentence_pattern", item_key="I confirm ...", mastery_state="learning", rating=4, correct=True)
+    _seed_item(db, item_type="sentence_pattern", item_key="I confirm ...", mastery_state="learning", rating=4)
 
     response = client.get("/api/analytics")
 

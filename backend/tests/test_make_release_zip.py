@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 from pathlib import Path
 from types import ModuleType
 from zipfile import ZipFile
@@ -44,10 +45,23 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
     dist_dir = repo_root / "dist"
     _write_text(repo_root / "VERSION", "9.9.9")
     _write_text(repo_root / "README.md", "keep me")
+    _write_text(repo_root / "start_backend.sh", "#!/usr/bin/env bash\ncd backend\ncp .env.example .env\n")
+    _write_text(repo_root / "start_frontend.sh", "#!/usr/bin/env bash\ncd frontend\nnpm ci\n")
+    _write_text(repo_root / "docker-compose.yml", "services: {}\n")
+    _write_text(repo_root / ".vscode" / "launch.json", "{}")
+    _write_text(repo_root / ".vscode" / "tasks.json", "{}")
     _write_text(repo_root / ".env", "SECRET=1")
     _write_text(repo_root / ".env.local", "SECRET=1")
+    _write_text(repo_root / ".env.example", "ROOT_TEMPLATE=1")
+    _write_text(repo_root / ".env.sample", "ROOT_SAMPLE=1")
+    _write_text(repo_root / ".env.template", "ROOT_TEMPLATE=1")
     _write_text(repo_root / "backend" / ".env", "SECRET=1")
+    _write_text(repo_root / "backend" / ".env.example", "BACKEND_TEMPLATE=1")
+    _write_text(repo_root / "backend" / "requirements.txt", "fastapi\n")
+    _write_text(repo_root / "backend" / "main.py", "app = object()\n")
     _write_text(repo_root / "frontend" / ".env.local", "SECRET=1")
+    _write_text(repo_root / "frontend" / "package.json", "{\"name\":\"frontend\"}")
+    _write_text(repo_root / "frontend" / "package-lock.json", "{\"name\":\"frontend\",\"lockfileVersion\":3}")
     _write_text(repo_root / "ops.env.production", "SECRET=1")
     _write_text(repo_root / "backend" / "api.log", "log")
     _write_text(repo_root / "backend" / "data" / "runtime.json", "{}")
@@ -86,6 +100,19 @@ def test_release_zip_excludes_runtime_and_local_artifacts(tmp_path, monkeypatch)
         names = set(archive.namelist())
 
     assert "README.md" in names
+    assert ".env.example" in names
+    assert ".env.sample" in names
+    assert ".env.template" in names
+    assert "backend/.env.example" in names
+    assert "backend/requirements.txt" in names
+    assert "backend/main.py" in names
+    assert "frontend/package.json" in names
+    assert "frontend/package-lock.json" in names
+    assert "start_backend.sh" in names
+    assert "start_frontend.sh" in names
+    assert ".vscode/launch.json" in names
+    assert ".vscode/tasks.json" in names
+    assert "docker-compose.yml" in names
     assert "data/.gitkeep" in names
     assert ".env" not in names
     assert ".env.local" not in names
@@ -127,6 +154,11 @@ def test_should_skip_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path("backend/.env"))
     assert make_release_zip.should_skip(Path("frontend/.env.local"))
     assert make_release_zip.should_skip(Path("ops.env.production"))
+    assert make_release_zip.should_skip(Path("backend/.env.production"))
+    assert not make_release_zip.should_skip(Path(".env.example"))
+    assert not make_release_zip.should_skip(Path(".env.sample"))
+    assert not make_release_zip.should_skip(Path(".env.template"))
+    assert not make_release_zip.should_skip(Path("backend/.env.example"))
     assert make_release_zip.should_skip(Path("backend/api.log"))
     assert make_release_zip.should_skip(Path("data/language_coach.db"))
     assert make_release_zip.should_skip(Path("data/language_coach.sqlite"))
@@ -153,6 +185,17 @@ def test_verify_release_archive_rejects_excluded_artifacts(tmp_path, monkeypatch
     archive_path = tmp_path / "release.zip"
     with ZipFile(archive_path, "w") as archive:
         archive.writestr("README.md", "keep")
+        archive.writestr("VERSION", "9.9.9")
+        archive.writestr("backend/.env.example", "BACKEND_TEMPLATE=1\n")
+        archive.writestr("backend/requirements.txt", "fastapi\n")
+        archive.writestr("backend/main.py", "app = object()\n")
+        archive.writestr("frontend/package.json", "{\"name\":\"frontend\"}")
+        archive.writestr("frontend/package-lock.json", "{\"name\":\"frontend\",\"lockfileVersion\":3}")
+        archive.writestr("start_backend.sh", "#!/usr/bin/env bash\ncd backend\ncp .env.example .env\n")
+        archive.writestr("start_frontend.sh", "#!/usr/bin/env bash\ncd frontend\nnpm ci\n")
+        archive.writestr(".vscode/launch.json", "{}")
+        archive.writestr(".vscode/tasks.json", "{}")
+        archive.writestr("docker-compose.yml", "services: {}\n")
         archive.writestr("backend/.env", "SECRET=1")
 
     monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
@@ -163,3 +206,52 @@ def test_verify_release_archive_rejects_excluded_artifacts(tmp_path, monkeypatch
         assert "excluded local env file" in str(exc)
     else:
         raise AssertionError("Expected release archive verification to reject backend/.env")
+
+
+def test_verify_release_archive_rejects_missing_required_files(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    with ZipFile(archive_path, "w") as archive:
+        archive.writestr("README.md", "keep")
+        archive.writestr("VERSION", "9.9.9")
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    try:
+        verify_delivery.verify_release_archive()
+    except verify_delivery.StepFailed as exc:
+        assert "missing required files" in str(exc)
+        assert "backend/.env.example" in str(exc)
+    else:
+        raise AssertionError("Expected release archive verification to reject missing required files")
+
+
+def test_release_archive_extraction_bootstrap_smoke(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    with ZipFile(archive_path, "w") as archive:
+        archive.writestr("README.md", "keep")
+        archive.writestr("VERSION", "9.9.9")
+        archive.writestr("backend/.env.example", "BACKEND_TEMPLATE=1\n")
+        archive.writestr("backend/requirements.txt", "fastapi\n")
+        archive.writestr("backend/main.py", "app = object()\n")
+        archive.writestr("frontend/package.json", "{\"name\":\"frontend\"}")
+        archive.writestr("frontend/package-lock.json", "{\"name\":\"frontend\",\"lockfileVersion\":3}")
+        archive.writestr("start_backend.sh", "#!/usr/bin/env bash\ncd backend\ncp .env.example .env\n")
+        archive.writestr("start_frontend.sh", "#!/usr/bin/env bash\ncd frontend\nnpm ci\n")
+        archive.writestr(".vscode/launch.json", "{}")
+        archive.writestr(".vscode/tasks.json", "{}")
+        archive.writestr("docker-compose.yml", "services: {}\n")
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    verify_delivery.verify_release_archive()
+    verify_delivery.verify_release_archive_bootstrap_smoke()
+
+    extract_root = tmp_path / "manual-extract"
+    with ZipFile(archive_path) as archive:
+        archive.extractall(extract_root)
+    shutil.copyfile(
+        extract_root / "backend" / ".env.example",
+        extract_root / "backend" / ".env",
+    )
+    assert (extract_root / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_TEMPLATE=1\n"
+    assert (extract_root / "backend" / "main.py").exists()

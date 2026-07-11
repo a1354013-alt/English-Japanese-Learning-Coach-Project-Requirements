@@ -294,7 +294,7 @@ async function installMockApi(page: Page) {
           },
           today_goal_text:
             language === 'EN'
-              ? 'Complete today\'s micro lesson and continue with: Daily business English practice.'
+              ? "Complete today's micro lesson and continue with: Daily business English practice."
               : "Continue with today's Japanese study: Daily Japanese practice.",
           completion_summary: {
             current_streak: streak.current_streak,

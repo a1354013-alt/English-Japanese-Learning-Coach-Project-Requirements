@@ -19,6 +19,7 @@ from database import Database
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
+from models import LearningItemReviewRequest
 from routers import lessons as lessons_router
 from routers import review as review_router
 from services.learning_intelligence import build_snowball_context, sync_lesson_items
@@ -307,6 +308,13 @@ def test_learning_item_review_derives_correctness_from_rating(tmp_path, monkeypa
     assert outcomes[3]["interval_days"] < outcomes[4]["interval_days"] < outcomes[5]["interval_days"]
 
 
+def test_learning_item_review_request_marks_correct_field_deprecated():
+    schema = LearningItemReviewRequest.model_json_schema()
+    correct_field = schema["properties"]["correct"]
+    assert correct_field["deprecated"] is True
+    assert "ignored" in correct_field["description"]
+
+
 def test_snowball_context_and_prompt_include_recent_and_weak_items(tmp_path, monkeypatch):
     test_db = Database(str(tmp_path / "snowball.db"))
     _patch_modules(monkeypatch, test_db)
@@ -334,7 +342,6 @@ def test_snowball_context_and_prompt_include_recent_and_weak_items(tmp_path, mon
         user_id=user_id,
         item_id=str(item["id"]),
         rating=1,
-        correct=False,
         source="manual",
     )
 

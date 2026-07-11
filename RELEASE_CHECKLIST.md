@@ -5,8 +5,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 1. Prepare the release candidate
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.0-rc2`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.0-rc2`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.0-rc3`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.0-rc3`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
