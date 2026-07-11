@@ -2,99 +2,23 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from release_file_policy import may_include_in_release_archive  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = REPO_ROOT / "dist"
 VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 
-EXCLUDED_DIR_NAMES = {
-    ".git",
-    ".venv",
-    ".cache",
-    "node_modules",
-    "__pycache__",
-    ".coverage",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".playwright-data",
-    "cache",
-    "caches",
-    "coverage",
-    "dist",
-    "htmlcov",
-    "playwright-report",
-    "test-results",
-}
-EXCLUDED_FILE_NAMES = {".env", ".env.local"}
-SAFE_ENV_TEMPLATE_NAMES = {".env.example", ".env.sample", ".env.template"}
-EXCLUDED_ENV_SUFFIXES = (
-    ".env.local",
-    ".env.development",
-    ".env.dev",
-    ".env.test",
-    ".env.staging",
-    ".env.production",
-    ".env.prod",
-    ".env.secret",
-    ".env.secrets",
-    ".env.private",
-    ".env.credentials",
-    ".env.credential",
-)
-EXCLUDED_FILE_SUFFIXES = {
-    ".db",
-    ".db-shm",
-    ".db-wal",
-    ".log",
-    ".pyc",
-    ".pyo",
-    ".sqlite",
-    ".sqlite3",
-}
-EXCLUDED_RUNTIME_PREFIXES = (
-    ("backend", ".playwright-data"),
-    ("backend", ".pytest_cache"),
-    ("backend", "data"),
-    ("data", "chroma"),
-    ("data", "chroma_db"),
-    ("data", "audio"),
-    ("data", "exports"),
-    ("data", "lessons"),
-    ("frontend", "dist"),
-    ("frontend", "test-results"),
-    ("frontend", "playwright-report"),
-    ("frontend", "coverage"),
-)
-
-
-def is_safe_env_template(relative_path: Path) -> bool:
-    return relative_path.name in SAFE_ENV_TEMPLATE_NAMES
-
-
-def is_excluded_env_file(relative_path: Path) -> bool:
-    if is_safe_env_template(relative_path):
-        return False
-    if relative_path.name in EXCLUDED_FILE_NAMES:
-        return True
-    return any(relative_path.name.endswith(suffix) for suffix in EXCLUDED_ENV_SUFFIXES)
-
 
 def should_skip(relative_path: Path) -> bool:
-    parts = relative_path.parts
-    if set(parts) & EXCLUDED_DIR_NAMES:
-        return True
-    if any(part.endswith(".egg-info") for part in relative_path.parts):
-        return True
-    if is_excluded_env_file(relative_path):
-        return True
-    if relative_path.suffix in EXCLUDED_FILE_SUFFIXES:
-        return True
-    if any(parts[: len(prefix)] == prefix for prefix in EXCLUDED_RUNTIME_PREFIXES):
-        return True
-    return False
+    return not may_include_in_release_archive(relative_path)
 
 
 def main() -> int:

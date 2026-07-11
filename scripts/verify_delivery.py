@@ -15,60 +15,22 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import release_file_policy as _release_file_policy  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "backend"
 FRONTEND_DIR = REPO_ROOT / "frontend"
 VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip() or "dev"
 RELEASE_ARCHIVE = REPO_ROOT / "dist" / f"english-japanese-learning-coach-v{VERSION}.zip"
-RELEASE_EXCLUDED_PREFIXES = (
-    "backend/.playwright-data/",
-    "backend/.pytest_cache/",
-    "backend/data/",
-    ".cache/",
-    "cache/",
-    "caches/",
-    "coverage/",
-    "data/chroma/",
-    "data/chroma_db/",
-    "data/audio/",
-    "data/exports/",
-    "data/lessons/",
-    "htmlcov/",
-    "frontend/dist/",
-    "frontend/test-results/",
-    "frontend/playwright-report/",
-    "frontend/coverage/",
-    "node_modules/",
-    "frontend/node_modules/",
-)
-RELEASE_EXCLUDED_FILE_NAMES = (".env", ".env.local")
-RELEASE_SAFE_ENV_TEMPLATE_NAMES = (".env.example", ".env.sample", ".env.template")
-RELEASE_EXCLUDED_ENV_SUFFIXES = (
-    ".env.local",
-    ".env.development",
-    ".env.dev",
-    ".env.test",
-    ".env.staging",
-    ".env.production",
-    ".env.prod",
-    ".env.secret",
-    ".env.secrets",
-    ".env.private",
-    ".env.credentials",
-    ".env.credential",
-)
-RELEASE_EXCLUDED_SUFFIXES = (
-    ".db",
-    ".db-shm",
-    ".db-wal",
-    ".log",
-    ".sqlite",
-    ".sqlite3",
-)
 REQUIRED_RELEASE_FILES = (
     "README.md",
     "VERSION",
     "backend/.env.example",
+    "backend/docker-entrypoint.sh",
     "backend/requirements.txt",
     "backend/main.py",
     "frontend/package.json",
@@ -102,6 +64,10 @@ REQUIRED_BACKEND_MODULES = (
     ("ruff", "ruff"),
     ("mypy", "mypy"),
 )
+
+is_excluded_runtime_artifact = _release_file_policy.is_excluded_runtime_artifact
+is_safe_env_template = _release_file_policy.is_safe_env_template
+is_sensitive_env_file = _release_file_policy.is_sensitive_env_file
 
 
 class StepFailed(RuntimeError):
@@ -293,15 +259,11 @@ def warn_optional(label: str, reason: str) -> None:
 
 
 def is_safe_release_env_template(path: Path) -> bool:
-    return path.name in RELEASE_SAFE_ENV_TEMPLATE_NAMES
+    return is_safe_env_template(path)
 
 
 def is_excluded_release_env_file(path: Path) -> bool:
-    if is_safe_release_env_template(path):
-        return False
-    if path.name in RELEASE_EXCLUDED_FILE_NAMES:
-        return True
-    return any(path.name.endswith(suffix) for suffix in RELEASE_EXCLUDED_ENV_SUFFIXES)
+    return is_sensitive_env_file(path)
 
 
 def verify_version_consistency() -> None:
@@ -473,14 +435,33 @@ def verify_release_archive() -> None:
         path = Path(name)
         if is_excluded_release_env_file(path):
             raise StepFailed(f"Release archive contains excluded local env file: {name}")
-        if name.endswith(RELEASE_EXCLUDED_SUFFIXES):
-            raise StepFailed(f"Release archive contains excluded runtime artifact: {name}")
-        if any(name.startswith(prefix) for prefix in RELEASE_EXCLUDED_PREFIXES):
-            raise StepFailed(f"Release archive contains excluded artifact: {name}")
-        if "/node_modules/" in name:
+        if is_excluded_runtime_artifact(path):
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
 
     print(f"Verified release archive contents: {RELEASE_ARCHIVE}")
+
+
+def verify_release_archive_shell_syntax(extract_root: Path) -> None:
+    if os.name == "nt":
+        print("Skipped shell-script syntax validation on Windows host.")
+        return
+
+    bash = shutil.which("bash")
+    if bash is None:
+        print("Skipped shell-script syntax validation because bash is unavailable.")
+        return
+
+    for script_path in (
+        extract_root / "start_backend.sh",
+        extract_root / "start_frontend.sh",
+        extract_root / "backend" / "docker-entrypoint.sh",
+    ):
+        run_step(
+            f"Shell syntax check: {script_path.relative_to(extract_root).as_posix()}",
+            [bash, "-n", str(script_path)],
+            cwd=extract_root,
+            timeout=60,
+        )
 
 
 def verify_release_archive_bootstrap_smoke() -> None:
@@ -520,6 +501,7 @@ def verify_release_archive_bootstrap_smoke() -> None:
             raise StepFailed(
                 "Release archive extraction smoke found unresolved startup paths: " + ", ".join(unresolved)
             )
+        verify_release_archive_shell_syntax(extract_root)
 
     print(f"Verified release archive extraction/bootstrap smoke: {RELEASE_ARCHIVE}")
 

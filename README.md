@@ -4,7 +4,7 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-Current release: `v1.4.0-rc3`.
+Current release: `v1.4.0-rc4`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -63,7 +63,7 @@ Immersion is currently text shadowing only. The TTS endpoint remains provider-re
 
 ## v1.4 Adaptive Learning Intelligence
 
-Version `1.4.0-rc3` turns the additive learning-intelligence work into a coherent adaptive study flow:
+Version `1.4.0-rc4` turns the additive learning-intelligence work into a coherent adaptive study flow:
 
 - Daily Study Mission is available at `GET /api/study/today` and combines diagnostic status, due SRS counts, weak item counts, a suggested next lesson, and a completion summary.
 - The Today Mission Panel surfaces that mission on the Today page so demos can start with one clear adaptive goal.
@@ -416,7 +416,7 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` creates a delivery zip under `dist/` while explicitly excluding local env files, runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, `npm ci`, both frontend audits, frontend checks, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` and `scripts/release_file_policy.py` create a delivery zip under `dist/` while preserving only approved env templates (`.env.example`, `.env.sample`, `.env.template`) and excluding local env files such as `.env.*.local`, `production.env`, `local.env`, `secrets.env`, runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts. Release extraction smoke also syntax-checks `start_backend.sh`, `start_frontend.sh`, and `backend/docker-entrypoint.sh` with `bash -n` on non-Windows hosts when `bash` is available.
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for pinned local setup steps, [TEST_PLAN.md](TEST_PLAN.md) for the reproducible validation command set, and [DEPLOYMENT.md](DEPLOYMENT.md) for Docker and PDF font deployment notes.
 

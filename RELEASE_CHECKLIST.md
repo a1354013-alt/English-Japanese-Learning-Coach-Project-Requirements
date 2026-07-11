@@ -5,8 +5,8 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 ## 1. Prepare the release candidate
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.0-rc3`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.0-rc3`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.0-rc4`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.0-rc4`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
@@ -57,7 +57,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python scripts/verify_delivery.py`
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
-- Inspect the zip contents and confirm it does not contain `.env`, `.env.local`, `*.env.*`, `backend/.env`, `frontend/.env.local`, `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, cache directories, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
+- Inspect the zip contents and confirm it preserves only `.env.example`, `.env.sample`, and `.env.template` while excluding `.env`, `.env.local`, `.env.*.local`, `production.env`, `local.env`, `secrets.env`, `backend/.env`, `frontend/.env.local`, `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, cache directories, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, or `frontend/node_modules/`
 
 * Docker checks require local Docker availability. Run `docker compose config` when Docker is installed locally.
 * If shipping containers and Docker is available locally, also run `docker compose build`

@@ -2,15 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.4.0-rc4] - 2026-07-11
 
-### Added
+### Changed
 
-- Automated frontend i18n completeness coverage to keep Traditional Chinese keys aligned with English.
+- Version metadata is aligned to `1.4.0-rc4` across root, frontend package, and release-facing documentation.
+- Learning-item review requests still accept the legacy `correct` field for backward compatibility, but the schema now marks it deprecated and the backend continues to ignore it in favor of rating-derived correctness.
+- Automated frontend i18n completeness coverage keeps Traditional Chinese keys aligned with English.
 
 ### Fixed
 
 - Added missing Traditional Chinese Feynman feedback translations.
+- Release packaging and archive verification now share one release-file policy so sensitive env files stay excluded consistently at any depth.
+- Release packaging now preserves safe environment templates such as `.env.example`, `.env.sample`, and `.env.template` while rejecting `.env.*.local`, `production.env`, `local.env`, `secrets.env`, and similar secret-oriented env variants.
+- Release archive verification now fails clearly when required startup and delivery files are missing instead of only checking for forbidden artifacts.
+- Release extraction smoke now proves `backend/.env.example` can bootstrap `backend/.env`, that required startup paths resolve from the extracted archive, and that shipped shell scripts pass `bash -n` on non-Windows hosts when `bash` is available.
+- `frontend/e2e/lesson-flow.spec.ts` now matches the repository Prettier string style and no longer blocks `npm run format:check`.
+
+### Tests
+
+- Added backend regression coverage for preserved env templates, required-file archive validation, sensitive env variants such as `.env.development.local` and `production.env`, extraction/bootstrap smoke, shell syntax checks, and secret-redaction-safe archive assertions while keeping the contradictory-client-correctness regression in place.
 
 ## [1.4.0-rc3] - 2026-07-11
 
