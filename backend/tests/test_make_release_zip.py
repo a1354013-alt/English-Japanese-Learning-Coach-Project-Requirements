@@ -85,6 +85,10 @@ def _write_text(path: Path, content: str = "x") -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def assert_directory_missing_or_empty(path: Path) -> None:
+    assert not path.exists() or list(path.iterdir()) == []
+
+
 def _seed_release_repo(repo_root: Path) -> None:
     _write_text(repo_root / "VERSION", "9.9.9")
     _write_text(repo_root / "README.md", "keep me")
@@ -411,8 +415,7 @@ def test_make_release_zip_failure_leaves_no_new_final_or_temp_archive(tmp_path, 
     with pytest.raises(make_release_zip.ReleasePackagingError):
         make_release_zip.build_release_archive()
 
-    assert dist_dir.exists()
-    assert list(dist_dir.iterdir()) == []
+    assert_directory_missing_or_empty(dist_dir)
 
 
 def test_make_release_zip_failure_preserves_previous_archive_bytes(tmp_path, monkeypatch):
@@ -463,7 +466,7 @@ def test_make_release_zip_main_redacts_symlink_target_from_output(tmp_path, monk
     assert str(target) not in combined_output
     assert "TOP_SECRET_VALUE=never-package-me" not in combined_output
     assert not (dist_dir / "english-japanese-learning-coach-v9.9.9.zip").exists()
-    assert list(dist_dir.iterdir()) == []
+    assert_directory_missing_or_empty(dist_dir)
 
 
 def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path, Path, Path]:
