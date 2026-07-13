@@ -29,6 +29,8 @@ async def get_today_study_mission(
     user_id: str = Depends(require_demo_user_id),
 ):
     diagnostic_state = db.get_diagnostic_state(user_id) if language == "EN" else None
+    if diagnostic_state:
+        diagnostic_state = db.advance_micro_lesson_day_if_due(user_id) or diagnostic_state
     learning_plan: LearningPlan | None = None
     micro_lesson: dict[str, Any] | None = None
     micro_status = "diagnostic_required" if language == "EN" else "unavailable"

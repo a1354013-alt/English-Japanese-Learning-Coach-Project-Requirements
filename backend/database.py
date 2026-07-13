@@ -637,6 +637,37 @@ class Database:
         lesson["completed"] = bool(row["completed"])
         return lesson
 
+    def advance_micro_lesson_day_if_due(self, user_id: str, today: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        today = today or self._local_date_str()
+        state = self.get_diagnostic_state(user_id)
+        if not state:
+            return None
+        current_day = int(state["current_day"])
+        if current_day >= int(state["estimated_total_days"]):
+            return state
+        lesson = self.get_micro_lesson_by_day(user_id, current_day)
+        if not lesson or not lesson.get("completed"):
+            return state
+        completed_date = lesson.get("completed_local_date")
+        if not completed_date:
+            completed_at = str(lesson.get("completed_at") or "")
+            completed_date = completed_at[:10] if completed_at else today
+        if str(completed_date) >= today:
+            return state
+        next_day = current_day + 1
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE diagnostic_state
+                SET current_day = ?
+                WHERE user_id = ? AND current_day = ?
+                """,
+                (next_day, user_id, current_day),
+            )
+        updated = dict(state)
+        updated["current_day"] = next_day
+        return updated
+
     def mark_micro_lesson_completed(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
         lesson = self.get_micro_lesson_by_id(user_id, lesson_id)
         if not lesson:
@@ -644,6 +675,8 @@ class Database:
         if not lesson.get("completed"):
             lesson["completed"] = True
             now = _local_now().isoformat()
+            lesson["completed_at"] = now
+            lesson["completed_local_date"] = self._local_date_str()
             with self.get_connection() as conn:
                 conn.execute(
                     """
@@ -652,14 +685,6 @@ class Database:
                     WHERE user_id = ? AND lesson_id = ?
                     """,
                     (json.dumps(lesson, ensure_ascii=False, default=str), now, user_id, lesson_id),
-                )
-                conn.execute(
-                    """
-                    UPDATE diagnostic_state
-                    SET current_day = current_day + 1
-                    WHERE user_id = ?
-                    """,
-                    (user_id,),
                 )
         return lesson
 

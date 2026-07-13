@@ -21,6 +21,23 @@ const flattenKeys = (value: LocaleNode, prefix = ''): string[] => {
   return prefix ? [prefix] : []
 }
 
+const flattenStrings = (
+  value: LocaleNode,
+  prefix = '',
+): Array<{ key: string; value: string }> => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      flattenStrings(item, prefix ? `${prefix}.${index}` : String(index)),
+    )
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) =>
+      flattenStrings(child, prefix ? `${prefix}.${key}` : key),
+    )
+  }
+  return typeof value === 'string' && prefix ? [{ key: prefix, value }] : []
+}
+
 describe('i18n locale completeness', () => {
   it('keeps Traditional Chinese keys aligned with English', () => {
     const englishKeys = flattenKeys(en)
@@ -28,5 +45,13 @@ describe('i18n locale completeness', () => {
     const missingKeys = englishKeys.filter((key) => !zhTWKeys.has(key))
 
     expect(missingKeys).toEqual([])
+  })
+
+  it('does not leave placeholder question marks in Traditional Chinese labels', () => {
+    const placeholderEntries = flattenStrings(zhTW).filter(({ value }) =>
+      /\?{2,}/.test(value),
+    )
+
+    expect(placeholderEntries).toEqual([])
   })
 })

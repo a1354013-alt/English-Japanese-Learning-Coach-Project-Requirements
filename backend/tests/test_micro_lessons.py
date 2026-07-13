@@ -174,6 +174,43 @@ def test_micro_lesson_template_bank_has_at_least_seven_stable_day_templates():
     assert lessons[-1].sentence == "We review one sentence again."
 
 
+def test_micro_lesson_templates_are_localized_for_beginner_zh_tw():
+    lessons = [build_micro_lesson(day_index=day, total_days=90) for day in range(1, 8)]
+
+    for lesson in lessons:
+        realistic_phonetic_count = 0
+        assert lesson.translation_zh != lesson.sentence
+        assert any("\u4e00" <= char <= "\u9fff" for char in lesson.translation_zh)
+        assert any("\u4e00" <= char <= "\u9fff" for char in lesson.grammar_note)
+        assert any("\u4e00" <= char <= "\u9fff" for char in lesson.toeic_usage_note)
+        assert "中文提示" in lesson.reading_passage
+        for step in lesson.reading_order_steps:
+            assert any("\u4e00" <= char <= "\u9fff" for char in step)
+        for item in lesson.vocabulary_items:
+            assert item.definition_zh != item.word
+            assert item.example_translation != item.example_sentence
+            assert item.phonetic.startswith("/") and item.phonetic.endswith("/")
+            if item.phonetic != f"/{item.word}/":
+                realistic_phonetic_count += 1
+            assert any("\u4e00" <= char <= "\u9fff" for char in item.pronunciation_zh)
+        for line in lesson.dialogue_lines:
+            assert line.translation_zh != line.english
+        for panel in lesson.comic_panels:
+            assert panel.translation_zh != panel.english
+        assert realistic_phonetic_count >= 4
+
+
+def test_polite_request_template_treats_please_as_marker_not_subject():
+    lesson = build_micro_lesson(day_index=5, total_days=90)
+
+    assert lesson.sentence == "Please confirm the meeting time."
+    assert lesson.subject_text == "(you)"
+    assert lesson.verb_text == "confirm"
+    assert lesson.object_text == "the meeting time"
+    assert "Please" in lesson.grammar_note
+    assert "不是主詞" in lesson.grammar_note
+
+
 def test_micro_lesson_generation_is_deterministic_without_live_llm():
     first = build_micro_lesson(day_index=3, total_days=90)
     second = build_micro_lesson(day_index=3, total_days=90)
@@ -208,6 +245,72 @@ def test_answer_correct_marks_completed(tmp_path, monkeypatch):
     assert body["completed"] is True
     assert body["lesson"]["completed"] is True
     assert body["streak"]["today_completed"] is True
+
+
+def test_correct_answer_keeps_completed_day_available_on_same_date(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+
+    response = client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    assert response.status_code == 200
+
+    today = client.get("/api/micro-lessons/today").json()["lesson"]
+
+    assert today["day_index"] == 1
+    assert today["lesson_id"] == lesson["lesson_id"]
+    assert today["completed"] is True
+
+
+def test_repeated_correct_answer_does_not_duplicate_progress_streak_or_xp(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    payload = {"answer": lesson["fill_blank_question"]["correct_answer"]}
+
+    first = client.post(f"/api/micro-lessons/{lesson['lesson_id']}/answer", json=payload)
+    progress_after_first = micro_lessons_router.db.get_progress("default_user")
+    xp_after_first = micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"]
+    streak_after_first = first.json()["streak"]
+
+    second = client.post(f"/api/micro-lessons/{lesson['lesson_id']}/answer", json=payload)
+    progress_after_second = micro_lessons_router.db.get_progress("default_user")
+    xp_after_second = micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"]
+    streak_after_second = second.json()["streak"]
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert progress_after_first["english_progress"] == progress_after_second["english_progress"]
+    assert xp_after_second == xp_after_first
+    assert streak_after_second == streak_after_first
+
+
+def test_next_micro_lesson_advancement_is_date_gated_and_deterministic(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    completed_lesson = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+    assert completed_lesson is not None
+
+    same_day_state = micro_lessons_router.db.advance_micro_lesson_day_if_due(
+        "default_user",
+        today=completed_lesson["completed_local_date"],
+    )
+    assert same_day_state["current_day"] == 1
+
+    next_day_state = micro_lessons_router.db.advance_micro_lesson_day_if_due("default_user", today="9999-01-01")
+    day_two = client.get("/api/micro-lessons/today").json()["lesson"]
+
+    assert next_day_state["current_day"] == 2
+    assert day_two["day_index"] == 2
+    assert day_two["completed"] is False
 
 
 def test_answer_wrong_does_not_mark_completed(tmp_path, monkeypatch):

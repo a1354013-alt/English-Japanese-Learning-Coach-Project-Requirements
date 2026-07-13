@@ -27,6 +27,14 @@
       <span>{{ localLesson.translation_zh }}</span>
     </div>
 
+    <p
+      v-if="localLesson.completed"
+      class="completion-note"
+      data-testid="micro-completed-note"
+    >
+      {{ t('microLesson.completedTodayNote') }}
+    </p>
+
     <div class="micro-grid">
       <div>
         <h3>{{ t('microLesson.breakdown') }}</h3>
@@ -132,6 +140,13 @@
         {{ submitting ? t('today.submitting') : t('common.submit') }}
       </button>
       <p v-if="answerMessage" class="answer-message">{{ answerMessage }}</p>
+      <p
+        v-if="answerExplanation"
+        class="answer-explanation"
+        data-testid="micro-answer-explanation"
+      >
+        {{ answerExplanation }}
+      </p>
     </section>
   </section>
 </template>
@@ -156,6 +171,7 @@ const localLesson = reactive<MicroLesson>({ ...props.lesson })
 const selectedAnswer = ref('')
 const submitting = ref(false)
 const answerMessage = ref('')
+const answerExplanation = ref('')
 
 watch(
   () => props.lesson,
@@ -163,6 +179,7 @@ watch(
     Object.assign(localLesson, nextLesson)
     selectedAnswer.value = ''
     answerMessage.value = ''
+    answerExplanation.value = ''
   },
 )
 
@@ -170,6 +187,7 @@ const submitAnswer = async () => {
   if (!selectedAnswer.value) return
   submitting.value = true
   answerMessage.value = ''
+  answerExplanation.value = ''
   try {
     const response = await microLessonApi.answer(
       localLesson.lesson_id,
@@ -179,6 +197,9 @@ const submitAnswer = async () => {
     answerMessage.value = response.correct
       ? t('microLesson.correct')
       : t('microLesson.incorrect')
+    answerExplanation.value = response.correct
+      ? ''
+      : localLesson.fill_blank_question.explanation
     if (response.completed) {
       emit('completed', response.lesson)
     }
@@ -309,6 +330,22 @@ const submitAnswer = async () => {
 .answer-message {
   font-weight: 700;
   margin: 12px 0 0;
+}
+
+.answer-explanation,
+.completion-note {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #14532d;
+  margin: 12px 0 0;
+  padding: 12px;
+}
+
+.answer-explanation {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #7c2d12;
 }
 
 @media (max-width: 800px) {

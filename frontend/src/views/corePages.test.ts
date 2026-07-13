@@ -943,6 +943,39 @@ describe('TodayLesson.vue', () => {
     expect(wrapper.get('[data-testid="micro-lesson"]').text()).toContain(
       'microLesson.completed',
     )
+    expect(wrapper.get('[data-testid="micro-completed-note"]').text()).toBe(
+      'microLesson.completedTodayNote',
+    )
+  })
+
+  it('shows the fill blank explanation after a wrong micro lesson answer', async () => {
+    const lesson = microLessonPayload()
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+    apiMocks.answerMicroLesson.mockResolvedValueOnce({
+      success: true,
+      correct: false,
+      completed: false,
+      lesson,
+      streak: streak({ today_completed: false }),
+    })
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'raises')
+      ?.trigger('click')
+    await wrapper.get('[data-testid="micro-answer-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.answerMicroLesson).toHaveBeenCalledWith('micro-1', 'raises')
+    expect(wrapper.get('[data-testid="micro-answer-explanation"]').text()).toBe(
+      'We uses raise.',
+    )
   })
 
   it('renders textbook-style lesson sections', async () => {

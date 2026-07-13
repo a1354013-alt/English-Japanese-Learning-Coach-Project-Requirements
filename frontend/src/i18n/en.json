@@ -451,6 +451,7 @@
     "dayLabel": "Day {day} / Day {total}",
     "title": "Daily Micro Lesson",
     "completed": "Completed",
+    "completedTodayNote": "Today's micro lesson is complete. You can stop here and unlock the next day tomorrow.",
     "breakdown": "Subject / Verb Breakdown",
     "subject": "Subject",
     "verb": "Verb",

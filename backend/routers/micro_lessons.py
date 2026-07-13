@@ -136,6 +136,7 @@ async def get_today_micro_lesson(user_id: str = Depends(require_demo_user_id)):
     if not state:
         return {"success": True, "diagnostic_completed": False, "learning_plan": None, "lesson": None}
 
+    state = db.advance_micro_lesson_day_if_due(user_id) or state
     plan = learning_plan_from_state(state)
     lesson = db.get_micro_lesson_by_day(user_id, plan.current_day)
     if not lesson:
