@@ -2,21 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0-rc7] - 2026-07-13
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc7` across root, frontend package metadata, and release-facing documentation including `docs/DEMO_GUIDE.md`.
+- Completed final-day micro lessons now show a plan-completed message instead of telling the learner to unlock a next day that does not exist.
+
+### Fixed
+
+- `POST /api/micro-lessons/generate` now advances the daily micro-lesson day if due, returns an existing current-day lesson unchanged, and only creates a lesson when the resolved day has no saved lesson.
+- Micro-lesson generation no longer downgrades completed lessons or clears completion timestamps, and the database save helper refuses ordinary incomplete upserts over already completed micro lessons.
+- Legacy completed micro lessons without `completed_local_date` or `completed_at` now use the persisted row timestamp as a deterministic advancement fallback instead of the current request date.
+- Replaced a mixed-script beginner pronunciation hint in the micro-lesson template bank.
+
+### Tests
+
+- Added regression coverage for same-day generate idempotency after completion, preserved lesson IDs and completion timestamps, unchanged XP/progress/activity/streak state, one-day-only advancement after the local date changes, legacy completion-date fallback, final-day bounds, and both completion messages.
+
 ## [1.4.0-rc6] - 2026-07-12
 
 ### Changed
 
 - Version metadata is aligned to `1.4.0-rc6` across root, frontend package metadata, and release-facing documentation including `docs/DEMO_GUIDE.md`.
 - Release verification now checks current-release references in `README.md`, `RELEASE_CHECKLIST.md`, and `docs/DEMO_GUIDE.md` in addition to root `VERSION` and `frontend/package.json`, while leaving historical `CHANGELOG.md` entries untouched.
+- Daily micro lessons now advance by local date after completion instead of immediately replacing the completed day.
+- Micro lessons include Traditional Chinese copy throughout the beginner template bank, including sentence translations, dialogue, reading support, comic-panel translations, and example-sentence translations.
+- Beginner pronunciation hints and IPA are shown with vocabulary items.
+- Incorrect micro-lesson answers show an explanation in the UI.
+- Completed-today messaging keeps the completed lesson visible until the next local day unlocks.
 
 ### Fixed
 
 - Release ZIP creation is now atomic: includable symlink rejection happens before the final archive is touched, archive writes go through a temporary file in `dist`, successful builds replace the final ZIP atomically, failed builds clean up temporary files, and previously valid archives remain unchanged when a later build fails.
 - Release packaging and crafted-archive verification now also reject common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, and local runtime directories such as `.direnv`.
+- Traditional Chinese Analytics placeholders were corrected so localized metric text renders with values.
 
 ### Tests
 
 - Added regression coverage for atomic archive failure cleanup and replacement behavior, stale current-release reference verification failures, common credential-file exclusion in packaging and crafted archives, and CLI-output redaction for symlink rejection.
+- Added i18n placeholder regression coverage to keep English and Traditional Chinese interpolation keys aligned.
 
 ## [1.4.0-rc5] - 2026-07-11
 

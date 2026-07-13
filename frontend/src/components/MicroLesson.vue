@@ -32,7 +32,7 @@
       class="completion-note"
       data-testid="micro-completed-note"
     >
-      {{ t('microLesson.completedTodayNote') }}
+      {{ t(completionNoteKey) }}
     </p>
 
     <div class="micro-grid">
@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { microLessonApi } from '@/services/api'
 import type { LearningPlan, MicroLesson } from '@/types'
@@ -172,6 +172,11 @@ const selectedAnswer = ref('')
 const submitting = ref(false)
 const answerMessage = ref('')
 const answerExplanation = ref('')
+const completionNoteKey = computed(() =>
+  localLesson.day_index < localLesson.total_days
+    ? 'microLesson.completedTodayNote'
+    : 'microLesson.planCompletedNote',
+)
 
 watch(
   () => props.lesson,

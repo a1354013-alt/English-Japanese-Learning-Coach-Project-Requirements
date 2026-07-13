@@ -1,3 +1,5 @@
+import json
+
 import database as database_module
 import gamification_engine as gamification_module
 import routers.micro_lessons as micro_lessons_router
@@ -193,6 +195,7 @@ def test_micro_lesson_templates_are_localized_for_beginner_zh_tw():
             if item.phonetic != f"/{item.word}/":
                 realistic_phonetic_count += 1
             assert any("\u4e00" <= char <= "\u9fff" for char in item.pronunciation_zh)
+            assert not any("\u3040" <= char <= "\u30ff" for char in item.pronunciation_zh)
         for line in lesson.dialogue_lines:
             assert line.translation_zh != line.english
         for panel in lesson.comic_panels:
@@ -265,6 +268,67 @@ def test_correct_answer_keeps_completed_day_available_on_same_date(tmp_path, mon
     assert today["completed"] is True
 
 
+def test_generate_preserves_completed_lesson_and_reward_state(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    answer = client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    assert answer.status_code == 200
+    completed_lesson = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+    assert completed_lesson is not None
+    completed_at = completed_lesson["completed_at"]
+    completed_local_date = completed_lesson["completed_local_date"]
+    progress_after_complete = micro_lessons_router.db.get_progress("default_user")
+    xp_after_complete = micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"]
+    streak_after_complete = micro_lessons_router.db.get_streak_info("default_user")
+
+    first_generate = client.post("/api/micro-lessons/generate")
+    second_generate = client.post("/api/micro-lessons/generate")
+    persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert first_generate.status_code == 200
+    assert second_generate.status_code == 200
+    assert first_generate.json()["lesson"] == second_generate.json()["lesson"]
+    assert first_generate.json()["lesson"]["lesson_id"] == lesson["lesson_id"]
+    assert first_generate.json()["lesson"]["completed"] is True
+    assert persisted is not None
+    assert persisted["lesson_id"] == lesson["lesson_id"]
+    assert persisted["completed"] is True
+    assert persisted["completed_at"] == completed_at
+    assert persisted["completed_local_date"] == completed_local_date
+    assert micro_lessons_router.db.get_progress("default_user")["english_progress"] == progress_after_complete["english_progress"]
+    assert micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"] == xp_after_complete
+    assert micro_lessons_router.db.get_streak_info("default_user") == streak_after_complete
+
+
+def test_save_micro_lesson_cannot_downgrade_completed_lesson(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    completed = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+    assert completed is not None
+
+    replacement = build_micro_lesson(day_index=1, total_days=90).model_dump()
+    replacement["lesson_id"] = "replacement-lesson"
+    saved = micro_lessons_router.db.save_micro_lesson("default_user", replacement)
+    persisted = micro_lessons_router.db.get_micro_lesson_by_day("default_user", 1)
+
+    assert saved["lesson_id"] == lesson["lesson_id"]
+    assert saved["completed"] is True
+    assert persisted is not None
+    assert persisted["lesson_id"] == lesson["lesson_id"]
+    assert persisted["completed"] is True
+    assert persisted["completed_at"] == completed["completed_at"]
+    assert persisted["completed_local_date"] == completed["completed_local_date"]
+
+
 def test_repeated_correct_answer_does_not_duplicate_progress_streak_or_xp(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     _submit_diagnostic(client)
@@ -311,6 +375,92 @@ def test_next_micro_lesson_advancement_is_date_gated_and_deterministic(tmp_path,
     assert next_day_state["current_day"] == 2
     assert day_two["day_index"] == 2
     assert day_two["completed"] is False
+
+
+def test_generate_after_local_date_change_advances_once_and_returns_next_lesson(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    completed = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+    assert completed is not None
+    next_date = "9999-01-01"
+    monkeypatch.setattr(micro_lessons_router.db, "_local_date_str", lambda dt=None: next_date)
+
+    first = client.post("/api/micro-lessons/generate").json()["lesson"]
+    second = client.post("/api/micro-lessons/generate").json()["lesson"]
+    third = client.post("/api/micro-lessons/generate").json()["lesson"]
+    state = micro_lessons_router.db.get_diagnostic_state("default_user")
+
+    assert first["day_index"] == 2
+    assert second == first
+    assert third == first
+    assert state is not None
+    assert state["current_day"] == 2
+    assert micro_lessons_router.db.get_micro_lesson_by_day("default_user", 3) is None
+
+
+def test_legacy_completed_lesson_without_completion_dates_uses_persisted_updated_at(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = build_micro_lesson(day_index=1, total_days=90).model_dump()
+    lesson["lesson_id"] = "legacy-day-1"
+    lesson["completed"] = True
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO micro_lessons (
+                lesson_id, user_id, day_index, lesson_json, completed, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                lesson["lesson_id"],
+                "default_user",
+                1,
+                json.dumps(lesson, ensure_ascii=False, default=str),
+                1,
+                "2026-07-10T08:00:00+08:00",
+                "2026-07-10T08:00:00+08:00",
+            ),
+        )
+
+    same_day = micro_lessons_router.db.advance_micro_lesson_day_if_due("default_user", today="2026-07-10")
+    next_day = micro_lessons_router.db.advance_micro_lesson_day_if_due("default_user", today="2026-07-11")
+
+    assert same_day is not None
+    assert same_day["current_day"] == 1
+    assert next_day is not None
+    assert next_day["current_day"] == 2
+
+
+def test_final_micro_lesson_day_does_not_advance_past_plan_total(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    micro_lessons_router.db.save_diagnostic_state(
+        user_id="default_user",
+        estimated_total_days=2,
+        current_day=2,
+        summary_zh="final day",
+        correct_count=4,
+    )
+    lesson = client.get("/api/micro-lessons/today").json()["lesson"]
+    client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
+    monkeypatch.setattr(micro_lessons_router.db, "_local_date_str", lambda dt=None: "9999-01-01")
+
+    generated = client.post("/api/micro-lessons/generate").json()["lesson"]
+    state = micro_lessons_router.db.get_diagnostic_state("default_user")
+
+    assert generated["day_index"] == 2
+    assert generated["total_days"] == 2
+    assert generated["completed"] is True
+    assert state is not None
+    assert state["current_day"] == 2
 
 
 def test_answer_wrong_does_not_mark_completed(tmp_path, monkeypatch):

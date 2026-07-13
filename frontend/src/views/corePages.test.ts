@@ -948,6 +948,48 @@ describe('TodayLesson.vue', () => {
     )
   })
 
+  it('shows the next-day unlock note only before the final micro lesson day', async () => {
+    const completed = microLessonPayload({
+      completed: true,
+      day_index: 89,
+      total_days: 90,
+    })
+    apiMocks.getMicroToday.mockResolvedValueOnce(microTodayPayload(completed))
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="micro-completed-note"]').text()).toBe(
+      'microLesson.completedTodayNote',
+    )
+  })
+
+  it('shows a plan-completed note on the final micro lesson day', async () => {
+    const completed = microLessonPayload({
+      completed: true,
+      day_index: 90,
+      total_days: 90,
+    })
+    apiMocks.getMicroToday.mockResolvedValueOnce(microTodayPayload(completed))
+    apiMocks.getTodayLesson.mockResolvedValueOnce({
+      success: true,
+      lesson: null,
+    })
+    apiMocks.getStreak.mockResolvedValue(streak())
+
+    const wrapper = mount(TodayLesson)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="micro-completed-note"]').text()).toBe(
+      'microLesson.planCompletedNote',
+    )
+  })
+
   it('shows the fill blank explanation after a wrong micro lesson answer', async () => {
     const lesson = microLessonPayload()
     apiMocks.getTodayLesson.mockResolvedValueOnce({

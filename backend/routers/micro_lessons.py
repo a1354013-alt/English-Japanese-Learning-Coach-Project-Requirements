@@ -157,9 +157,14 @@ async def generate_micro_lesson(user_id: str = Depends(require_demo_user_id)):
             summary_zh="Demo learner is ready for a 90-day TOEIC 600 micro lesson plan.",
             correct_count=0,
         )
+    state = db.advance_micro_lesson_day_if_due(user_id) or state
     plan = learning_plan_from_state(state)
-    lesson = build_micro_lesson(day_index=plan.current_day, total_days=plan.estimated_total_days)
-    db.save_micro_lesson(user_id, lesson.model_dump())
+    existing_lesson = db.get_micro_lesson_by_day(user_id, plan.current_day)
+    if existing_lesson:
+        return {"success": True, "lesson": existing_lesson}
+
+    lesson = build_micro_lesson(day_index=plan.current_day, total_days=plan.estimated_total_days).model_dump()
+    db.save_micro_lesson(user_id, lesson)
     return {"success": True, "lesson": lesson}
 
 

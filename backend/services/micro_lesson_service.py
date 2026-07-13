@@ -91,7 +91,7 @@ MICRO_LESSON_TEMPLATES: list[dict[str, object]] = [
             ("ready", "/ˈredi/", "瑞迪", "準備好的", "The room is ready.", "房間準備好了。"),
             ("available", "/əˈveɪləbəl/", "阿 Vei 了薄", "可用的；有空的", "The manager is available.", "經理現在有空。"),
             ("room", "/ruːm/", "如姆", "房間；會議室", "The room is quiet.", "房間很安靜。"),
-            ("file", "/faɪl/", "發イル", "檔案", "The file is ready.", "檔案準備好了。"),
+            ("file", "/faɪl/", "發以爾", "檔案", "The file is ready.", "檔案準備好了。"),
         ],
     },
     {

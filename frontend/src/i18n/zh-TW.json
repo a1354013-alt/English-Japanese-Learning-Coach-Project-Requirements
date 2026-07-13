@@ -463,6 +463,7 @@
     "title": "每日微課",
     "completed": "已完成",
     "completedTodayNote": "今天的每日短課已完成。你可以先停在這裡，明天再解鎖下一天。",
+    "planCompletedNote": "今天的每日短課已完成。你已完成這個計畫的最後一天。",
     "breakdown": "主詞 / 動詞拆解",
     "subject": "主詞",
     "verb": "動詞",

@@ -581,6 +581,9 @@ class Database:
     def save_micro_lesson(self, user_id: str, lesson_data: Dict[str, Any]) -> Dict[str, Any]:
         now = _local_now().isoformat()
         completed = 1 if lesson_data.get("completed") else 0
+        existing = self.get_micro_lesson_by_day(user_id, int(lesson_data["day_index"]))
+        if existing and existing.get("completed") and not completed:
+            return existing
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -609,7 +612,7 @@ class Database:
         with self.get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT lesson_json, completed
+                SELECT lesson_json, completed, created_at, updated_at
                 FROM micro_lessons
                 WHERE user_id = ? AND day_index = ?
                 """,
@@ -619,13 +622,15 @@ class Database:
             return None
         lesson = json.loads(row["lesson_json"])
         lesson["completed"] = bool(row["completed"])
+        lesson["_created_at"] = row["created_at"]
+        lesson["_updated_at"] = row["updated_at"]
         return lesson
 
     def get_micro_lesson_by_id(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
             row = conn.execute(
                 """
-                SELECT lesson_json, completed
+                SELECT lesson_json, completed, created_at, updated_at
                 FROM micro_lessons
                 WHERE user_id = ? AND lesson_id = ?
                 """,
@@ -635,6 +640,8 @@ class Database:
             return None
         lesson = json.loads(row["lesson_json"])
         lesson["completed"] = bool(row["completed"])
+        lesson["_created_at"] = row["created_at"]
+        lesson["_updated_at"] = row["updated_at"]
         return lesson
 
     def advance_micro_lesson_day_if_due(self, user_id: str, today: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -651,7 +658,10 @@ class Database:
         completed_date = lesson.get("completed_local_date")
         if not completed_date:
             completed_at = str(lesson.get("completed_at") or "")
-            completed_date = completed_at[:10] if completed_at else today
+            persisted_at = str(lesson.get("_updated_at") or lesson.get("_created_at") or "")
+            completed_date = completed_at[:10] if completed_at else persisted_at[:10]
+        if not completed_date:
+            return state
         if str(completed_date) >= today:
             return state
         next_day = current_day + 1
