@@ -224,6 +224,18 @@ class Database:
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS micro_lesson_reward_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                lesson_id TEXT NOT NULL,
+                reward_type TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                UNIQUE(user_id, lesson_id, reward_type)
+            )
+            """
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_language ON lessons(language)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(generated_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_srs_due ON srs_vocabulary(next_review)")
@@ -337,6 +349,18 @@ class Database:
                 created_at TIMESTAMP NOT NULL,
                 updated_at TIMESTAMP NOT NULL,
                 UNIQUE(user_id, day_index)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS micro_lesson_reward_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                lesson_id TEXT NOT NULL,
+                reward_type TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                UNIQUE(user_id, lesson_id, reward_type)
             )
             """
         )
@@ -581,32 +605,37 @@ class Database:
     def save_micro_lesson(self, user_id: str, lesson_data: Dict[str, Any]) -> Dict[str, Any]:
         now = _local_now().isoformat()
         completed = 1 if lesson_data.get("completed") else 0
-        existing = self.get_micro_lesson_by_day(user_id, int(lesson_data["day_index"]))
-        if existing and existing.get("completed") and not completed:
-            return existing
+        day_index = int(lesson_data["day_index"])
+        stored_lesson = {key: value for key, value in lesson_data.items() if not str(key).startswith("_")}
         with self.get_connection() as conn:
             conn.execute(
                 """
                 INSERT INTO micro_lessons (
                     lesson_id, user_id, day_index, lesson_json, completed, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, day_index) DO UPDATE SET
-                    lesson_id=excluded.lesson_id,
-                    lesson_json=excluded.lesson_json,
-                    completed=excluded.completed,
-                    updated_at=excluded.updated_at
+                ON CONFLICT(user_id, day_index) DO NOTHING
                 """,
                 (
-                    lesson_data["lesson_id"],
+                    stored_lesson["lesson_id"],
                     user_id,
-                    lesson_data["day_index"],
-                    json.dumps(lesson_data, ensure_ascii=False, default=str),
+                    day_index,
+                    json.dumps(stored_lesson, ensure_ascii=False, default=str),
                     completed,
                     now,
                     now,
                 ),
             )
-        return lesson_data
+        persisted = self.get_micro_lesson_by_day(user_id, day_index)
+        if not persisted:
+            raise RuntimeError("micro lesson save failed to return a persisted lesson")
+        return persisted
+
+    def _micro_lesson_from_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+        lesson = json.loads(row["lesson_json"])
+        lesson["completed"] = bool(row["completed"])
+        lesson["_created_at"] = row["created_at"]
+        lesson["_updated_at"] = row["updated_at"]
+        return lesson
 
     def get_micro_lesson_by_day(self, user_id: str, day_index: int) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
@@ -620,11 +649,7 @@ class Database:
             ).fetchone()
         if not row:
             return None
-        lesson = json.loads(row["lesson_json"])
-        lesson["completed"] = bool(row["completed"])
-        lesson["_created_at"] = row["created_at"]
-        lesson["_updated_at"] = row["updated_at"]
-        return lesson
+        return self._micro_lesson_from_row(row)
 
     def get_micro_lesson_by_id(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
         with self.get_connection() as conn:
@@ -638,11 +663,7 @@ class Database:
             ).fetchone()
         if not row:
             return None
-        lesson = json.loads(row["lesson_json"])
-        lesson["completed"] = bool(row["completed"])
-        lesson["_created_at"] = row["created_at"]
-        lesson["_updated_at"] = row["updated_at"]
-        return lesson
+        return self._micro_lesson_from_row(row)
 
     def advance_micro_lesson_day_if_due(self, user_id: str, today: Optional[str] = None) -> Optional[Dict[str, Any]]:
         today = today or self._local_date_str()
@@ -679,24 +700,174 @@ class Database:
         return updated
 
     def mark_micro_lesson_completed(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
-        lesson = self.get_micro_lesson_by_id(user_id, lesson_id)
-        if not lesson:
-            return None
-        if not lesson.get("completed"):
+        lesson, _newly_completed = self.complete_micro_lesson_once(user_id, lesson_id)
+        return lesson
+
+    def complete_micro_lesson_once(self, user_id: str, lesson_id: str) -> Tuple[Optional[Dict[str, Any]], bool]:
+        now = _local_now().isoformat()
+        completed_local_date = self._local_date_str()
+        conn = self.get_connection()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                """
+                SELECT lesson_json, completed, created_at, updated_at
+                FROM micro_lessons
+                WHERE user_id = ? AND lesson_id = ?
+                """,
+                (user_id, lesson_id),
+            ).fetchone()
+            if not row:
+                conn.execute("COMMIT")
+                return None, False
+
+            lesson = self._micro_lesson_from_row(row)
+            if lesson.get("completed"):
+                conn.execute("COMMIT")
+                return lesson, False
+
             lesson["completed"] = True
-            now = _local_now().isoformat()
             lesson["completed_at"] = now
-            lesson["completed_local_date"] = self._local_date_str()
-            with self.get_connection() as conn:
-                conn.execute(
+            lesson["completed_local_date"] = completed_local_date
+            stored_lesson = {key: value for key, value in lesson.items() if not str(key).startswith("_")}
+            updated = conn.execute(
+                """
+                UPDATE micro_lessons
+                SET lesson_json = ?, completed = 1, updated_at = ?
+                WHERE user_id = ? AND lesson_id = ? AND completed = 0
+                """,
+                (json.dumps(stored_lesson, ensure_ascii=False, default=str), now, user_id, lesson_id),
+            )
+            if updated.rowcount != 1:
+                row = conn.execute(
                     """
-                    UPDATE micro_lessons
-                    SET lesson_json = ?, completed = 1, updated_at = ?
+                    SELECT lesson_json, completed, created_at, updated_at
+                    FROM micro_lessons
                     WHERE user_id = ? AND lesson_id = ?
                     """,
-                    (json.dumps(lesson, ensure_ascii=False, default=str), now, user_id, lesson_id),
+                    (user_id, lesson_id),
+                ).fetchone()
+                conn.execute("COMMIT")
+                return (self._micro_lesson_from_row(row) if row else None), False
+
+            row = conn.execute(
+                """
+                SELECT lesson_json, completed, created_at, updated_at
+                FROM micro_lessons
+                WHERE user_id = ? AND lesson_id = ?
+                """,
+                (user_id, lesson_id),
+            ).fetchone()
+            conn.execute("COMMIT")
+            return (self._micro_lesson_from_row(row) if row else lesson), True
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    def apply_micro_lesson_completion_reward_once(self, user_id: str, lesson_id: str) -> bool:
+        now = _local_now().isoformat()
+        conn = self.get_connection()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            inserted = conn.execute(
+                """
+                INSERT INTO micro_lesson_reward_events (user_id, lesson_id, reward_type, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, lesson_id, reward_type) DO NOTHING
+                """,
+                (user_id, lesson_id, "completion", now),
+            )
+            if inserted.rowcount != 1:
+                conn.execute("COMMIT")
+                return False
+
+            progress_row = conn.execute(
+                "SELECT * FROM progress WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if not progress_row:
+                progress_data = self.create_default_progress(user_id)
+                english = progress_data["english_progress"]
+                rpg_stats = progress_data["rpg_stats"]
+            else:
+                progress_data = dict(progress_row)
+                english = json.loads(progress_data["english_progress"])
+                rpg_stats = (
+                    json.loads(progress_data["rpg_stats"])
+                    if progress_data.get("rpg_stats")
+                    else UserRPGStats().model_dump(mode="json")
                 )
-        return lesson
+
+            english["completed_lessons"] = int(english.get("completed_lessons", 0)) + 1
+            english["total_exercises"] = int(english.get("total_exercises", 0)) + 1
+            english["correct_exercises"] = int(english.get("correct_exercises", 0)) + 1
+            total = max(1, int(english["total_exercises"]))
+            english["accuracy_rate"] = round(int(english["correct_exercises"]) / total * 100, 2)
+            english["last_study_date"] = self._local_date_str()
+
+            rpg_stats["current_xp"] = int(rpg_stats.get("current_xp", 0)) + 10
+            rpg_stats["total_xp"] = int(rpg_stats.get("total_xp", 0)) + 10
+            while int(rpg_stats["current_xp"]) >= int(rpg_stats.get("next_level_xp", 100)):
+                rpg_stats["current_xp"] = int(rpg_stats["current_xp"]) - int(rpg_stats.get("next_level_xp", 100))
+                rpg_stats["level"] = int(rpg_stats.get("level", 1)) + 1
+                rpg_stats["next_level_xp"] = int(100 * (int(rpg_stats["level"]) ** 1.5))
+                unlocks = {
+                    5: "Advanced Grammar",
+                    10: "Business Communication",
+                    15: "Slang & Idioms",
+                    20: "Literature Analysis",
+                }
+                unlocked_skills = rpg_stats.setdefault("unlocked_skills", [])
+                for level, skill in unlocks.items():
+                    if int(rpg_stats["level"]) >= level and skill not in unlocked_skills:
+                        unlocked_skills.append(skill)
+                        rpg_stats["title"] = f"{skill} Apprentice"
+
+            conn.execute(
+                """
+                INSERT INTO progress (user_id, english_progress, japanese_progress, rpg_stats, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    english_progress=excluded.english_progress,
+                    japanese_progress=excluded.japanese_progress,
+                    rpg_stats=excluded.rpg_stats,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    user_id,
+                    json.dumps(english, ensure_ascii=False, default=str),
+                    json.dumps(progress_data["japanese_progress"], ensure_ascii=False, default=str)
+                    if isinstance(progress_data["japanese_progress"], dict)
+                    else progress_data["japanese_progress"],
+                    json.dumps(rpg_stats, ensure_ascii=False, default=str),
+                    now,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO user_learning_activity (user_id, activity_date, activity_type, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, activity_date, activity_type) DO NOTHING
+                """,
+                (user_id, self._local_date_str(), "micro_lesson", now),
+            )
+            conn.execute("COMMIT")
+            return True
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    def count_micro_lesson_reward_events(self, user_id: str, lesson_id: str) -> int:
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(1) AS count
+                FROM micro_lesson_reward_events
+                WHERE user_id = ? AND lesson_id = ? AND reward_type = 'completion'
+                """,
+                (user_id, lesson_id),
+            ).fetchone()
+        return int(row["count"]) if row else 0
 
     def save_exercise_result(
         self,

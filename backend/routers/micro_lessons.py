@@ -5,7 +5,6 @@ from __future__ import annotations
 from api_errors import COMMON_ERROR_RESPONSES, api_error
 from database import db
 from fastapi import APIRouter, Depends
-from gamification_engine import gamification_engine
 from models import (
     DiagnosticQuestion,
     DiagnosticQuestionKey,
@@ -141,7 +140,7 @@ async def get_today_micro_lesson(user_id: str = Depends(require_demo_user_id)):
     lesson = db.get_micro_lesson_by_day(user_id, plan.current_day)
     if not lesson:
         lesson = build_micro_lesson(day_index=plan.current_day, total_days=plan.estimated_total_days).model_dump()
-        db.save_micro_lesson(user_id, lesson)
+        lesson = db.save_micro_lesson(user_id, lesson)
 
     return {"success": True, "diagnostic_completed": True, "learning_plan": plan, "lesson": lesson}
 
@@ -164,7 +163,7 @@ async def generate_micro_lesson(user_id: str = Depends(require_demo_user_id)):
         return {"success": True, "lesson": existing_lesson}
 
     lesson = build_micro_lesson(day_index=plan.current_day, total_days=plan.estimated_total_days).model_dump()
-    db.save_micro_lesson(user_id, lesson)
+    lesson = db.save_micro_lesson(user_id, lesson)
     return {"success": True, "lesson": lesson}
 
 
@@ -180,26 +179,11 @@ async def answer_micro_lesson(
 
     expected = str(lesson["fill_blank_question"]["correct_answer"]).strip().lower()
     correct = request.answer.strip().lower() == expected
-    was_completed = bool(lesson.get("completed"))
     if correct:
-        lesson = db.mark_micro_lesson_completed(user_id, lesson_id) or lesson
-        if not was_completed:
-            db.record_learning_activity(user_id=user_id, activity_type="micro_lesson")
-            _update_micro_progress(user_id)
-            gamification_engine.add_xp(user_id, 10)
+        completed_lesson, newly_completed = db.complete_micro_lesson_once(user_id, lesson_id)
+        lesson = completed_lesson or lesson
+        if newly_completed:
+            db.apply_micro_lesson_completion_reward_once(user_id, lesson_id)
 
     streak = get_streak_snapshot(user_id)
     return {"success": True, "correct": correct, "completed": bool(lesson.get("completed")), "lesson": lesson, "streak": streak}
-
-
-def _update_micro_progress(user_id: str) -> None:
-    progress = db.get_progress(user_id)
-    english = progress["english_progress"]
-    english["completed_lessons"] = int(english.get("completed_lessons", 0)) + 1
-    english["total_exercises"] = int(english.get("total_exercises", 0)) + 1
-    english["correct_exercises"] = int(english.get("correct_exercises", 0)) + 1
-    total = max(1, int(english["total_exercises"]))
-    english["accuracy_rate"] = round(int(english["correct_exercises"]) / total * 100, 2)
-    english["last_study_date"] = db._local_date_str()
-    progress["english_progress"] = english
-    db.save_progress(progress)

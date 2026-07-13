@@ -1,4 +1,6 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import database as database_module
 import gamification_engine as gamification_module
@@ -45,6 +47,43 @@ def _submit_diagnostic(client: TestClient) -> dict:
     response = client.post("/api/diagnostic/submit", json={"answers": answers})
     assert response.status_code == 200
     return response.json()["learning_plan"]
+
+
+def _run_concurrently(callable_factory, count: int = 10) -> list:
+    barrier = Barrier(count)
+
+    def worker():
+        barrier.wait(timeout=10)
+        return callable_factory()
+
+    with ThreadPoolExecutor(max_workers=count) as executor:
+        return list(executor.map(lambda _index: worker(), range(count)))
+
+
+def _activity_count(user_id: str, activity_type: str = "micro_lesson") -> int:
+    with micro_lessons_router.db.get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(1) AS count
+            FROM user_learning_activity
+            WHERE user_id = ? AND activity_type = ?
+            """,
+            (user_id, activity_type),
+        ).fetchone()
+    return int(row["count"]) if row else 0
+
+
+def _micro_lesson_row_count(user_id: str, day_index: int) -> int:
+    with micro_lessons_router.db.get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(1) AS count
+            FROM micro_lessons
+            WHERE user_id = ? AND day_index = ?
+            """,
+            (user_id, day_index),
+        ).fetchone()
+    return int(row["count"]) if row else 0
 
 
 def test_diagnostic_questions_contract(tmp_path, monkeypatch):
@@ -401,6 +440,93 @@ def test_generate_after_local_date_change_advances_once_and_returns_next_lesson(
     assert state is not None
     assert state["current_day"] == 2
     assert micro_lessons_router.db.get_micro_lesson_by_day("default_user", 3) is None
+
+
+def test_concurrent_generate_returns_one_canonical_persisted_lesson(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+
+    for _attempt in range(3):
+        responses = _run_concurrently(
+            lambda: TestClient(_make_app()).post("/api/micro-lessons/generate"),
+            count=10,
+        )
+        assert all(response.status_code == 200 for response in responses)
+        lesson_ids = {response.json()["lesson"]["lesson_id"] for response in responses}
+        assert len(lesson_ids) == 1
+        canonical_id = next(iter(lesson_ids))
+        persisted = micro_lessons_router.db.get_micro_lesson_by_day("default_user", 1)
+        assert persisted is not None
+        assert persisted["lesson_id"] == canonical_id
+        assert _micro_lesson_row_count("default_user", 1) == 1
+
+    answer_response = client.post(
+        f"/api/micro-lessons/{canonical_id}/answer",
+        json={"answer": persisted["fill_blank_question"]["correct_answer"]},
+    )
+    assert answer_response.status_code == 200
+    assert answer_response.json()["completed"] is True
+
+    monkeypatch.setattr(micro_lessons_router.db, "_local_date_str", lambda dt=None: "9999-01-01")
+    next_day_responses = _run_concurrently(
+        lambda: TestClient(_make_app()).post("/api/micro-lessons/generate"),
+        count=10,
+    )
+    assert all(response.status_code == 200 for response in next_day_responses)
+    next_day_ids = {response.json()["lesson"]["lesson_id"] for response in next_day_responses}
+    assert len(next_day_ids) == 1
+    next_day = micro_lessons_router.db.get_micro_lesson_by_day("default_user", 2)
+    state = micro_lessons_router.db.get_diagnostic_state("default_user")
+    assert next_day is not None
+    assert next_day["lesson_id"] == next(iter(next_day_ids))
+    assert state is not None
+    assert state["current_day"] == 2
+    assert _micro_lesson_row_count("default_user", 2) == 1
+    assert micro_lessons_router.db.get_micro_lesson_by_day("default_user", 3) is None
+
+
+def test_concurrent_correct_answers_complete_and_reward_once(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.post("/api/micro-lessons/generate").json()["lesson"]
+    payload = {"answer": lesson["fill_blank_question"]["correct_answer"]}
+    baseline_progress = micro_lessons_router.db.get_progress("default_user")["english_progress"]
+    baseline_xp = micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"]
+    baseline_activity_count = _activity_count("default_user")
+
+    for expected_delta in (1, 0):
+        responses = _run_concurrently(
+            lambda: TestClient(_make_app()).post(
+                f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+                json=payload,
+            ),
+            count=10,
+        )
+        assert all(response.status_code == 200 for response in responses)
+        assert all(response.json()["completed"] is True for response in responses)
+        persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+        assert persisted is not None
+        assert persisted["completed"] is True
+        completed_at = persisted["completed_at"]
+        completed_local_date = persisted["completed_local_date"]
+        assert completed_at
+        assert completed_local_date
+
+        progress = micro_lessons_router.db.get_progress("default_user")["english_progress"]
+        xp = micro_lessons_router.db.get_rpg_stats("default_user")["total_xp"]
+        assert progress["completed_lessons"] == baseline_progress["completed_lessons"] + 1
+        assert progress["total_exercises"] == baseline_progress["total_exercises"] + 1
+        assert progress["correct_exercises"] == baseline_progress["correct_exercises"] + 1
+        assert xp == baseline_xp + 10
+        assert _activity_count("default_user") == baseline_activity_count + 1
+        assert micro_lessons_router.db.count_micro_lesson_reward_events("default_user", lesson["lesson_id"]) == 1
+
+        again = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+        assert again is not None
+        assert again["completed_at"] == completed_at
+        assert again["completed_local_date"] == completed_local_date
+        if expected_delta == 0:
+            assert progress["completed_lessons"] == baseline_progress["completed_lessons"] + 1
 
 
 def test_legacy_completed_lesson_without_completion_dates_uses_persisted_updated_at(tmp_path, monkeypatch):

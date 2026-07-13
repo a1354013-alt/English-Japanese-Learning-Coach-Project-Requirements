@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0-rc8] - 2026-07-13
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc8` across root, frontend package metadata, and release-facing documentation including `docs/DEMO_GUIDE.md`.
+
+### Fixed
+
+- Concurrent `POST /api/micro-lessons/generate` calls now use insert-once persistence and return the same canonical saved lesson for a user/day instead of returning stale generated UUIDs.
+- Correct micro-lesson answers now use an atomic database-level completion claim so only the request that changes the lesson from incomplete to complete can apply completion rewards.
+- Micro-lesson completion rewards are protected by a persisted unique reward event, keeping XP, progress counters, learning activity, and streak updates retry-safe under concurrent correct-answer requests.
+
+### Tests
+
+- Added real ThreadPoolExecutor-based concurrency regressions for simultaneous micro-lesson generation, next-day advancement, concurrent correct answers, completion timestamp preservation, reward-event uniqueness, and retrying an already completed lesson.
+
 ## [1.4.0-rc7] - 2026-07-13
 
 ### Changed
