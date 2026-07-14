@@ -700,10 +700,13 @@ class Database:
         return updated
 
     def mark_micro_lesson_completed(self, user_id: str, lesson_id: str) -> Optional[Dict[str, Any]]:
-        lesson, _newly_completed = self.complete_micro_lesson_once(user_id, lesson_id)
+        lesson, _newly_completed = self.complete_micro_lesson_with_reward_once(user_id, lesson_id)
         return lesson
 
     def complete_micro_lesson_once(self, user_id: str, lesson_id: str) -> Tuple[Optional[Dict[str, Any]], bool]:
+        return self.complete_micro_lesson_with_reward_once(user_id, lesson_id)
+
+    def complete_micro_lesson_with_reward_once(self, user_id: str, lesson_id: str) -> Tuple[Optional[Dict[str, Any]], bool]:
         now = _local_now().isoformat()
         completed_local_date = self._local_date_str()
         conn = self.get_connection()
@@ -750,6 +753,10 @@ class Database:
                 conn.execute("COMMIT")
                 return (self._micro_lesson_from_row(row) if row else None), False
 
+            reward_applied = self._apply_micro_lesson_completion_reward_in_transaction(conn, user_id, lesson_id, now)
+            if not reward_applied:
+                raise RuntimeError("micro lesson completion reward event already exists before completion")
+
             row = conn.execute(
                 """
                 SELECT lesson_json, completed, created_at, updated_at
@@ -764,98 +771,95 @@ class Database:
             conn.execute("ROLLBACK")
             raise
 
-    def apply_micro_lesson_completion_reward_once(self, user_id: str, lesson_id: str) -> bool:
-        now = _local_now().isoformat()
-        conn = self.get_connection()
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            inserted = conn.execute(
-                """
-                INSERT INTO micro_lesson_reward_events (user_id, lesson_id, reward_type, created_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(user_id, lesson_id, reward_type) DO NOTHING
-                """,
-                (user_id, lesson_id, "completion", now),
+    def _apply_micro_lesson_completion_reward_in_transaction(
+        self,
+        conn: sqlite3.Connection,
+        user_id: str,
+        lesson_id: str,
+        now: str,
+    ) -> bool:
+        inserted = conn.execute(
+            """
+            INSERT INTO micro_lesson_reward_events (user_id, lesson_id, reward_type, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, lesson_id, reward_type) DO NOTHING
+            """,
+            (user_id, lesson_id, "completion", now),
+        )
+        if inserted.rowcount != 1:
+            return False
+
+        progress_row = conn.execute(
+            "SELECT * FROM progress WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not progress_row:
+            progress_data = self.create_default_progress(user_id)
+            english = progress_data["english_progress"]
+            rpg_stats = progress_data["rpg_stats"]
+        else:
+            progress_data = dict(progress_row)
+            english = json.loads(progress_data["english_progress"])
+            rpg_stats = (
+                json.loads(progress_data["rpg_stats"])
+                if progress_data.get("rpg_stats")
+                else UserRPGStats().model_dump(mode="json")
             )
-            if inserted.rowcount != 1:
-                conn.execute("COMMIT")
-                return False
 
-            progress_row = conn.execute(
-                "SELECT * FROM progress WHERE user_id = ?",
-                (user_id,),
-            ).fetchone()
-            if not progress_row:
-                progress_data = self.create_default_progress(user_id)
-                english = progress_data["english_progress"]
-                rpg_stats = progress_data["rpg_stats"]
-            else:
-                progress_data = dict(progress_row)
-                english = json.loads(progress_data["english_progress"])
-                rpg_stats = (
-                    json.loads(progress_data["rpg_stats"])
-                    if progress_data.get("rpg_stats")
-                    else UserRPGStats().model_dump(mode="json")
-                )
+        english["completed_lessons"] = int(english.get("completed_lessons", 0)) + 1
+        english["total_exercises"] = int(english.get("total_exercises", 0)) + 1
+        english["correct_exercises"] = int(english.get("correct_exercises", 0)) + 1
+        total = max(1, int(english["total_exercises"]))
+        english["accuracy_rate"] = round(int(english["correct_exercises"]) / total * 100, 2)
+        english["last_study_date"] = self._local_date_str()
 
-            english["completed_lessons"] = int(english.get("completed_lessons", 0)) + 1
-            english["total_exercises"] = int(english.get("total_exercises", 0)) + 1
-            english["correct_exercises"] = int(english.get("correct_exercises", 0)) + 1
-            total = max(1, int(english["total_exercises"]))
-            english["accuracy_rate"] = round(int(english["correct_exercises"]) / total * 100, 2)
-            english["last_study_date"] = self._local_date_str()
+        rpg_stats["current_xp"] = int(rpg_stats.get("current_xp", 0)) + 10
+        rpg_stats["total_xp"] = int(rpg_stats.get("total_xp", 0)) + 10
+        while int(rpg_stats["current_xp"]) >= int(rpg_stats.get("next_level_xp", 100)):
+            rpg_stats["current_xp"] = int(rpg_stats["current_xp"]) - int(rpg_stats.get("next_level_xp", 100))
+            rpg_stats["level"] = int(rpg_stats.get("level", 1)) + 1
+            rpg_stats["next_level_xp"] = int(100 * (int(rpg_stats["level"]) ** 1.5))
+            unlocks = {
+                5: "Advanced Grammar",
+                10: "Business Communication",
+                15: "Slang & Idioms",
+                20: "Literature Analysis",
+            }
+            unlocked_skills = rpg_stats.setdefault("unlocked_skills", [])
+            for level, skill in unlocks.items():
+                if int(rpg_stats["level"]) >= level and skill not in unlocked_skills:
+                    unlocked_skills.append(skill)
+                    rpg_stats["title"] = f"{skill} Apprentice"
 
-            rpg_stats["current_xp"] = int(rpg_stats.get("current_xp", 0)) + 10
-            rpg_stats["total_xp"] = int(rpg_stats.get("total_xp", 0)) + 10
-            while int(rpg_stats["current_xp"]) >= int(rpg_stats.get("next_level_xp", 100)):
-                rpg_stats["current_xp"] = int(rpg_stats["current_xp"]) - int(rpg_stats.get("next_level_xp", 100))
-                rpg_stats["level"] = int(rpg_stats.get("level", 1)) + 1
-                rpg_stats["next_level_xp"] = int(100 * (int(rpg_stats["level"]) ** 1.5))
-                unlocks = {
-                    5: "Advanced Grammar",
-                    10: "Business Communication",
-                    15: "Slang & Idioms",
-                    20: "Literature Analysis",
-                }
-                unlocked_skills = rpg_stats.setdefault("unlocked_skills", [])
-                for level, skill in unlocks.items():
-                    if int(rpg_stats["level"]) >= level and skill not in unlocked_skills:
-                        unlocked_skills.append(skill)
-                        rpg_stats["title"] = f"{skill} Apprentice"
-
-            conn.execute(
-                """
-                INSERT INTO progress (user_id, english_progress, japanese_progress, rpg_stats, updated_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    english_progress=excluded.english_progress,
-                    japanese_progress=excluded.japanese_progress,
-                    rpg_stats=excluded.rpg_stats,
-                    updated_at=excluded.updated_at
-                """,
-                (
-                    user_id,
-                    json.dumps(english, ensure_ascii=False, default=str),
-                    json.dumps(progress_data["japanese_progress"], ensure_ascii=False, default=str)
-                    if isinstance(progress_data["japanese_progress"], dict)
-                    else progress_data["japanese_progress"],
-                    json.dumps(rpg_stats, ensure_ascii=False, default=str),
-                    now,
-                ),
-            )
-            conn.execute(
-                """
-                INSERT INTO user_learning_activity (user_id, activity_date, activity_type, created_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(user_id, activity_date, activity_type) DO NOTHING
-                """,
-                (user_id, self._local_date_str(), "micro_lesson", now),
-            )
-            conn.execute("COMMIT")
-            return True
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+        conn.execute(
+            """
+            INSERT INTO progress (user_id, english_progress, japanese_progress, rpg_stats, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                english_progress=excluded.english_progress,
+                japanese_progress=excluded.japanese_progress,
+                rpg_stats=excluded.rpg_stats,
+                updated_at=excluded.updated_at
+            """,
+            (
+                user_id,
+                json.dumps(english, ensure_ascii=False, default=str),
+                json.dumps(progress_data["japanese_progress"], ensure_ascii=False, default=str)
+                if isinstance(progress_data["japanese_progress"], dict)
+                else progress_data["japanese_progress"],
+                json.dumps(rpg_stats, ensure_ascii=False, default=str),
+                now,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO user_learning_activity (user_id, activity_date, activity_type, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, activity_date, activity_type) DO NOTHING
+            """,
+            (user_id, self._local_date_str(), "micro_lesson", now),
+        )
+        return True
 
     def count_micro_lesson_reward_events(self, user_id: str, lesson_id: str) -> int:
         with self.get_connection() as conn:

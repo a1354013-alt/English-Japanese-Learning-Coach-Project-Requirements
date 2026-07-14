@@ -29,13 +29,13 @@ def _make_app() -> FastAPI:
     return app
 
 
-def _client(tmp_path, monkeypatch) -> TestClient:
+def _client(tmp_path, monkeypatch, *, raise_server_exceptions: bool = True) -> TestClient:
     test_db = Database(str(tmp_path / "micro.db"))
     monkeypatch.setattr(database_module, "db", test_db, raising=False)
     monkeypatch.setattr(micro_lessons_router, "db", test_db, raising=False)
     monkeypatch.setattr(streak_service_module.database_module, "db", test_db, raising=False)
     monkeypatch.setattr(gamification_module, "db", test_db, raising=False)
-    return TestClient(_make_app())
+    return TestClient(_make_app(), raise_server_exceptions=raise_server_exceptions)
 
 
 def _submit_diagnostic(client: TestClient) -> dict:
@@ -71,6 +71,29 @@ def _activity_count(user_id: str, activity_type: str = "micro_lesson") -> int:
             (user_id, activity_type),
         ).fetchone()
     return int(row["count"]) if row else 0
+
+
+def _snapshot_reward_state(user_id: str, lesson_id: str) -> dict:
+    progress = micro_lessons_router.db.get_progress(user_id)
+    english = progress["english_progress"]
+    rpg_stats = progress["rpg_stats"]
+    return {
+        "completed_lessons": english["completed_lessons"],
+        "total_exercises": english["total_exercises"],
+        "correct_exercises": english["correct_exercises"],
+        "accuracy_rate": english["accuracy_rate"],
+        "total_xp": rpg_stats["total_xp"],
+        "current_xp": rpg_stats["current_xp"],
+        "activity_count": _activity_count(user_id),
+        "reward_event_count": micro_lessons_router.db.count_micro_lesson_reward_events(user_id, lesson_id),
+    }
+
+
+def _answer_current_lesson(client: TestClient, lesson: dict):
+    return client.post(
+        f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+        json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+    )
 
 
 def _micro_lesson_row_count(user_id: str, day_index: int) -> int:
@@ -527,6 +550,163 @@ def test_concurrent_correct_answers_complete_and_reward_once(tmp_path, monkeypat
         assert again["completed_local_date"] == completed_local_date
         if expected_delta == 0:
             assert progress["completed_lessons"] == baseline_progress["completed_lessons"] + 1
+
+
+def test_micro_lesson_reward_event_failure_rolls_back_completion_and_rewards(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch, raise_server_exceptions=False)
+    _submit_diagnostic(client)
+    lesson = client.post("/api/micro-lessons/generate").json()["lesson"]
+    baseline = _snapshot_reward_state("default_user", lesson["lesson_id"])
+
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute(
+            """
+            CREATE TRIGGER fail_micro_lesson_reward_event
+            BEFORE INSERT ON micro_lesson_reward_events
+            BEGIN
+                SELECT RAISE(FAIL, 'forced reward event failure');
+            END
+            """
+        )
+
+    failed = _answer_current_lesson(client, lesson)
+    persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert failed.status_code == 500
+    assert persisted is not None
+    assert persisted["completed"] is False
+    assert "completed_at" not in persisted
+    assert "completed_local_date" not in persisted
+    assert _snapshot_reward_state("default_user", lesson["lesson_id"]) == baseline
+
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute("DROP TRIGGER fail_micro_lesson_reward_event")
+
+    retry = _answer_current_lesson(client, lesson)
+    final = _snapshot_reward_state("default_user", lesson["lesson_id"])
+    persisted_after_retry = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert retry.status_code == 200
+    assert persisted_after_retry is not None
+    assert persisted_after_retry["completed"] is True
+    assert persisted_after_retry["completed_at"]
+    assert persisted_after_retry["completed_local_date"]
+    assert final["reward_event_count"] == baseline["reward_event_count"] + 1
+    assert final["completed_lessons"] == baseline["completed_lessons"] + 1
+    assert final["total_exercises"] == baseline["total_exercises"] + 1
+    assert final["correct_exercises"] == baseline["correct_exercises"] + 1
+    assert final["total_xp"] == baseline["total_xp"] + 10
+    assert final["activity_count"] == baseline["activity_count"] + 1
+
+
+def test_micro_lesson_progress_failure_rolls_back_completion_event_xp_and_activity(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch, raise_server_exceptions=False)
+    _submit_diagnostic(client)
+    lesson = client.post("/api/micro-lessons/generate").json()["lesson"]
+    baseline = _snapshot_reward_state("default_user", lesson["lesson_id"])
+
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute(
+            """
+            CREATE TRIGGER fail_micro_lesson_progress_update
+            BEFORE UPDATE ON progress
+            BEGIN
+                SELECT RAISE(FAIL, 'forced progress failure');
+            END
+            """
+        )
+
+    failed = _answer_current_lesson(client, lesson)
+    persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert failed.status_code == 500
+    assert persisted is not None
+    assert persisted["completed"] is False
+    assert "completed_at" not in persisted
+    assert "completed_local_date" not in persisted
+    assert _snapshot_reward_state("default_user", lesson["lesson_id"]) == baseline
+
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute("DROP TRIGGER fail_micro_lesson_progress_update")
+
+    retry = _answer_current_lesson(client, lesson)
+    final = _snapshot_reward_state("default_user", lesson["lesson_id"])
+
+    assert retry.status_code == 200
+    assert final["reward_event_count"] == baseline["reward_event_count"] + 1
+    assert final["completed_lessons"] == baseline["completed_lessons"] + 1
+    assert final["total_exercises"] == baseline["total_exercises"] + 1
+    assert final["correct_exercises"] == baseline["correct_exercises"] + 1
+    assert final["total_xp"] == baseline["total_xp"] + 10
+    assert final["activity_count"] == baseline["activity_count"] + 1
+
+
+def test_post_commit_retry_does_not_change_reward_state(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = client.post("/api/micro-lessons/generate").json()["lesson"]
+
+    first = _answer_current_lesson(client, lesson)
+    after_first = _snapshot_reward_state("default_user", lesson["lesson_id"])
+    completed = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+    assert completed is not None
+    completed_at = completed["completed_at"]
+    completed_local_date = completed["completed_local_date"]
+
+    repeated = [_answer_current_lesson(client, lesson) for _ in range(3)]
+    responses = _run_concurrently(
+        lambda: TestClient(_make_app()).post(
+            f"/api/micro-lessons/{lesson['lesson_id']}/answer",
+            json={"answer": lesson["fill_blank_question"]["correct_answer"]},
+        ),
+        count=10,
+    )
+    after_retries = _snapshot_reward_state("default_user", lesson["lesson_id"])
+    persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert first.status_code == 200
+    assert all(response.status_code == 200 for response in repeated)
+    assert all(response.status_code == 200 for response in responses)
+    assert after_retries == after_first
+    assert persisted is not None
+    assert persisted["completed_at"] == completed_at
+    assert persisted["completed_local_date"] == completed_local_date
+
+
+def test_legacy_completed_lesson_without_reward_event_cannot_receive_duplicate_xp(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _submit_diagnostic(client)
+    lesson = build_micro_lesson(day_index=1, total_days=90).model_dump()
+    lesson["lesson_id"] = "legacy-completed-without-event"
+    lesson["completed"] = True
+    with micro_lessons_router.db.get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO micro_lessons (
+                lesson_id, user_id, day_index, lesson_json, completed, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                lesson["lesson_id"],
+                "default_user",
+                1,
+                json.dumps(lesson, ensure_ascii=False, default=str),
+                1,
+                "2026-07-10T08:00:00+08:00",
+                "2026-07-10T08:00:00+08:00",
+            ),
+        )
+    baseline = _snapshot_reward_state("default_user", lesson["lesson_id"])
+
+    response = _answer_current_lesson(client, lesson)
+    after = _snapshot_reward_state("default_user", lesson["lesson_id"])
+    persisted = micro_lessons_router.db.get_micro_lesson_by_id("default_user", lesson["lesson_id"])
+
+    assert response.status_code == 200
+    assert response.json()["completed"] is True
+    assert persisted is not None
+    assert persisted["completed"] is True
+    assert after == baseline
 
 
 def test_legacy_completed_lesson_without_completion_dates_uses_persisted_updated_at(tmp_path, monkeypatch):

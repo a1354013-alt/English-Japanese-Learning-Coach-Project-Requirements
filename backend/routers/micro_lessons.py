@@ -180,10 +180,8 @@ async def answer_micro_lesson(
     expected = str(lesson["fill_blank_question"]["correct_answer"]).strip().lower()
     correct = request.answer.strip().lower() == expected
     if correct:
-        completed_lesson, newly_completed = db.complete_micro_lesson_once(user_id, lesson_id)
+        completed_lesson, _newly_completed = db.complete_micro_lesson_with_reward_once(user_id, lesson_id)
         lesson = completed_lesson or lesson
-        if newly_completed:
-            db.apply_micro_lesson_completion_reward_once(user_id, lesson_id)
 
     streak = get_streak_snapshot(user_id)
     return {"success": True, "correct": correct, "completed": bool(lesson.get("completed")), "lesson": lesson, "streak": streak}

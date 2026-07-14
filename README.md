@@ -4,7 +4,7 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-Current release: `v1.4.0-rc8`.
+Current release: `v1.4.0-rc9`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -63,12 +63,13 @@ Immersion is currently text shadowing only. The TTS endpoint remains provider-re
 
 ## v1.4 Adaptive Learning Intelligence
 
-Version `1.4.0-rc8` turns the additive learning-intelligence work into a coherent adaptive study flow:
+Version `1.4.0-rc9` turns the additive learning-intelligence work into a coherent adaptive study flow:
 
 - Daily Study Mission is available at `GET /api/study/today` and combines diagnostic status, due SRS counts, weak item counts, a suggested next lesson, and a completion summary.
 - The Today Mission Panel surfaces that mission on the Today page so demos can start with one clear adaptive goal.
 - Adaptive weak item review groups vocabulary, grammar, and sentence patterns so learners can repair the exact items that are blocking progress.
 - The micro lesson template bank provides deterministic daily beginner lessons without requiring a live LLM.
+- Correct micro-lesson completion and completion rewards commit in one database transaction; upgraded legacy completed lessons that predate reward events remain reward-read-only so missing event rows cannot grant duplicate XP.
 - Analytics 2.0 exposes mastery state counts, weakest vocabulary / grammar / sentence patterns, and recent 7-day learning item review activity.
 - Per-item SRS now tracks vocabulary, grammar, and sentence patterns through additive item-level endpoints, while the legacy lesson-wide and vocabulary-only paths remain available for backward compatibility.
 - Snowball lesson generation can reuse a small amount of weak and recent items so future lessons feel connected instead of isolated.

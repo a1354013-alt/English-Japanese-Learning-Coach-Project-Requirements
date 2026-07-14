@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0-rc9] - 2026-07-14
+
+### Changed
+
+- Version metadata is aligned to `1.4.0-rc9` across root, frontend package metadata, and release-facing documentation including `docs/DEMO_GUIDE.md`.
+
+### Fixed
+
+- Correct micro-lesson answers now complete the lesson, write the unique reward event, increment English progress counters, recalculate accuracy, add 10 XP, apply existing level/unlock rules, and record learning activity inside one `BEGIN IMMEDIATE` transaction.
+- Legacy completed micro lessons that predate reward events are treated as already resolved for reward purposes; upgrading cannot grant duplicate XP only because a completed lesson has no reward-event row.
+
+### Tests
+
+- Added trigger-based rollback regressions for reward-event and progress-write failures, post-commit retry idempotency, legacy completed-lesson upgrade compatibility, and migration smoke coverage for the tracked reward-event table.
+
 ## [1.4.0-rc8] - 2026-07-13
 
 ### Changed
