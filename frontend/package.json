@@ -1,7 +1,7 @@
 {
   "name": "language-coach-frontend",
   "private": true,
-  "version": "1.4.0-rc9",
+  "version": "1.4.0",
   "type": "module",
   "engines": {
     "node": "22.18.0"

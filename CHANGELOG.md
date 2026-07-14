@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-07-14
+
+### Added
+
+- Final v1.4 Adaptive Learning release with adaptive English and Japanese study missions, diagnostic placement, daily micro lessons, date-gated progression, item-level SRS learning intelligence, and Feynman learning support.
+- Traditional Chinese localization, CJK-safe PDF export behavior, and explicit TTS availability UI for provider-ready voice integration.
+
+### Changed
+
+- Release delivery now includes secure atomic ZIP packaging, version consistency checks, safe environment-template handling, forbidden-file validation, extraction/bootstrap smoke coverage, and common secret-pattern scanning.
+- Micro-lesson generation now resolves to one canonical concurrent lesson for each user/day.
+
+### Fixed
+
+- Micro-lesson completion, XP, progress counters, learning activity, and reward events now commit atomically with retry-safe and rollback-safe behavior.
+- Release hardening covers retry, rollback, migration, and legacy-upgrade safety, including additive idempotent migration behavior for micro-lesson reward events.
+
 ## [1.4.0-rc9] - 2026-07-14
 
 ### Changed
