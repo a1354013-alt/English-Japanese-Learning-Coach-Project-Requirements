@@ -35,7 +35,7 @@ coverage[toml]==7.15.2
     # via pytest-cov
 et-xmlfile==2.0.0
     # via openpyxl
-fastapi==0.139.0
+fastapi==0.139.2
     # via -r requirements.txt
 h11==0.16.0
     # via
@@ -63,7 +63,7 @@ mypy==1.20.1
     # via -r requirements-dev.txt
 mypy-extensions==1.1.0
     # via mypy
-numpy==2.4.6
+numpy==2.5.1
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.txt
@@ -89,7 +89,7 @@ pydantic==2.13.4
     #   -r requirements.txt
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.4
+pydantic-core==2.47.0
     # via pydantic
 pydantic-settings==2.14.2
     # via -r requirements.txt
@@ -108,7 +108,7 @@ pytest==9.1.1
     #   pytest-cov
 pytest-asyncio==1.4.0
     # via -r requirements-dev.txt
-pytest-cov==7.0.0
+pytest-cov==7.1.0
     # via -r requirements-dev.txt
 python-dateutil==2.9.0.post0
     # via pandas
@@ -126,7 +126,7 @@ redis==5.2.1
     # via -r requirements.txt
 reportlab==4.5.1
     # via -r requirements.txt
-ruff==0.15.20
+ruff==0.15.22
     # via -r requirements-dev.txt
 six==1.17.0
     # via python-dateutil
@@ -158,9 +158,9 @@ tzdata==2026.3
     #   tzlocal
 tzlocal==5.4.4
     # via apscheduler
-uvicorn==0.50.0
+uvicorn==0.51.0
     # via -r requirements.txt
-websockets==16.0
+websockets==16.1
     # via -r requirements.txt
 wheel==0.47.0
     # via pip-tools
