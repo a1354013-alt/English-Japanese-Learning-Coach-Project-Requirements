@@ -54,7 +54,10 @@ def _run_concurrently(callable_factory, count: int = 10) -> list:
 
     def worker():
         barrier.wait(timeout=10)
-        return callable_factory()
+        try:
+            return callable_factory()
+        finally:
+            micro_lessons_router.db.close()
 
     with ThreadPoolExecutor(max_workers=count) as executor:
         return list(executor.map(lambda _index: worker(), range(count)))

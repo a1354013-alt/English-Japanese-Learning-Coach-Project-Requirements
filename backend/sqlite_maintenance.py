@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
-import tempfile
+from contextlib import closing
 from dataclasses import dataclass
+from os import replace
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from config import settings
 from database import Database
@@ -54,15 +56,44 @@ def _expected_migrations() -> tuple[str, ...]:
     return tuple(path.name for path in sorted(migrations_dir.glob("*.sql")))
 
 
+def _open_read_only_connection(path: Path) -> sqlite3.Connection:
+    uri = f"file:{path.as_posix()}?mode=ro"
+    return sqlite3.connect(uri, uri=True, timeout=30.0)
+
+
+def _temporary_output_path(target: Path, *, suffix: str) -> Path:
+    with NamedTemporaryFile(
+        prefix=f"{target.name}.",
+        suffix=suffix,
+        dir=target.parent,
+        delete=False,
+    ) as handle:
+        return Path(handle.name)
+
+
+def _validate_restore_candidate(path: Path) -> ValidationResult:
+    db = Database(str(path))
+    db.close()
+    return validate_sqlite_database(path)
+
+
 def validate_sqlite_database(path: str | Path) -> ValidationResult:
     resolved = _resolve_path(path)
     _ensure_source_exists(resolved)
-    db = Database(str(resolved))
     expected_migrations = _expected_migrations()
-    db.close()
 
-    with sqlite3.connect(str(resolved), timeout=30.0) as conn:
+    with closing(_open_read_only_connection(resolved)) as conn:
         conn.row_factory = sqlite3.Row
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()
+        if not integrity or integrity[0] != "ok":
+            raise SQLiteMaintenanceError(
+                f"Database validation failed; integrity_check returned {integrity[0] if integrity else '<empty>'}."
+            )
+        foreign_key_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
+        if foreign_key_errors:
+            raise SQLiteMaintenanceError(
+                f"Database validation failed; foreign_key_check returned {len(foreign_key_errors)} row(s)."
+            )
         tables = tuple(
             sorted(
                 row["name"]
@@ -71,6 +102,8 @@ def validate_sqlite_database(path: str | Path) -> ValidationResult:
                 ).fetchall()
             )
         )
+        if "schema_migrations" not in tables:
+            raise SQLiteMaintenanceError("Database validation failed; schema_migrations table is missing.")
         applied_migrations = tuple(
             row["version"]
             for row in conn.execute(
@@ -107,11 +140,20 @@ def backup_sqlite_database(
     if dry_run:
         return target
 
-    _cleanup_sqlite_sidecars(target)
-    with sqlite3.connect(str(source), timeout=30.0) as source_conn:
-        with sqlite3.connect(str(target), timeout=30.0) as target_conn:
-            source_conn.backup(target_conn)
-    return target
+    temp_target = _temporary_output_path(target, suffix=".backup.tmp")
+    try:
+        _cleanup_sqlite_sidecars(temp_target)
+        with closing(sqlite3.connect(str(source), timeout=30.0)) as source_conn:
+            with closing(sqlite3.connect(str(temp_target), timeout=30.0)) as target_conn:
+                source_conn.backup(target_conn)
+        validate_sqlite_database(temp_target)
+        _cleanup_sqlite_sidecars(target)
+        replace(temp_target, target)
+        return target
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        _cleanup_sqlite_sidecars(temp_target)
+        raise
 
 
 def restore_sqlite_database(
@@ -127,19 +169,23 @@ def restore_sqlite_database(
     _ensure_target_writable(target, force=force)
     _ensure_parent(target)
 
-    with tempfile.TemporaryDirectory(prefix="sqlite-restore-", ignore_cleanup_errors=True) as temp_dir:
-        temp_target = Path(temp_dir) / target.name
-        with sqlite3.connect(str(source), timeout=30.0) as source_conn:
-            with sqlite3.connect(str(temp_target), timeout=30.0) as target_conn:
+    temp_target = _temporary_output_path(target, suffix=".restore.tmp")
+    try:
+        with closing(sqlite3.connect(str(source), timeout=30.0)) as source_conn:
+            with closing(sqlite3.connect(str(temp_target), timeout=30.0)) as target_conn:
                 source_conn.backup(target_conn)
 
-        validation = validate_sqlite_database(temp_target)
+        validation = _validate_restore_candidate(temp_target)
         if dry_run:
+            temp_target.unlink(missing_ok=True)
+            _cleanup_sqlite_sidecars(temp_target)
             return validation
 
-        with sqlite3.connect(str(temp_target), timeout=30.0) as source_conn:
-            with sqlite3.connect(str(target), timeout=30.0) as target_conn:
-                source_conn.backup(target_conn)
         _cleanup_sqlite_sidecars(target)
-
-    return validate_sqlite_database(target)
+        replace(temp_target, target)
+        _cleanup_sqlite_sidecars(target)
+        return validate_sqlite_database(target)
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        _cleanup_sqlite_sidecars(temp_target)
+        raise

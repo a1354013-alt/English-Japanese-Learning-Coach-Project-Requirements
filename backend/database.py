@@ -2,6 +2,7 @@
 import json
 import sqlite3
 import threading
+import weakref
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -44,10 +45,15 @@ def _json_loads_list(value: Any) -> List[Any]:
 class Database:
     """SQLite database handler with connection pooling."""
 
+    _instances: "weakref.WeakSet[Database]" = weakref.WeakSet()
+
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or settings.db_path).resolve()
         self._ensure_db_directory()
         self._local = threading.local()
+        self._connection_lock = threading.Lock()
+        self._thread_connections: dict[int, sqlite3.Connection] = {}
+        Database._instances.add(self)
         self.init_database()
 
     def _ensure_db_directory(self) -> None:
@@ -71,6 +77,8 @@ class Database:
             # Enable foreign keys
             conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
+            with self._connection_lock:
+                self._thread_connections[threading.get_ident()] = conn
         return conn
 
     def get_connection(self) -> sqlite3.Connection:
@@ -83,6 +91,19 @@ class Database:
         if conn is not None:
             conn.close()
             self._local.conn = None
+            with self._connection_lock:
+                self._thread_connections.pop(threading.get_ident(), None)
+
+    def __enter__(self) -> "Database":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    @classmethod
+    def close_all_instances(cls) -> None:
+        for instance in list(cls._instances):
+            instance.close()
 
     def check_connection(self) -> bool:
         try:

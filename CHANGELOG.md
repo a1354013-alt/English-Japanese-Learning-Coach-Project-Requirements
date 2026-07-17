@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-07-17
+
+### Added
+
+- Added deterministic lock portability checks that reject machine-specific paths, index directives, and embedded credentials in committed Python lock files.
+- Added read-only SQLite validation regressions plus atomic backup/restore failure-path tests.
+- Added `RELEASE_NOTES_v1.4.2.md` for this maintenance hotfix.
+
+### Changed
+
+- Version-consistency verification now uses stable current-release markers for release-facing docs instead of binding itself to a full README prose sentence.
+- Backend coverage now excludes `backend/tests/*` so the reported baseline reflects application code only.
+- FastAPI shutdown and pytest teardown now close SQLite database connections more consistently, including worker-thread cleanup in concurrency tests.
+
+### Fixed
+
+- Python lock verification is now deterministic across Windows and Linux and no longer depends on byte-comparing freshly re-resolved transitive dependency output in ordinary CI runs.
+- SQLite validation no longer mutates the file it inspects; backup and restore now validate temporary copies and atomically replace only after success.
+- Repeated unclosed SQLite connection warnings are now treated as regressions in the supported backend coverage lane.
+
 ## [1.4.1] - 2026-07-16
 
 ### Added

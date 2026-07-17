@@ -4,7 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-Current release: `v1.4.1`.
+<!-- release:current=v1.4.2 -->
+Current release: `v1.4.2`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -61,14 +62,14 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
-## v1.4.1 Maintenance Baseline
+## v1.4.2 Maintenance Baseline
 
-Version `1.4.1` keeps the adaptive-learning behavior from `v1.4.0` intact while tightening maintenance and release safety:
+Version `1.4.2` keeps the adaptive-learning behavior from `v1.4.1` intact while tightening release reliability and local maintenance safety:
 
-- Python dependencies now keep readable source requirements plus generated Python 3.11 lock files for core, development/test, and RAG-enabled installs.
-- Backend pytest coverage and frontend Vitest coverage now emit both terminal summaries and CI-friendly artifacts.
-- SQLite maintenance now includes safe local backup, restore, and validation commands built on SQLite's backup API.
-- Architecture prep adds protocol boundaries and an ADR for persisted chat and learning-session extraction in `v1.5` without splitting `database.py` yet.
+- Version-consistency verification now reads stable current-release markers instead of treating full README prose sentences as machine-readable contracts.
+- Python dependencies still keep readable source requirement files plus generated Python 3.11 lock files, but lock verification is now deterministic and portable instead of re-resolving the live package index during ordinary CI runs.
+- SQLite validation is now read-only, and backup/restore now validate temporary copies before atomically replacing final files.
+- Backend coverage now excludes `backend/tests/*`, and the backend/test lifecycles now close SQLite connections more cleanly to avoid repeated unclosed-database warnings.
 
 The adaptive study flow remains:
 
@@ -253,7 +254,7 @@ python -m ruff check backend scripts tests
 python -m mypy backend
 python -m pytest -q -m "not rag and not startup_isolation"
 python -m pytest backend/tests/test_rag_disabled_startup.py -q
-python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html
+python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html -W error::ResourceWarning
 ```
 
 Optional RAG smoke check:
@@ -426,16 +427,18 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, Python dependency-lock consistency, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, backend coverage reporting, `npm ci`, both frontend audits, frontend checks, frontend coverage generation, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.lock.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/make_release_zip.py` and `scripts/release_file_policy.py` create a delivery zip under `dist/` while preserving only approved env templates (`.env.example`, `.env.sample`, `.env.template`) and excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, stage-style `env.*` / `env-*` variants at any depth with case-insensitive matching, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, while still allowing source declaration files such as `frontend/src/env.d.ts`. Runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, backup directories, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts remain excluded as well. Release ZIP creation now writes through a temporary file and replaces the final archive atomically only after the build succeeds. Release extraction smoke also syntax-checks `start_backend.sh`, `start_frontend.sh`, and `backend/docker-entrypoint.sh` with `bash -n` on non-Windows hosts when `bash` is available.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, Python dependency locked-install verification, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, backend application-only coverage reporting, `npm ci`, both frontend audits, frontend checks, frontend coverage generation, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.lock.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/python_dependency_locks.py check` validates lock metadata fingerprints plus portability and secret-redaction rules without re-resolving the live package index during ordinary CI runs. `scripts/make_release_zip.py` and `scripts/release_file_policy.py` create a delivery zip under `dist/` while preserving only approved env templates (`.env.example`, `.env.sample`, `.env.template`) and excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, stage-style `env.*` / `env-*` variants at any depth with case-insensitive matching, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, while still allowing source declaration files such as `frontend/src/env.d.ts`. Runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, backup directories, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts remain excluded as well. Release ZIP creation now writes through a temporary file and replaces the final archive atomically only after the build succeeds. Release extraction smoke also syntax-checks `start_backend.sh`, `start_frontend.sh`, and `backend/docker-entrypoint.sh` with `bash -n` on non-Windows hosts when `bash` is available.
 
 SQLite maintenance commands:
 
 ```bash
-python scripts/sqlite_backup_restore.py backup --target data/backups/language_coach-2026-07-16.sqlite3
-python scripts/sqlite_backup_restore.py restore --source data/backups/language_coach-2026-07-16.sqlite3 --target data/language_coach.db --dry-run
-python scripts/sqlite_backup_restore.py restore --source data/backups/language_coach-2026-07-16.sqlite3 --target data/language_coach.db --force
-python scripts/sqlite_backup_restore.py validate --source data/backups/language_coach-2026-07-16.sqlite3
+python scripts/sqlite_backup_restore.py backup --target data/backups/language_coach-2026-07-17.sqlite3
+python scripts/sqlite_backup_restore.py restore --source data/backups/language_coach-2026-07-17.sqlite3 --target data/language_coach.db --dry-run
+python scripts/sqlite_backup_restore.py restore --source data/backups/language_coach-2026-07-17.sqlite3 --target data/language_coach.db --force
+python scripts/sqlite_backup_restore.py validate --source data/backups/language_coach-2026-07-17.sqlite3
 ```
+
+Stop the app before replacing an active SQLite file. Validation is read-only, but actual backup/restore replacement is intended for a stopped local instance.
 
 Intentional Python lock refresh command:
 

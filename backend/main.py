@@ -7,6 +7,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+import database as database_module
 from api_errors import (
     http_exception_handler,
     unhandled_exception_handler,
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         lesson_scheduler.stop()
         await ollama_client.aclose()
+        database_module.db.close()
 
 
 app = FastAPI(

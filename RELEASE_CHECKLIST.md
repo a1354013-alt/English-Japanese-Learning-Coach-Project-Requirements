@@ -2,11 +2,13 @@
 
 Use this checklist for every release so a new maintainer can ship confidently without tribal knowledge.
 
+<!-- release:current=v1.4.2 -->
+
 ## 1. Prepare the release candidate
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.1`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.1`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.2`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.2`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
@@ -21,10 +23,11 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m mypy backend`
 - Run `python -m pytest -q -m "not rag and not startup_isolation"` from the repository root for the main backend test lane.
 - Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
-- Run `python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html`
+- Run `python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html -W error::ResourceWarning`
 - Optional RAG verification requires `backend/requirements-rag.lock.txt`. Run `python -m pip install -r backend/requirements-rag.lock.txt` and then `python -m pytest backend/tests -q -m rag` only when you are validating the RAG lane.
 - Run `python scripts/sqlite_backup_restore.py backup --target data/backups/release-check.sqlite3 --dry-run`
 - Run `python scripts/sqlite_backup_restore.py restore --source data/backups/release-check.sqlite3 --target data/language_coach.db --dry-run` after creating a real local backup file.
+- Stop the app before replacing an active SQLite database with the non-dry-run restore command.
 - If Docker is part of the release, confirm backend env defaults still boot with `ENABLE_RAG=false`.
 - On Linux CI or Linux release hosts, install `fonts-noto-cjk` plus `fontconfig` before strict CJK PDF verification.
 - If Docker is part of the release, confirm the backend image still installs CJK-capable PDF fonts (`fonts-noto-cjk` plus `fontconfig` or equivalent) so Japanese and Chinese exports do not silently regress to broken glyph rendering.
@@ -80,7 +83,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
-- Publish `RELEASE_NOTES_v1.4.1.md` or equivalent release text covering maintenance changes only.
+- Publish `RELEASE_NOTES_v1.4.2.md` or equivalent release text covering maintenance changes only.
 - Known limitations should include: TTS is integration-ready but disabled by default; immersion is text shadowing only; real recording and speech comparison are not part of this release; auth, authorization, user isolation, rate limiting, and audit logging are out of scope for the local demo; core mode works without RAG dependencies; RAG mode requires additional dependencies and separate verification.
 
 - Publish the release only after all checks above pass.

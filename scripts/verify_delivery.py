@@ -284,13 +284,8 @@ def is_excluded_release_credential_file(path: Path) -> bool:
 
 def _current_release_reference_checks() -> tuple[tuple[str, Path, str, str], ...]:
     return (
-        ("README current release", README_PATH, r"Current release: `(?P<version>v[^`]+)`\.", f"v{VERSION}"),
-        (
-            "README adaptive-learning heading",
-            README_PATH,
-            r"Version `(?P<version>[^`]+)` turns the additive learning-intelligence work into a coherent adaptive study flow:",
-            VERSION,
-        ),
+        ("README current release marker", README_PATH, r"release:current=(?P<version>v[^\s>]+)", f"v{VERSION}"),
+        ("README current release line", README_PATH, r"Current release: `(?P<version>v[^`]+)`\.", f"v{VERSION}"),
         (
             "Release checklist changelog reference",
             RELEASE_CHECKLIST_PATH,
@@ -298,15 +293,15 @@ def _current_release_reference_checks() -> tuple[tuple[str, Path, str, str], ...
             f"v{VERSION}",
         ),
         (
-            "Release checklist frontend sync reference",
+            "Release checklist current release marker",
             RELEASE_CHECKLIST_PATH,
-            r"Keep `frontend/package\.json` in sync at `(?P<version>[^`]+)`; `scripts/verify_delivery\.py` checks this\.",
-            VERSION,
+            r"release:current=(?P<version>v[^\s>]+)",
+            f"v{VERSION}",
         ),
         (
-            "Demo guide release heading",
+            "Demo guide current release marker",
             DEMO_GUIDE_PATH,
-            r"present the `(?P<version>v[^`]+)` Adaptive Learning project",
+            r"release:current=(?P<version>v[^\s>]+)",
             f"v{VERSION}",
         ),
         (
@@ -324,6 +319,19 @@ def verify_version_consistency() -> None:
     if frontend_version != VERSION:
         raise StepFailed(
             f"Frontend package.json version ({frontend_version or '<missing>'}) "
+            f"does not match root VERSION ({VERSION})"
+        )
+    package_lock = json.loads((FRONTEND_DIR / "package-lock.json").read_text(encoding="utf-8"))
+    package_lock_version = str(package_lock.get("version", "")).strip()
+    package_lock_root_version = str(package_lock.get("packages", {}).get("", {}).get("version", "")).strip()
+    if package_lock_version != VERSION:
+        raise StepFailed(
+            f"Frontend package-lock.json version ({package_lock_version or '<missing>'}) "
+            f"does not match root VERSION ({VERSION})"
+        )
+    if package_lock_root_version and package_lock_root_version != VERSION:
+        raise StepFailed(
+            f"Frontend package-lock.json root package version ({package_lock_root_version}) "
             f"does not match root VERSION ({VERSION})"
         )
 
@@ -347,7 +355,7 @@ def run_standard_verification() -> None:
     require_backend_dependencies()
     verify_version_consistency()
     run_step(
-        "Python dependency lock consistency",
+        "Python dependency locked-install verification",
         [sys.executable, "scripts/python_dependency_locks.py", "check"],
         cwd=REPO_ROOT,
     )
@@ -387,6 +395,8 @@ def run_standard_verification() -> None:
             "--cov-report=xml:coverage/backend/coverage.xml",
             "--cov-report=json:coverage/backend/coverage.json",
             "--cov-report=html:coverage/backend/html",
+            "-W",
+            "error::ResourceWarning",
         ],
         cwd=REPO_ROOT,
     )
