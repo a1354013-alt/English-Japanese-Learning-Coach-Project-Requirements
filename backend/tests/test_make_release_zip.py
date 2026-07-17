@@ -53,6 +53,7 @@ REQUIRED_RELEASE_FILES = (
     "VERSION",
     "backend/.env.example",
     "backend/docker-entrypoint.sh",
+    "backend/requirements-core.lock.txt",
     "backend/requirements.txt",
     "backend/main.py",
     "frontend/package.json",
@@ -102,6 +103,7 @@ def _seed_release_repo(repo_root: Path) -> None:
     _write_text(repo_root / ".env.template", "ROOT_TEMPLATE=1\n")
     _write_text(repo_root / "backend" / ".env.example", "BACKEND_TEMPLATE=1\n")
     _write_text(repo_root / "backend" / "docker-entrypoint.sh", "#!/bin/sh\nset -eu\nexec \"$@\"\n")
+    _write_text(repo_root / "backend" / "requirements-core.lock.txt", "fastapi==0.139.0\n")
     _write_text(repo_root / "backend" / "requirements.txt", "fastapi\n")
     _write_text(repo_root / "backend" / "main.py", "app = object()\n")
     _write_text(repo_root / "frontend" / "package.json", "{\"name\":\"frontend\"}")
@@ -149,6 +151,8 @@ def _write_release_archive(archive_path: Path, extra_files: dict[str, str] | Non
                 archive.writestr(name, "BACKEND_TEMPLATE=1\n")
             elif name == "backend/docker-entrypoint.sh":
                 archive.writestr(name, "#!/bin/sh\nset -eu\nexec \"$@\"\n")
+            elif name == "backend/requirements-core.lock.txt":
+                archive.writestr(name, "fastapi==0.139.0\n")
             elif name == "backend/requirements.txt":
                 archive.writestr(name, "fastapi\n")
             elif name == "backend/main.py":

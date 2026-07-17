@@ -35,6 +35,7 @@ REQUIRED_RELEASE_FILES = (
     "VERSION",
     "backend/.env.example",
     "backend/docker-entrypoint.sh",
+    "backend/requirements-core.lock.txt",
     "backend/requirements.txt",
     "backend/main.py",
     "frontend/package.json",
@@ -47,6 +48,9 @@ REQUIRED_RELEASE_FILES = (
 )
 PYTHON_VERSION = (3, 11)
 NODE_VERSION = "22.18.0"
+CORE_LOCK = BACKEND_DIR / "requirements-core.lock.txt"
+DEV_LOCK = BACKEND_DIR / "requirements-dev.lock.txt"
+RAG_LOCK = BACKEND_DIR / "requirements-rag.lock.txt"
 REQUIRED_BACKEND_MODULES = (
     ("fastapi", "fastapi"),
     ("uvicorn", "uvicorn"),
@@ -65,6 +69,9 @@ REQUIRED_BACKEND_MODULES = (
     ("pypdf", "pypdf"),
     ("pytest", "pytest"),
     ("pytest-asyncio", "pytest_asyncio"),
+    ("pytest-cov", "pytest_cov"),
+    ("httpx2", "httpx2"),
+    ("pip-tools", "piptools"),
     ("ruff", "ruff"),
     ("mypy", "mypy"),
 )
@@ -156,7 +163,7 @@ def require_backend_dependencies() -> None:
         raise StepFailed(
             "Backend dependency preflight failed; missing importable packages: "
             f"{', '.join(missing)}. Install them with "
-            "`python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt`."
+            "`python -m pip install -r backend/requirements-dev.lock.txt`."
         )
 
     run_step("Backend dependency consistency preflight", [sys.executable, "-m", "pip", "check"], timeout=300)
@@ -340,6 +347,11 @@ def run_standard_verification() -> None:
     require_backend_dependencies()
     verify_version_consistency()
     run_step(
+        "Python dependency lock consistency",
+        [sys.executable, "scripts/python_dependency_locks.py", "check"],
+        cwd=REPO_ROOT,
+    )
+    run_step(
         "Compile backend",
         [sys.executable, "-m", "compileall", "backend", "scripts", "tests"],
         cwd=REPO_ROOT,
@@ -360,6 +372,24 @@ def run_standard_verification() -> None:
         [sys.executable, "-m", "pytest", "backend/tests/test_rag_disabled_startup.py", "-q"],
         cwd=REPO_ROOT,
     )
+    run_step(
+        "Pytest backend coverage baseline",
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-m",
+            "not rag and not startup_isolation",
+            "--cov=backend",
+            "--cov-branch",
+            "--cov-report=term-missing:skip-covered",
+            "--cov-report=xml:coverage/backend/coverage.xml",
+            "--cov-report=json:coverage/backend/coverage.json",
+            "--cov-report=html:coverage/backend/html",
+        ],
+        cwd=REPO_ROOT,
+    )
 
     npm = npm_command()
     run_step("Frontend install", [npm, "ci"], cwd=FRONTEND_DIR)
@@ -368,7 +398,9 @@ def run_standard_verification() -> None:
     run_step("Frontend typecheck", [npm, "run", "typecheck"], cwd=FRONTEND_DIR)
     run_step("Frontend lint", [npm, "run", "lint"], cwd=FRONTEND_DIR)
     run_step("Frontend format check", [npm, "run", "format:check"], cwd=FRONTEND_DIR)
-    run_step("Frontend tests", [npm, "run", "test:ci"], cwd=FRONTEND_DIR)
+    run_step("Frontend unit tests", [npm, "run", "test:unit"], cwd=FRONTEND_DIR)
+    run_step("Frontend component tests", [npm, "run", "test:component"], cwd=FRONTEND_DIR)
+    run_step("Frontend coverage baseline", [npm, "run", "test:coverage"], cwd=FRONTEND_DIR)
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
@@ -387,8 +419,8 @@ def run_rag_verification() -> None:
     require_rag_dependencies()
     run_step(
         "Pytest backend (optional RAG)",
-        [sys.executable, "-m", "pytest", "tests", "-q", "-m", "rag"],
-        cwd=BACKEND_DIR,
+        [sys.executable, "-m", "pytest", "backend/tests", "-q", "-m", "rag"],
+        cwd=REPO_ROOT,
     )
 
 
@@ -441,9 +473,9 @@ def run_optional_pip_audit_check() -> None:
         warn_skipped("pip-audit", "pip-audit is not installed.")
         return
 
-    command = ["pip-audit", "-r", str(BACKEND_DIR / "requirements.txt")]
+    command = ["pip-audit", "-r", str(CORE_LOCK)]
     if shutil.which("pip-audit") is None:
-        command = [sys.executable, "-m", "pip_audit", "-r", str(BACKEND_DIR / "requirements.txt")]
+        command = [sys.executable, "-m", "pip_audit", "-r", str(CORE_LOCK)]
     result = subprocess.run(command, cwd=REPO_ROOT, text=True, capture_output=True, timeout=300)
     if result.returncode != 0:
         warn_optional(

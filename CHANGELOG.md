@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-07-16
+
+### Added
+
+- Added reproducible Python 3.11 dependency lock files for core runtime, development/test, and optional RAG-enabled maintenance installs, plus a documented `scripts/python_dependency_locks.py refresh` workflow.
+- Added backend pytest coverage and frontend Vitest coverage reporting with terminal summaries and CI-friendly XML/JSON/HTML/Cobertura artifacts.
+- Added SQLite-safe local backup, restore, and validation utilities plus temporary-database regression coverage.
+- Added repository-boundary protocols and an ADR that documents the incremental `v1.5` extraction path for future persisted-chat and learning-session storage.
+- Added release notes for `v1.4.1` in `RELEASE_NOTES_v1.4.1.md`.
+
+### Changed
+
+- CI and release verification now install backend dependencies from the generated Python 3.11 lock files, and they check lock consistency before shipping.
+- Release packaging policy now excludes backup directories in addition to other runtime SQLite artifacts and local build outputs.
+- Version metadata is aligned to `1.4.1` across root, frontend package metadata, README, release checklist, and demo guide.
+
+### Fixed
+
+- Backend test lanes now guard against the deprecated `httpx` `app` shortcut returning silently by asserting that `TestClient` creation emits no deprecation warning under the supported dependency set.
+
 ## [1.4.0] - 2026-07-14
 
 ### Added

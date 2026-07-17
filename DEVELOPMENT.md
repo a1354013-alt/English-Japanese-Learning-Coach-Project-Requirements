@@ -10,8 +10,14 @@ python3.11 -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 python -m pip install -U pip
-python -m pip install -r requirements.txt -r requirements-dev.txt
+python -m pip install -r requirements-dev.lock.txt
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Refresh the Python 3.11 lock files only when you intentionally want to update the locked transitive dependency set:
+
+```bash
+python scripts/python_dependency_locks.py refresh
 ```
 
 ## Frontend Setup
@@ -80,7 +86,7 @@ The `F5: Backend + Frontend` configuration starts `Frontend Dev Server` in the b
 - Backend URL: `http://localhost:8000`
 - Frontend URL: `http://localhost:5173` (or the host/port displayed by Vite)
 - If the frontend task does not start, run `cd frontend && npm ci` manually.
-- If the backend does not start, run `cd backend && python -m pip install -r requirements.txt -r requirements-dev.txt` manually.
+- If the backend does not start, run `cd backend && python -m pip install -r requirements-dev.lock.txt` manually.
 - Ensure ports `8000` and `5173` are not already in use.
 
 

@@ -77,6 +77,13 @@ class Database:
         """Compatibility wrapper for code paths using context-managed connections."""
         return self._connection
 
+    def close(self) -> None:
+        """Close the thread-local SQLite connection if one exists."""
+        conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
+
     def check_connection(self) -> bool:
         try:
             conn = self._connection

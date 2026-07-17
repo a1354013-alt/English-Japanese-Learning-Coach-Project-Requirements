@@ -1,10 +1,10 @@
 # Demo Guide
 
-Use this guide when you want to present the `v1.4.0` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.
+Use this guide when you want to present the `v1.4.1` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.
 
 ## F5 Startup
 
-1. Install backend dependencies with `cd backend && python -m pip install -r requirements.txt -r requirements-dev.txt`.
+1. Install backend dependencies with `cd backend && python -m pip install -r requirements-dev.lock.txt`.
 2. Install frontend dependencies with `cd frontend && npm ci`.
 3. Copy `backend/.env.example` to `backend/.env`.
 4. Open the repo root in VS Code.
@@ -55,7 +55,7 @@ Use this guide when you want to present the `v1.4.0` Adaptive Learning project a
 - RAG is optional. A demo can succeed with `ENABLE_RAG=false`.
 - TTS is provider-ready but disabled by default unless you wire in a real provider.
 - Immersion is currently text shadowing only.
-- Real recording and speech comparison are not part of the `v1.4.0` release.
+- Real recording and speech comparison are not part of the `v1.4.1` release.
 - Demo reset is intentionally protected and should stay disabled outside local demo environments.
 
 ## Suggested Presenter Script

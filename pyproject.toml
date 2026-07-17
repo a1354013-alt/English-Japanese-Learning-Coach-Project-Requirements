@@ -39,3 +39,30 @@ module = [
   "reportlab.*",
 ]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+branch = true
+source = ["backend"]
+omit = [
+  "backend/main.py",
+  "backend/migrations/*",
+  "backend/version.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+omit = [
+  "backend/main.py",
+  "backend/migrations/*",
+  "backend/version.py",
+]
+
+[tool.coverage.html]
+directory = "coverage/backend/html"
+
+[tool.coverage.xml]
+output = "coverage/backend/coverage.xml"
+
+[tool.coverage.json]
+output = "coverage/backend/coverage.json"

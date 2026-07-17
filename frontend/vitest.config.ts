@@ -5,6 +5,25 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   test: {
+    coverage: {
+      provider: 'v8',
+      reportsDirectory: './coverage',
+      reporter: [
+        'text',
+        'json',
+        'json-summary',
+        'lcovonly',
+        'cobertura',
+        'html',
+      ],
+      exclude: [
+        'src/env.d.ts',
+        'src/main.ts',
+        'src/router.ts',
+        'src/**/*.test.ts',
+        'e2e/**',
+      ],
+    },
     environment: 'jsdom',
     include: ['src/**/*.test.ts'],
     setupFiles: ['./vitest.setup.ts'],

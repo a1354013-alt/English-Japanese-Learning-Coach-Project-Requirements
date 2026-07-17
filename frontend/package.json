@@ -1,7 +1,7 @@
 {
   "name": "language-coach-frontend",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "engines": {
     "node": "22.18.0"
@@ -16,6 +16,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run src/utils src/services --config vitest.config.ts",
     "test:component": "vitest run src/views --config vitest.config.ts",
     "test:ci": "npm run test:unit && npm run test:component",
@@ -49,6 +50,7 @@
     "prettier": "^3.8.4",
     "typescript": "^5.7.3",
     "vite": "^8.0.16",
+    "@vitest/coverage-v8": "^4.1.8",
     "vitest": "^4.1.8",
     "vue-tsc": "^3.3.5"
   },

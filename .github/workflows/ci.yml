@@ -29,10 +29,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          pip install -r backend/requirements-dev.lock.txt
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+      - name: Verify Python dependency locks
+        run: python scripts/python_dependency_locks.py check
       - name: Compile
         run: python -m compileall backend scripts tests
         env:
@@ -47,11 +49,27 @@ jobs:
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+      - name: Generate backend coverage baseline
+        run: >
+          python -m pytest -q -m "not rag and not startup_isolation"
+          --cov=backend --cov-branch
+          --cov-report=term-missing:skip-covered
+          --cov-report=xml:coverage/backend/coverage.xml
+          --cov-report=json:coverage/backend/coverage.json
+          --cov-report=html:coverage/backend/html
+        env:
+          ENABLE_RAG: "false"
+          MAX_UPLOAD_SIZE_MB: "10"
       - name: Run startup isolation tests
         run: python -m pytest backend/tests/test_rag_disabled_startup.py -q
         env:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
+      - name: Upload backend coverage artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: backend-coverage
+          path: coverage/backend
 
   backend-rag-enabled:
     runs-on: ubuntu-latest
@@ -65,7 +83,7 @@ jobs:
       - name: Install backend and RAG dependencies
         run: |
           python -m pip install -U pip
-          pip install -r backend/requirements.txt -r backend/requirements-dev.txt -r backend/requirements-rag.txt
+          pip install -r backend/requirements-rag.lock.txt
       - name: Run RAG enabled smoke test
         run: python -m pytest backend/tests -q -m rag
         env:
@@ -97,8 +115,15 @@ jobs:
         run: npm run format:check
       - name: Test
         run: npm run test:ci
+      - name: Coverage
+        run: npm run test:coverage
       - name: Build
         run: npm run build
+      - name: Upload frontend coverage artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
 
   release-delivery-verification:
     runs-on: ubuntu-latest
@@ -125,7 +150,7 @@ jobs:
       - name: Install backend dependencies
         run: |
           python -m pip install -U pip
-          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+          pip install -r backend/requirements-dev.lock.txt
       - name: Verify delivery bundle
         run: python scripts/verify_delivery.py
 
@@ -191,7 +216,7 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r requirements-dev.lock.txt
 
       - name: Install frontend dependencies
         run: npm ci
@@ -340,7 +365,7 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install -U pip
-          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -r requirements-dev.lock.txt
 
       - name: Install frontend dependencies
         run: npm ci
@@ -363,10 +388,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -U pip
-          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-core.lock.txt
           pip install pip-audit
       - name: Dependency audit
-        run: pip-audit -r backend/requirements.txt
+        run: pip-audit -r backend/requirements-core.lock.txt
 
   docker:
     runs-on: ubuntu-latest
