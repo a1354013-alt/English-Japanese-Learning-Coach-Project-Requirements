@@ -61,9 +61,9 @@ durationpy==0.10
     # via kubernetes
 et-xmlfile==2.0.0
     # via openpyxl
-fastapi==0.139.0
+fastapi==0.139.2
     # via -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements.txt
-filelock==3.30.1
+filelock==3.30.2
     # via
     #   huggingface-hub
     #   torch
@@ -137,7 +137,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mmh3==5.2.1
     # via chromadb
-mpmath==1.3.0
+mpmath==1.4.1
     # via sympy
 multidict==6.7.1
     # via
@@ -151,7 +151,7 @@ narwhals==2.24.0
     # via scikit-learn
 networkx==3.6.1
     # via torch
-numpy==2.4.6
+numpy==2.5.1
     # via
     #   chromadb
     #   onnxruntime
@@ -228,7 +228,7 @@ pydantic==2.13.4
     #   chromadb
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.4
+pydantic-core==2.47.0
     # via pydantic
 pydantic-settings==2.14.2
     # via
@@ -253,7 +253,7 @@ pytest==9.1.1
     #   pytest-cov
 pytest-asyncio==1.4.0
     # via -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements-dev.txt
-pytest-cov==7.0.0
+pytest-cov==7.1.0
     # via -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements-dev.txt
 python-dateutil==2.9.0.post0
     # via
@@ -303,13 +303,13 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-ruff==0.15.20
+ruff==0.15.22
     # via -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements-dev.txt
 safetensors==0.8.0
     # via transformers
 scikit-learn==1.9.0
     # via sentence-transformers
-scipy==1.17.1
+scipy==1.18.0
     # via
     #   scikit-learn
     #   sentence-transformers
@@ -329,7 +329,7 @@ tenacity==9.1.4
     # via chromadb
 threadpoolctl==3.6.0
     # via scikit-learn
-tokenizers==0.22.2
+tokenizers==0.23.1
     # via
     #   chromadb
     #   transformers
@@ -386,7 +386,7 @@ urllib3==2.7.0
     # via
     #   kubernetes
     #   requests
-uvicorn[standard]==0.50.0
+uvicorn[standard]==0.51.0
     # via
     #   -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements.txt
     #   chromadb
@@ -394,7 +394,7 @@ watchfiles==1.2.0
     # via uvicorn
 websocket-client==1.9.0
     # via kubernetes
-websockets==16.0
+websockets==16.1
     # via
     #   -r C:/Users/whois/OneDrive/文件/GitHub/English-Japanese-Learning-Coach-Project-Requirements/backend/requirements.txt
     #   uvicorn
