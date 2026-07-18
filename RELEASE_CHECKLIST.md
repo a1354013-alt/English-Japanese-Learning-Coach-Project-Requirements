@@ -2,13 +2,13 @@
 
 Use this checklist for every release so a new maintainer can ship confidently without tribal knowledge.
 
-<!-- release:current=v1.4.2 -->
+<!-- release:current=v1.4.3 -->
 
 ## 1. Prepare the release candidate
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.2`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.2`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.4.3`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.4.3`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
@@ -24,6 +24,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m pytest -q -m "not rag and not startup_isolation"` from the repository root for the main backend test lane.
 - Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
 - Run `python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html -W error::ResourceWarning`
+- Run `python -m pytest backend/tests/test_sqlite_lifecycle.py -q -W error::pytest.PytestUnraisableExceptionWarning` to keep all-thread SQLite shutdown regressions visible.
 - Optional RAG verification requires `backend/requirements-rag.lock.txt`. Run `python -m pip install -r backend/requirements-rag.lock.txt` and then `python -m pytest backend/tests -q -m rag` only when you are validating the RAG lane.
 - Run `python scripts/sqlite_backup_restore.py backup --target data/backups/release-check.sqlite3 --dry-run`
 - Run `python scripts/sqlite_backup_restore.py restore --source data/backups/release-check.sqlite3 --target data/language_coach.db --dry-run` after creating a real local backup file.
@@ -66,7 +67,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python scripts/verify_delivery.py`
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
-- Inspect the zip contents and confirm it preserves only `.env.example`, `.env.sample`, and `.env.template` while excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, case-insensitive stage-style `env.*` / `env-*` variants such as `env.qa` or `env.production`, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, at any directory depth. Also confirm source declaration files such as `frontend/src/env.d.ts` still ship, while `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, backup directories, cache directories, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/backups/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, and `frontend/node_modules/` remain excluded.
+- Inspect the zip contents and confirm it preserves only `.env.example`, `.env.sample`, and `.env.template` while excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, case-insensitive stage-style `env.*` / `env-*` variants such as `env.qa` or `env.production`, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, at any directory depth. Also confirm shared virtual-environment classification excludes `.venv`, `.venv311`, `.venv311_hotfix2`, `.venv-3.11`, `.venv_py311`, `venv`, `venv311`, and `venv-3.11` variants while preserving source files such as `frontend/src/env.d.ts`, and that `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, backup directories, cache directories, `data/chroma/`, `data/chroma_db/`, `data/audio/`, `data/backups/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, and `frontend/node_modules/` remain excluded.
 
 * Docker checks require local Docker availability. Run `docker compose config` when Docker is installed locally.
 * If shipping containers and Docker is available locally, also run `docker compose build`
@@ -83,7 +84,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
-- Publish `RELEASE_NOTES_v1.4.2.md` or equivalent release text covering maintenance changes only.
+- Publish `RELEASE_NOTES_v1.4.3.md` or equivalent release text covering maintenance changes only.
 - Known limitations should include: TTS is integration-ready but disabled by default; immersion is text shadowing only; real recording and speech comparison are not part of this release; auth, authorization, user isolation, rate limiting, and audit logging are out of scope for the local demo; core mode works without RAG dependencies; RAG mode requires additional dependencies and separate verification.
 
 - Publish the release only after all checks above pass.

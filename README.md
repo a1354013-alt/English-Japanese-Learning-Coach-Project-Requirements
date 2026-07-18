@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.4.2 -->
-Current release: `v1.4.2`.
+<!-- release:current=v1.4.3 -->
+Current release: `v1.4.3`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -62,14 +62,16 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
-## v1.4.2 Maintenance Baseline
+## v1.4.3 Maintenance Baseline
 
-Version `1.4.2` keeps the adaptive-learning behavior from `v1.4.1` intact while tightening release reliability and local maintenance safety:
+Version `1.4.3` keeps the adaptive-learning behavior from `v1.4.2` intact while tightening release hygiene and SQLite lifecycle safety:
 
 - Version-consistency verification now reads stable current-release markers instead of treating full README prose sentences as machine-readable contracts.
 - Python dependencies still keep readable source requirement files plus generated Python 3.11 lock files, but lock verification is now deterministic and portable instead of re-resolving the live package index during ordinary CI runs.
 - SQLite validation is now read-only, and backup/restore now validate temporary copies before atomically replacing final files.
-- Backend coverage now excludes `backend/tests/*`, and the backend/test lifecycles now close SQLite connections more cleanly to avoid repeated unclosed-database warnings.
+- Backend coverage still excludes `backend/tests/*` so the reported baseline reflects application code only.
+- Release packaging and archive verification now classify common virtual-environment variants consistently, so local dirty working trees cannot leak a developer venv into release archives.
+- Backend/test shutdown now closes every tracked SQLite connection across worker threads, and backend warning gates now treat unraisable unclosed-connection warnings as regressions instead of letting them slip through.
 
 The adaptive study flow remains:
 

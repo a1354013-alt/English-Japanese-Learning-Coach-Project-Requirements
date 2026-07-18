@@ -2,7 +2,6 @@
 import json
 import sqlite3
 import threading
-import weakref
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -45,7 +44,8 @@ def _json_loads_list(value: Any) -> List[Any]:
 class Database:
     """SQLite database handler with connection pooling."""
 
-    _instances: "weakref.WeakSet[Database]" = weakref.WeakSet()
+    _instances: set["Database"] = set()
+    _instances_lock = threading.Lock()
 
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = Path(db_path or settings.db_path).resolve()
@@ -53,8 +53,12 @@ class Database:
         self._local = threading.local()
         self._connection_lock = threading.Lock()
         self._thread_connections: dict[int, sqlite3.Connection] = {}
-        Database._instances.add(self)
+        self._register_instance()
         self.init_database()
+
+    def _register_instance(self) -> None:
+        with self._instances_lock:
+            self._instances.add(self)
 
     def _ensure_db_directory(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,10 +67,17 @@ class Database:
     def _connection(self) -> sqlite3.Connection:
         """Get thread-local connection (lazy initialization)."""
         conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.execute("SELECT 1")
+            except sqlite3.ProgrammingError:
+                conn = None
+                self._local.conn = None
         if conn is None:
             conn = sqlite3.connect(
                 str(self.db_path),
                 timeout=30.0,
+                check_same_thread=False,
                 isolation_level=None,  # Autocommit mode for better concurrency
             )
             conn.row_factory = sqlite3.Row
@@ -79,6 +90,7 @@ class Database:
             self._local.conn = conn
             with self._connection_lock:
                 self._thread_connections[threading.get_ident()] = conn
+            self._register_instance()
         return conn
 
     def get_connection(self) -> sqlite3.Connection:
@@ -89,21 +101,47 @@ class Database:
         """Close the thread-local SQLite connection if one exists."""
         conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
         if conn is not None:
-            conn.close()
+            try:
+                conn.close()
+            except sqlite3.ProgrammingError:
+                pass
             self._local.conn = None
             with self._connection_lock:
                 self._thread_connections.pop(threading.get_ident(), None)
+
+    def close_all_connections(self) -> None:
+        """Close every tracked SQLite connection for this Database instance."""
+        with self._connection_lock:
+            tracked_connections = list(self._thread_connections.values())
+            self._thread_connections.clear()
+
+        seen: set[int] = set()
+        for conn in tracked_connections:
+            conn_id = id(conn)
+            if conn_id in seen:
+                continue
+            seen.add(conn_id)
+            try:
+                conn.close()
+            except sqlite3.ProgrammingError:
+                pass
+
+        if getattr(self._local, "conn", None) is not None:
+            self._local.conn = None
 
     def __enter__(self) -> "Database":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
-        self.close()
+        self.close_all_connections()
 
     @classmethod
     def close_all_instances(cls) -> None:
-        for instance in list(cls._instances):
-            instance.close()
+        with cls._instances_lock:
+            instances = list(cls._instances)
+            cls._instances.clear()
+        for instance in instances:
+            instance.close_all_connections()
 
     def check_connection(self) -> bool:
         try:

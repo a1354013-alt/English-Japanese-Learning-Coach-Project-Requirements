@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.3] - 2026-07-17
+
+### Added
+
+- Added `RELEASE_NOTES_v1.4.3.md` for this release-hygiene and SQLite-lifecycle hotfix.
+- Added regression coverage for virtual-environment archive exclusion variants and all-thread SQLite connection shutdown.
+
+### Changed
+
+- Release packaging and archive verification now share a broader virtual-environment classifier so dirty local working trees cannot ship `.venv*` or `venv*` directories by accident.
+- Release verification now fails early when generated cache, coverage, or the mistakenly committed `.venv311_hotfix2` tree is still present in the source checkout.
+
+### Fixed
+
+- Removed committed/generated local artifacts including the tracked Windows virtual environment and backend coverage output from the source tree and future release archives.
+- FastAPI lifespan shutdown and test teardown now close every tracked SQLite connection, including worker-thread/TestClient connections, so pytest unraisable unclosed-database warnings stay gone in supported lanes.
+
 ## [1.4.2] - 2026-07-17
 
 ### Added

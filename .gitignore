@@ -1,6 +1,9 @@
 *.pyc
+*.pyd
+*.pyo
 __pycache__/
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 *.log
@@ -24,8 +27,10 @@ htmlcov/
 
 # Python / virtualenv
 .mypy_cache/
-venv/
-.venv/
+/.venv*/
+/venv*/
+.venv*/
+venv*/
 
 # Runtime data
 backend/.playwright-data/
@@ -52,3 +57,4 @@ frontend/test-results/
 frontend/dist/
 frontend/playwright-report/
 frontend/coverage/
+coverage/

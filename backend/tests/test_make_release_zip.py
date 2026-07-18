@@ -16,6 +16,16 @@ SAFE_ENV_TEMPLATES = (
     ".env.sample",
     ".env.template",
 )
+VIRTUALENV_CASES = (
+    ".venv",
+    ".venv311",
+    ".venv311_hotfix2",
+    ".venv-3.11",
+    ".venv_py311",
+    "venv",
+    "venv311",
+    "venv-3.11",
+)
 SENSITIVE_CREDENTIAL_CASES = (
     ".npmrc",
     ".pypirc",
@@ -139,6 +149,15 @@ def _seed_runtime_artifacts(repo_root: Path) -> None:
     _write_text(repo_root / "__pycache__" / "module.pyc", "pyc")
 
 
+def _seed_virtualenv_artifacts(repo_root: Path) -> None:
+    for dirname in VIRTUALENV_CASES:
+        _write_text(repo_root / dirname / "pyvenv.cfg", "home = C:/Python311\n")
+        _write_text(repo_root / dirname / "Lib" / "site-packages" / "dep.py", "value = 1\n")
+        _write_text(repo_root / dirname / "Scripts" / "activate.bat", "@echo off\n")
+        _write_text(repo_root / dirname / "Scripts" / "python.exe", "binary")
+        _write_text(repo_root / dirname / "Lib" / "site-packages" / "compiled.pyd", "binary")
+
+
 def _write_release_archive(archive_path: Path, extra_files: dict[str, str] | None = None) -> None:
     extra_files = extra_files or {}
     with ZipFile(archive_path, "w") as archive:
@@ -181,6 +200,7 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
     dist_dir = repo_root / "dist"
     _seed_release_repo(repo_root)
     _seed_runtime_artifacts(repo_root)
+    _seed_virtualenv_artifacts(repo_root)
 
     for relative_path in SENSITIVE_ENV_CASES:
         _write_text(repo_root / relative_path, "SECRET=1\n")
@@ -235,6 +255,10 @@ def test_release_zip_excludes_sensitive_env_files_and_runtime_artifacts(tmp_path
     assert not any(name.startswith("htmlcov/") for name in names)
     assert not any(name.startswith("coverage/") for name in names)
     assert not any(name.startswith("backend/.playwright-data/") for name in names)
+    assert not any("site-packages" in name for name in names)
+    assert not any(name.endswith(".pyd") for name in names)
+    assert not any(name.endswith("/activate") or name.endswith("/activate.bat") or name.endswith("/Activate.ps1") for name in names)
+    assert len(names) < 25
     assert dummy_secret_name.encode("utf-8") not in archive_path.read_bytes()
     assert dummy_secret_value.encode("utf-8") not in archive_path.read_bytes()
 
@@ -288,6 +312,9 @@ def test_shared_policy_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path("backend/.playwright-data/language_coach.db"))
     assert make_release_zip.should_skip(Path("backend/.pytest_cache/state"))
     assert make_release_zip.should_skip(Path("__pycache__/module.pyc"))
+    assert make_release_zip.should_skip(Path(".venv311_hotfix2/Lib/site-packages/pkg/__init__.py"))
+    assert make_release_zip.should_skip(Path("venv-3.11/Scripts/python.exe"))
+    assert make_release_zip.should_skip(Path(".venv/pyvenv.cfg"))
     assert not make_release_zip.should_skip(Path("data/.gitkeep"))
 
 
@@ -329,6 +356,56 @@ def test_verify_release_archive_rejects_missing_required_files(tmp_path, monkeyp
 
     with pytest.raises(verify_delivery.StepFailed, match="missing required files"):
         verify_delivery.verify_release_archive()
+
+
+@pytest.mark.parametrize("virtualenv_name", VIRTUALENV_CASES)
+def test_verify_release_archive_rejects_virtualenv_variants(tmp_path, monkeypatch, virtualenv_name):
+    archive_path = tmp_path / "release.zip"
+    _write_release_archive(
+        archive_path,
+        {
+            f"{virtualenv_name}/pyvenv.cfg": "home = C:/Python311\n",
+            f"{virtualenv_name}/Lib/site-packages/pkg/__init__.py": "value = 1\n",
+            f"{virtualenv_name}/Scripts/activate.bat": "@echo off\n",
+        },
+    )
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="virtual-environment artifact") as exc_info:
+        verify_delivery.verify_release_archive()
+    assert virtualenv_name in str(exc_info.value)
+
+
+def test_verify_release_archive_secret_pattern_scan_passes_on_safe_archive(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    _write_release_archive(archive_path)
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    verify_delivery.verify_release_archive_secret_patterns()
+
+
+def test_verify_release_archive_secret_pattern_scan_rejects_private_key_material(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    private_key_fixture = "".join(
+        (
+            "-----BEGIN ",
+            "PRIVATE KEY-----\n",
+            "abc\n",
+            "-----END ",
+            "PRIVATE KEY-----\n",
+        )
+    )
+    _write_release_archive(
+        archive_path,
+        {"docs/private-key-check.txt": private_key_fixture},
+    )
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="secret-pattern scan matched"):
+        verify_delivery.verify_release_archive_secret_patterns()
 
 
 def test_release_archive_extraction_bootstrap_smoke(tmp_path, monkeypatch):

@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         lesson_scheduler.stop()
         await ollama_client.aclose()
-        database_module.db.close()
+        database_module.db.close_all_connections()
 
 
 app = FastAPI(

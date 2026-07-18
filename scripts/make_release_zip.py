@@ -12,7 +12,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from release_file_policy import may_include_in_release_archive  # noqa: E402
+from release_file_policy import (  # noqa: E402
+    has_virtualenv_marker,
+    is_virtualenv_dir_name,
+    may_include_in_release_archive,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = REPO_ROOT / "dist"
@@ -43,6 +47,8 @@ def _iter_release_files() -> list[tuple[Path, Path]]:
                 raise ReleasePackagingError(
                     f"Refusing to package symlink: {relative_path.as_posix()}"
                 )
+            if is_virtualenv_dir_name(dirname) or has_virtualenv_marker(path):
+                continue
             if should_skip(relative_path):
                 continue
             filtered_dirnames.append(dirname)

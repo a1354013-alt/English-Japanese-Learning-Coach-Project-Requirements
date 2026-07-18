@@ -80,6 +80,23 @@ is_excluded_runtime_artifact = _release_file_policy.is_excluded_runtime_artifact
 is_safe_env_template = _release_file_policy.is_safe_env_template
 is_sensitive_credential_file = _release_file_policy.is_sensitive_credential_file
 is_sensitive_env_file = _release_file_policy.is_sensitive_env_file
+is_virtualenv_artifact = _release_file_policy.is_virtualenv_artifact
+
+SOURCE_TREE_ARTIFACT_PATHS = (
+    REPO_ROOT / ".mypy_cache",
+    REPO_ROOT / ".ruff_cache",
+    REPO_ROOT / ".pytest_cache",
+    REPO_ROOT / ".coverage",
+    REPO_ROOT / "coverage",
+    REPO_ROOT / ".venv311_hotfix2",
+    FRONTEND_DIR / "coverage",
+)
+SECRET_SCAN_PATTERNS = (
+    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    re.compile(r"OPENAI_API_KEY\s*="),
+    re.compile(r"AWS_SECRET_ACCESS_KEY\s*="),
+    re.compile(r"SUPABASE_SERVICE_ROLE_KEY\s*="),
+)
 
 
 class StepFailed(RuntimeError):
@@ -349,9 +366,23 @@ def verify_version_consistency() -> None:
     print(f"Verified version consistency: {VERSION}")
 
 
+def verify_clean_source_tree_artifacts() -> None:
+    found: list[str] = []
+    for artifact_path in SOURCE_TREE_ARTIFACT_PATHS:
+        if artifact_path.exists():
+            found.append(artifact_path.relative_to(REPO_ROOT).as_posix())
+    if found:
+        unique = sorted(set(found))
+        raise StepFailed(
+            "Generated local artifacts are present in the source tree: " + ", ".join(unique)
+        )
+    print("Verified clean source tree artifact check.")
+
+
 def run_standard_verification() -> None:
     require_python_version()
     require_node_version()
+    verify_clean_source_tree_artifacts()
     require_backend_dependencies()
     verify_version_consistency()
     run_step(
@@ -414,6 +445,7 @@ def run_standard_verification() -> None:
     run_step("Frontend build", [npm, "run", "build"], cwd=FRONTEND_DIR)
     run_step("Create release zip", [sys.executable, "scripts/make_release_zip.py"])
     verify_release_archive()
+    verify_release_archive_secret_patterns()
     verify_release_archive_bootstrap_smoke()
 
 
@@ -536,10 +568,30 @@ def verify_release_archive() -> None:
             raise StepFailed(f"Release archive contains excluded local env file: {name}")
         if is_excluded_release_credential_file(path):
             raise StepFailed(f"Release archive contains excluded credential file: {name}")
+        if is_virtualenv_artifact(path):
+            raise StepFailed(f"Release archive contains excluded virtual-environment artifact: {name}")
         if is_excluded_runtime_artifact(path):
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
 
     print(f"Verified release archive contents: {RELEASE_ARCHIVE}")
+
+
+def verify_release_archive_secret_patterns() -> None:
+    if not RELEASE_ARCHIVE.exists():
+        raise StepFailed(f"Release archive not found: {RELEASE_ARCHIVE}")
+
+    text_suffixes = {".md", ".txt", ".json", ".toml", ".ini", ".cfg", ".yml", ".yaml", ".py", ".ts", ".js", ".css", ".html", ".sh"}
+    with ZipFile(RELEASE_ARCHIVE) as archive:
+        for member in archive.infolist():
+            if Path(member.filename).suffix.lower() not in text_suffixes:
+                continue
+            content = archive.read(member).decode("utf-8", errors="ignore")
+            for pattern in SECRET_SCAN_PATTERNS:
+                if pattern.search(content):
+                    raise StepFailed(
+                        f"Release archive secret-pattern scan matched {pattern.pattern!r} in {member.filename}"
+                    )
+    print(f"Verified release archive secret-pattern scan: {RELEASE_ARCHIVE}")
 
 
 def verify_release_archive_shell_syntax(extract_root: Path) -> None:
