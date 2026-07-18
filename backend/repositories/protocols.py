@@ -1,12 +1,14 @@
-"""Repository protocols for future feature-based extraction from the Database facade."""
+"""Repository protocols for feature-based extraction from the Database facade."""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
 
+from models import ChatConversationRecord, ChatMessagePage, ChatMessageRecord
+
 
 class PersistedChatRepositoryProtocol(Protocol):
-    """Persistence contract reserved for future multi-message chat history storage."""
+    """Persistence contract for persisted multi-message chat history storage."""
 
     def create_chat_session(
         self,
@@ -25,9 +27,78 @@ class PersistedChatRepositoryProtocol(Protocol):
         role: str,
         content: str,
         metadata: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
     ) -> str: ...
 
     def list_chat_messages(self, *, session_id: str, user_id: str, limit: int = 100) -> List[Dict[str, Any]]: ...
+
+    def create_conversation(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        title: Optional[str] = None,
+        lesson_id: Optional[str] = None,
+        summary: Optional[str] = None,
+    ) -> ChatConversationRecord: ...
+
+    def list_conversations(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[ChatConversationRecord]: ...
+
+    def get_conversation(self, *, conversation_id: str, user_id: str) -> ChatConversationRecord: ...
+
+    def rename_conversation(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        title: str,
+    ) -> ChatConversationRecord: ...
+
+    def set_conversation_lesson_link(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        lesson_id: Optional[str],
+    ) -> ChatConversationRecord: ...
+
+    def update_conversation_summary(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        summary: Optional[str],
+    ) -> ChatConversationRecord: ...
+
+    def delete_conversation(self, *, conversation_id: str, user_id: str) -> None: ...
+
+    def clear_conversations_for_demo_user(self, *, user_id: str = "default_user") -> int: ...
+
+    def get_messages_page(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        limit: int = 100,
+        before_sequence: Optional[int] = None,
+        after_sequence: Optional[int] = None,
+        descending: bool = False,
+    ) -> ChatMessagePage: ...
+
+    def get_recent_messages(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        limit: int = 20,
+    ) -> List[ChatMessageRecord]: ...
 
 
 class LearningSessionRepositoryProtocol(Protocol):

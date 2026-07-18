@@ -618,6 +618,39 @@ class MicroLessonAnswerResponse(BaseModel):
     streak: StreakInfo
 
 
+# ============ Persisted Chat Models ============
+ChatMessageRole: TypeAlias = Literal["system", "user", "assistant"]
+
+
+class ChatConversationRecord(BaseModel):
+    conversation_id: str
+    user_id: str
+    language: LanguageCode
+    title: str
+    lesson_id: Optional[str] = None
+    summary: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: Optional[datetime] = None
+
+
+class ChatMessageRecord(BaseModel):
+    message_id: str
+    conversation_id: str
+    role: ChatMessageRole
+    content: str
+    sequence_number: int = Field(ge=1)
+    metadata: Optional[Dict[str, Any]] = None
+    idempotency_key: Optional[str] = None
+    created_at: datetime
+
+
+class ChatMessagePage(BaseModel):
+    messages: List[ChatMessageRecord]
+    limit: int = Field(gt=0)
+    descending: bool = False
+
+
 # ============ Writing Assistant Models ============
 class WritingCorrection(BaseModel):
     original: str

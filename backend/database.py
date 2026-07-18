@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 from config import settings
 from models import UserRPGStats, review_rating_is_correct
+from repositories.chat_repository import ChatRepository
 from time_utils import local_now
 
 
@@ -53,6 +54,7 @@ class Database:
         self._local = threading.local()
         self._connection_lock = threading.Lock()
         self._thread_connections: dict[int, sqlite3.Connection] = {}
+        self.chat_repository = ChatRepository(self)
         self._register_instance()
         self.init_database()
 
@@ -377,6 +379,37 @@ class Database:
         conn = self._connection
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user ON lessons(user_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_lessons_user_date ON lessons(user_id, generated_at DESC)")
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_language_last_message
+            ON chat_conversations(
+                user_id,
+                language,
+                COALESCE(last_message_at, updated_at) DESC,
+                created_at DESC,
+                conversation_id DESC
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_conversation_sequence
+            ON chat_messages(conversation_id, sequence_number)
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_messages_conversation_idempotency
+            ON chat_messages(conversation_id, idempotency_key)
+            WHERE idempotency_key IS NOT NULL
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
+            ON chat_messages(conversation_id, created_at ASC, sequence_number ASC)
+            """
+        )
         self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
@@ -441,6 +474,44 @@ class Database:
             )
             """
         )
+
+    # ================= Persisted Chat =================
+    def create_chat_session(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        title: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        return self.chat_repository.create_chat_session(
+            user_id=user_id,
+            language=language,
+            title=title,
+            metadata=metadata,
+        )
+
+    def append_chat_message(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> str:
+        return self.chat_repository.append_chat_message(
+            session_id=session_id,
+            user_id=user_id,
+            role=role,
+            content=content,
+            metadata=metadata,
+            idempotency_key=idempotency_key,
+        )
+
+    def list_chat_messages(self, *, session_id: str, user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        return self.chat_repository.list_chat_messages(session_id=session_id, user_id=user_id, limit=limit)
 
     def _cleanup_exercise_result_duplicates(self, conn: sqlite3.Connection) -> None:
         """Keep the newest row per unique exercise-result key before unique index creation."""
