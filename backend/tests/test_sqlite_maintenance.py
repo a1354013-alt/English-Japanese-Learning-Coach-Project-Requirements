@@ -43,8 +43,12 @@ def test_validate_is_byte_for_byte_read_only(tmp_path):
 
 def test_validate_reports_missing_migrations_without_modifying_source(tmp_path):
     source = tmp_path / "legacy.sqlite3"
-    with sqlite3.connect(source) as conn:
+    conn = sqlite3.connect(source)
+    try:
         conn.execute("CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMP)")
+        conn.commit()
+    finally:
+        conn.close()
     before_hash = _file_digest(source)
     before_size = source.stat().st_size
 
@@ -63,8 +67,11 @@ def test_backup_uses_sqlite_copy_and_preserves_data(tmp_path):
     result = backup_sqlite_database(source_path=source, target_path=target)
 
     assert result == target.resolve()
-    with sqlite3.connect(target) as conn:
+    conn = sqlite3.connect(target)
+    try:
         row = conn.execute("SELECT value FROM sample").fetchone()
+    finally:
+        conn.close()
     assert row[0] == "kept"
 
 
@@ -135,14 +142,21 @@ def test_restore_force_replaces_target_and_runs_validation(tmp_path):
     _create_valid_database(backup)
     _create_valid_database(target)
 
-    with sqlite3.connect(backup) as conn:
+    conn = sqlite3.connect(backup)
+    try:
         conn.execute("UPDATE sample SET value = 'restored'")
+        conn.commit()
+    finally:
+        conn.close()
 
     result = restore_sqlite_database(backup_path=backup, target_path=target, force=True)
 
     assert result.source_path == target.resolve()
-    with sqlite3.connect(target) as conn:
+    conn = sqlite3.connect(target)
+    try:
         row = conn.execute("SELECT value FROM sample").fetchone()
+    finally:
+        conn.close()
     assert row[0] == "restored"
     validation = validate_sqlite_database(target)
     assert "schema_migrations" in validation.tables

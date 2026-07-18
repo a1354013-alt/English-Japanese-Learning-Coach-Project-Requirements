@@ -63,6 +63,26 @@ class Database:
     def _ensure_db_directory(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    def _unregister_if_idle(self) -> None:
+        with self._connection_lock:
+            has_open_connections = bool(self._thread_connections)
+        if has_open_connections:
+            return
+        with self._instances_lock:
+            self._instances.discard(self)
+
+    def _track_connection(self, conn: sqlite3.Connection) -> None:
+        with self._connection_lock:
+            self._thread_connections[id(conn)] = conn
+        self._register_instance()
+
+    def _discard_connection(self, conn: sqlite3.Connection | None) -> None:
+        if conn is None:
+            return
+        with self._connection_lock:
+            self._thread_connections.pop(id(conn), None)
+        self._unregister_if_idle()
+
     @property
     def _connection(self) -> sqlite3.Connection:
         """Get thread-local connection (lazy initialization)."""
@@ -71,6 +91,7 @@ class Database:
             try:
                 conn.execute("SELECT 1")
             except sqlite3.ProgrammingError:
+                self._discard_connection(conn)
                 conn = None
                 self._local.conn = None
         if conn is None:
@@ -88,9 +109,7 @@ class Database:
             # Enable foreign keys
             conn.execute("PRAGMA foreign_keys=ON")
             self._local.conn = conn
-            with self._connection_lock:
-                self._thread_connections[threading.get_ident()] = conn
-            self._register_instance()
+            self._track_connection(conn)
         return conn
 
     def get_connection(self) -> sqlite3.Connection:
@@ -101,33 +120,25 @@ class Database:
         """Close the thread-local SQLite connection if one exists."""
         conn: sqlite3.Connection | None = getattr(self._local, "conn", None)
         if conn is not None:
+            self._local.conn = None
             try:
                 conn.close()
             except sqlite3.ProgrammingError:
                 pass
-            self._local.conn = None
-            with self._connection_lock:
-                self._thread_connections.pop(threading.get_ident(), None)
+            self._discard_connection(conn)
 
     def close_all_connections(self) -> None:
         """Close every tracked SQLite connection for this Database instance."""
         with self._connection_lock:
-            tracked_connections = list(self._thread_connections.values())
+            tracked_connections = list(self._thread_connections.items())
             self._thread_connections.clear()
-
-        seen: set[int] = set()
-        for conn in tracked_connections:
-            conn_id = id(conn)
-            if conn_id in seen:
-                continue
-            seen.add(conn_id)
+        self._local.conn = None
+        for _conn_id, conn in tracked_connections:
             try:
                 conn.close()
             except sqlite3.ProgrammingError:
                 pass
-
-        if getattr(self._local, "conn", None) is not None:
-            self._local.conn = None
+        self._unregister_if_idle()
 
     def __enter__(self) -> "Database":
         return self

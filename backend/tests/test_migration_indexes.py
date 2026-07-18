@@ -18,7 +18,8 @@ def test_runtime_indexes_backfill_lesson_indexes(tmp_path):
 
 def test_runtime_index_backfill_removes_duplicate_exercise_results(tmp_path):
     db_path = tmp_path / "dedupe.db"
-    with sqlite3.connect(db_path) as conn:
+    conn = sqlite3.connect(db_path)
+    try:
         conn.execute(
             """
             CREATE TABLE schema_migrations (
@@ -66,6 +67,9 @@ def test_runtime_index_backfill_removes_duplicate_exercise_results(tmp_path):
                 ('default_user', 'lesson-1', 'mixed', 10, 8, 80.0, '2026-05-11T10:00:00')
             """
         )
+        conn.commit()
+    finally:
+        conn.close()
 
     db = Database(str(db_path))
 

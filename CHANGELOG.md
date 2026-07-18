@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added `RELEASE_NOTES_v1.4.3.md` for this release-hygiene and SQLite-lifecycle hotfix.
-- Added regression coverage for virtual-environment archive exclusion variants and all-thread SQLite connection shutdown.
+- Added regression coverage for virtual-environment archive exclusion variants, all-thread SQLite connection shutdown, and short-lived worker-thread SQLite lifecycle pressure.
 
 ### Changed
 
@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Removed committed/generated local artifacts including the tracked Windows virtual environment and backend coverage output from the source tree and future release archives.
-- FastAPI lifespan shutdown and test teardown now close every tracked SQLite connection, including worker-thread/TestClient connections, so pytest unraisable unclosed-database warnings stay gone in supported lanes.
+- FastAPI lifespan shutdown and test teardown now close every tracked SQLite connection by connection identity instead of thread identifier, including worker-thread/TestClient connections, so pytest unraisable unclosed-database warnings stay gone in both the supported Python 3.11 lane and the Python 3.13 warning gate.
 
 ## [1.4.2] - 2026-07-17
 
