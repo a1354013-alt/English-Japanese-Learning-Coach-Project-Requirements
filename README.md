@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.4.3 -->
-Current release: `v1.4.3`.
+<!-- release:current=v1.5.0-dev.1 -->
+Current release: `v1.5.0-dev.1`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -62,16 +62,13 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
-## v1.4.3 Maintenance Baseline
+## v1.5.0-dev.1 Development Baseline
 
-Version `1.4.3` keeps the adaptive-learning behavior from `v1.4.2` intact while tightening release hygiene and SQLite lifecycle safety:
+Version `1.5.0-dev.1` is the current development branch identity. It keeps the released `v1.4.3` adaptive-learning baseline intact while adding additive persisted-chat storage work that is not yet wired into frontend conversation UI, WebSocket persistence, or AI runtime behavior:
 
-- Version-consistency verification now reads stable current-release markers instead of treating full README prose sentences as machine-readable contracts.
-- Python dependencies still keep readable source requirement files plus generated Python 3.11 lock files, but lock verification is now deterministic and portable instead of re-resolving the live package index during ordinary CI runs.
-- SQLite validation is now read-only, and backup/restore now validate temporary copies before atomically replacing final files.
-- Backend coverage still excludes `backend/tests/*` so the reported baseline reflects application code only.
-- Release packaging and archive verification now classify common virtual-environment variants consistently, so local dirty working trees cannot leak a developer venv into release archives.
-- Backend/test shutdown now closes every tracked SQLite connection across worker threads, and backend warning gates now treat unraisable unclosed-connection warnings as regressions instead of letting them slip through.
+- Persisted-chat Phase 1.1 now includes additive conversation/message storage hardening plus typed Phase 2A REST conversation CRUD and read APIs for the local demo user.
+- Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp without changing current WebSocket chat behavior.
+- Release packaging and archive verification still enforce the stricter secret, nested-archive, and virtual-environment checks from the `v1.4.3` release line.
 
 The adaptive study flow remains:
 
@@ -100,7 +97,7 @@ Use this path for the cleanest portfolio walkthrough:
 2. Install frontend dependencies with `cd frontend && npm ci`.
 3. Copy `backend/.env.example` to `backend/.env`.
 4. In VS Code, choose `F5: Backend + Frontend` and press F5.
-5. If `ALLOW_DEMO_RESET=true`, call `POST /api/demo/reset` to rebuild deterministic v1.4 demo data before presenting.
+5. If `ALLOW_DEMO_RESET=true`, call `POST /api/demo/reset` to rebuild deterministic v1.4.3 demo data before presenting.
 6. Open `Today` and show the Today Mission Panel: Daily Mission, micro lesson status, due SRS counts, weak item counts, and suggested next lesson.
 7. Complete or inspect the seeded micro lesson from the template bank.
 8. Open SRS due review and point out weak vocabulary, grammar, and sentence pattern items.
@@ -336,7 +333,7 @@ ALLOW_DEMO_RESET=true python -m uvicorn main:app --reload --host 0.0.0.0 --port 
 curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
-This reseeds a deterministic v1.4 demo lesson, progress snapshot, item-level SRS data, weak-item groups, 7-day review activity, and supporting demo data for the default user.
+This reseeds a deterministic v1.4.3 demo lesson, progress snapshot, item-level SRS data, weak-item groups, 7-day review activity, and supporting demo data for the default user.
 
 ### Full-Stack Smoke E2E
 

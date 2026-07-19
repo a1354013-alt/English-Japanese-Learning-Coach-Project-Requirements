@@ -21,6 +21,7 @@ from logging_config import configure_logging
 from ollama_client import ollama_client
 from routers import (
     ai_tools,
+    chat,
     imports,
     lessons,
     micro_lessons,
@@ -113,5 +114,6 @@ app.include_router(review.router)
 app.include_router(wrong_answers.router)
 app.include_router(streak.router)
 app.include_router(imports.router)
+app.include_router(chat.router)
 app.include_router(ai_tools.router)
 app.include_router(ai_tools.chat_ws_router)

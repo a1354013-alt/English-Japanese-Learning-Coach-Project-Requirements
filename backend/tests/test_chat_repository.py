@@ -14,6 +14,7 @@ from repositories.errors import (
     InvalidChatLanguageError,
     InvalidChatPaginationError,
     InvalidChatRoleError,
+    InvalidChatSummaryCheckpointError,
     InvalidIdempotencyKeyError,
     LessonLinkIntegrityError,
     LessonLinkNotFoundError,
@@ -97,6 +98,18 @@ def test_rename_link_unlink_and_summary_update(tmp_path):
     db = _make_db(tmp_path)
     _insert_lesson(db)
     conversation = _create_conversation(db)
+    db.chat_repository.append_message(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        role="user",
+        content="first",
+    )
+    db.chat_repository.append_message(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        role="assistant",
+        content="second",
+    )
 
     renamed = db.chat_repository.rename_conversation(
         conversation_id=conversation.conversation_id,
@@ -112,6 +125,12 @@ def test_rename_link_unlink_and_summary_update(tmp_path):
         conversation_id=conversation.conversation_id,
         user_id="default_user",
         summary="Conversation summary",
+        summary_through_sequence=2,
+    )
+    cleared = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary=None,
     )
     unlinked = db.chat_repository.set_conversation_lesson_link(
         conversation_id=conversation.conversation_id,
@@ -122,7 +141,38 @@ def test_rename_link_unlink_and_summary_update(tmp_path):
     assert renamed.title == "Renamed chat"
     assert linked.lesson_id == "lesson-1"
     assert summarized.summary == "Conversation summary"
+    assert summarized.summary_through_sequence == 2
+    assert summarized.summary_updated_at is not None
+    assert cleared.summary is None
+    assert cleared.summary_through_sequence == 0
+    assert cleared.summary_updated_at is None
     assert unlinked.lesson_id is None
+
+
+def test_summary_checkpoint_rejects_negative_or_future_sequence(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+    db.chat_repository.append_message(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        role="user",
+        content="only",
+    )
+
+    with pytest.raises(InvalidChatSummaryCheckpointError):
+        db.chat_repository.update_conversation_summary(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            summary="bad",
+            summary_through_sequence=-1,
+        )
+    with pytest.raises(InvalidChatSummaryCheckpointError):
+        db.chat_repository.update_conversation_summary(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            summary="too far",
+            summary_through_sequence=2,
+        )
 
 
 def test_invalid_lesson_link_raises_explicit_error(tmp_path):

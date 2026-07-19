@@ -14,3 +14,8 @@ def require_demo_user_id(user_id: str = Query(default=settings.default_user_id))
     if user_id != settings.default_user_id:
         raise api_error(400, "Invalid user_id for demo mode", "invalid_demo_user")
     return user_id
+
+
+def get_default_demo_user_id() -> str:
+    """Return the fixed local demo user without accepting client input."""
+    return settings.default_user_id

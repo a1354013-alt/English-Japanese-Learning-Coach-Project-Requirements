@@ -37,3 +37,7 @@ class IdempotencyConflictError(ChatRepositoryError):
 
 class InvalidIdempotencyKeyError(ChatRepositoryError):
     """Raised when a persisted-chat idempotency key is blank or exceeds policy."""
+
+
+class InvalidChatSummaryCheckpointError(ChatRepositoryError):
+    """Raised when a persisted-chat summary checkpoint is outside valid bounds."""

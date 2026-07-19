@@ -629,6 +629,8 @@ class ChatConversationRecord(BaseModel):
     title: str
     lesson_id: Optional[str] = None
     summary: Optional[str] = None
+    summary_through_sequence: int = Field(default=0, ge=0)
+    summary_updated_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     last_message_at: Optional[datetime] = None
@@ -649,6 +651,130 @@ class ChatMessagePage(BaseModel):
     messages: List[ChatMessageRecord]
     limit: int = Field(gt=0)
     descending: bool = False
+
+
+def _trimmed_non_empty(value: str, *, field_name: str) -> str:
+    trimmed = value.strip()
+    if not trimmed:
+        raise ValueError(f"{field_name} must not be blank")
+    return trimmed
+
+
+class ChatConversationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: LanguageCode
+    title: str = Field(min_length=1, max_length=120)
+    lesson_id: Optional[str] = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        trimmed = _trimmed_non_empty(value, field_name="title")
+        if len(trimmed) > 120:
+            raise ValueError("title must be at most 120 characters")
+        return trimmed
+
+    @field_validator("lesson_id")
+    @classmethod
+    def normalize_lesson_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return _trimmed_non_empty(value, field_name="lesson_id")
+
+
+class ChatConversationUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    lesson_id: Optional[str] = None
+    summary: Optional[str] = Field(default=None, max_length=12000)
+    summary_through_sequence: Optional[int] = Field(default=None, ge=0)
+
+    @field_validator("title")
+    @classmethod
+    def validate_optional_title(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = _trimmed_non_empty(value, field_name="title")
+        if len(trimmed) > 120:
+            raise ValueError("title must be at most 120 characters")
+        return trimmed
+
+    @field_validator("summary")
+    @classmethod
+    def validate_optional_summary(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = _trimmed_non_empty(value, field_name="summary")
+        if len(trimmed) > 12000:
+            raise ValueError("summary must be at most 12000 characters")
+        return trimmed
+
+    @field_validator("lesson_id")
+    @classmethod
+    def normalize_optional_lesson_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return _trimmed_non_empty(value, field_name="lesson_id")
+
+    @model_validator(mode="after")
+    def validate_summary_checkpoint_pair(self) -> "ChatConversationUpdateRequest":
+        supplied = self.model_fields_set
+        if "summary" in supplied and self.summary is not None and "summary_through_sequence" not in supplied:
+            raise ValueError("summary_through_sequence is required when summary is provided")
+        if "summary_through_sequence" in supplied and "summary" not in supplied:
+            raise ValueError("summary must be provided when summary_through_sequence is provided")
+        return self
+
+
+class ChatConversationResponse(BaseModel):
+    conversation_id: str
+    language: LanguageCode
+    title: str
+    lesson_id: Optional[str] = None
+    summary: Optional[str] = None
+    summary_through_sequence: int = Field(ge=0)
+    summary_updated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: Optional[datetime] = None
+
+
+class ChatConversationListResponse(BaseModel):
+    success: bool = True
+    count: int
+    conversations: List[ChatConversationResponse]
+
+
+class ChatConversationDetailResponse(BaseModel):
+    success: bool = True
+    conversation: ChatConversationResponse
+
+
+class ChatConversationDeleteResponse(BaseModel):
+    success: bool = True
+    message: str
+    conversation_id: str
+
+
+class ChatMessageResponse(BaseModel):
+    message_id: str
+    conversation_id: str
+    role: ChatMessageRole
+    content: str
+    sequence_number: int = Field(ge=1)
+    metadata: Optional[Dict[str, Any]] = None
+    created_at: datetime
+
+
+class ChatMessageListResponse(BaseModel):
+    success: bool = True
+    messages: List[ChatMessageResponse]
+    limit: int = Field(ge=1, le=100)
+    has_more: bool
+    next_before_sequence: Optional[int] = Field(default=None, ge=1)
+    next_after_sequence: Optional[int] = Field(default=None, ge=1)
 
 
 # ============ Writing Assistant Models ============

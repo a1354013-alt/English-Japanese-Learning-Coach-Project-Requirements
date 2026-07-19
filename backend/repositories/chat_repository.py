@@ -17,6 +17,7 @@ from repositories.errors import (
     InvalidChatLanguageError,
     InvalidChatPaginationError,
     InvalidChatRoleError,
+    InvalidChatSummaryCheckpointError,
     InvalidIdempotencyKeyError,
     LessonLinkIntegrityError,
     LessonLinkNotFoundError,
@@ -168,6 +169,7 @@ class ChatRepository:
         rows = conn.execute(
             """
             SELECT conversation_id, user_id, language, title, lesson_id, summary,
+                   summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
             WHERE user_id = ? AND language = ?
@@ -183,6 +185,7 @@ class ChatRepository:
         row = conn.execute(
             """
             SELECT conversation_id, user_id, language, title, lesson_id, summary,
+                   summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
             WHERE conversation_id = ? AND user_id = ?
@@ -235,12 +238,82 @@ class ChatRepository:
         conversation_id: str,
         user_id: str,
         summary: Optional[str],
+        summary_through_sequence: Optional[int] = None,
     ) -> ChatConversationRecord:
-        self._update_conversation_fields(
+        return self.update_conversation(
             conversation_id=conversation_id,
             user_id=user_id,
-            assignments={"summary": summary, "updated_at": _as_isoformat(local_now())},
+            summary=summary,
+            summary_through_sequence=summary_through_sequence,
+            set_summary=True,
         )
+
+    def update_conversation(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        title: Optional[str] = None,
+        lesson_id: Optional[str] = None,
+        set_lesson_id: bool = False,
+        summary: Optional[str] = None,
+        summary_through_sequence: Optional[int] = None,
+        set_summary: bool = False,
+    ) -> ChatConversationRecord:
+        conn = self._database.get_connection()
+        now = _as_isoformat(local_now())
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conversation = conn.execute(
+                """
+                SELECT conversation_id, language
+                FROM chat_conversations
+                WHERE conversation_id = ? AND user_id = ?
+                """,
+                (conversation_id, user_id),
+            ).fetchone()
+            if conversation is None:
+                raise ConversationNotFoundError(f"Conversation not found: {conversation_id}")
+
+            assignments: Dict[str, Any] = {"updated_at": now}
+            if title is not None:
+                assignments["title"] = title.strip() or "New conversation"
+
+            if set_lesson_id:
+                if lesson_id:
+                    self._validate_lesson_link(
+                        conn=conn,
+                        lesson_id=lesson_id,
+                        user_id=user_id,
+                        conversation_language=str(conversation["language"]),
+                    )
+                assignments["lesson_id"] = lesson_id
+
+            if set_summary:
+                if summary is None:
+                    assignments["summary"] = None
+                    assignments["summary_through_sequence"] = 0
+                    assignments["summary_updated_at"] = None
+                else:
+                    checkpoint = 0 if summary_through_sequence is None else summary_through_sequence
+                    self._validate_summary_checkpoint(
+                        conn=conn,
+                        conversation_id=conversation_id,
+                        summary_through_sequence=checkpoint,
+                    )
+                    assignments["summary"] = summary
+                    assignments["summary_through_sequence"] = checkpoint
+                    assignments["summary_updated_at"] = now
+
+            self._update_conversation_fields(
+                conversation_id=conversation_id,
+                user_id=user_id,
+                assignments=assignments,
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
         return self.get_conversation(conversation_id=conversation_id, user_id=user_id)
 
     def delete_conversation(self, *, conversation_id: str, user_id: str) -> None:
@@ -482,6 +555,29 @@ class ChatRepository:
             raise LessonLinkNotFoundError(f"Lesson not found: {lesson_id}")
         if str(row["language"]).strip().upper() != conversation_language:
             raise LessonLinkIntegrityError("Lesson language must match the conversation language.")
+
+    def _validate_summary_checkpoint(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        conversation_id: str,
+        summary_through_sequence: int,
+    ) -> None:
+        if summary_through_sequence < 0:
+            raise InvalidChatSummaryCheckpointError("summary_through_sequence must be >= 0")
+        row = conn.execute(
+            """
+            SELECT COALESCE(MAX(sequence_number), 0) AS max_sequence
+            FROM chat_messages
+            WHERE conversation_id = ?
+            """,
+            (conversation_id,),
+        ).fetchone()
+        max_sequence = int(row["max_sequence"]) if row is not None else 0
+        if summary_through_sequence > max_sequence:
+            raise InvalidChatSummaryCheckpointError(
+                "summary_through_sequence must not exceed the current maximum message sequence"
+            )
 
     def _allocate_next_sequence(self, *, conn: sqlite3.Connection, conversation_id: str) -> int:
         row = conn.execute(

@@ -6,12 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added persisted-chat Phase 1 storage hardening around ownership-first appends, canonical idempotency-key handling, metadata comparison, lesson-link integrity checks, monotonic message timestamps, and tighter release-archive validation.
+- Added persisted-chat Phase 2A typed REST conversation CRUD/read APIs for the demo user, plus persisted summary checkpoint storage with additive migration `0009`.
+- Added release-scan-safe nested archive regression coverage that still proves hidden secrets are rejected at runtime.
 
 ### Changed
 
-- Persisted-chat conversation and message storage remains additive-only on schema `0008` while the public release identity stays at `1.4.3`.
-- Frontend package metadata and current runtime Chat Tutor behavior are intentionally unchanged; persisted Phase 1 storage is not yet wired into frontend conversation UI, REST chat APIs, WebSocket flows, or AI prompt-history behavior.
+- Development branch identity is now `1.5.0-dev.1` across backend/frontend/runtime metadata and current release markers so unreleased persisted-chat work cannot be mistaken for `v1.4.3`.
+- Persisted-chat storage now spans additive schemas `0008` and `0009`, while current runtime Chat Tutor WebSocket behavior and frontend conversation UI remain intentionally unchanged.
 
 ## [1.4.3] - 2026-07-17
 

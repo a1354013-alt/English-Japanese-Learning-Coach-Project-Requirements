@@ -15,6 +15,10 @@ def test_db_init_and_migrations_smoke(tmp_path):
     assert "exercise_results" in tables
     assert "chat_conversations" in tables
     assert "chat_messages" in tables
+    with db.get_connection() as conn:
+        chat_columns = {r["name"] for r in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
+    assert "summary_through_sequence" in chat_columns
+    assert "summary_updated_at" in chat_columns
 
 
 def _create_v143_baseline(db_path):
@@ -228,6 +232,7 @@ def test_micro_lesson_reward_event_migration_is_tracked_and_idempotent(tmp_path)
     assert indexes
     assert "0007_micro_lesson_reward_events.sql" in versions
     assert "0008_chat_conversations_and_messages.sql" in versions
+    assert "0009_chat_summary_checkpoint.sql" in versions
 
     db.run_migrations()
     with db.get_connection() as conn:
@@ -316,6 +321,13 @@ def test_upgrade_from_v143_adds_persisted_chat_without_changing_existing_data(tm
             "SELECT version FROM schema_migrations WHERE version = ?",
             ("0008_chat_conversations_and_messages.sql",),
         ).fetchone()
+        version_0009 = conn.execute(
+            "SELECT version FROM schema_migrations WHERE version = ?",
+            ("0009_chat_summary_checkpoint.sql",),
+        ).fetchone()
+        chat_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
 
     assert lesson is not None
     assert lesson["topic"] == "legacy topic"
@@ -334,3 +346,6 @@ def test_upgrade_from_v143_adds_persisted_chat_without_changing_existing_data(tm
     assert reward["reward_type"] == "xp"
     assert chat_tables == {"chat_conversations", "chat_messages"}
     assert version is not None
+    assert version_0009 is not None
+    assert "summary_through_sequence" in chat_columns
+    assert "summary_updated_at" in chat_columns

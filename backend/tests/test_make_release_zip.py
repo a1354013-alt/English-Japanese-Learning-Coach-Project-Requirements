@@ -432,8 +432,9 @@ def test_verify_release_archive_rejects_nested_archive_payload(tmp_path, monkeyp
 def test_verify_release_archive_secret_scan_rejects_nested_zip_payload(tmp_path, monkeypatch):
     archive_path = tmp_path / "release.zip"
     nested_buffer = io.BytesIO()
+    fake_secret = "OPENAI" + "_API_KEY=should-not-hide\n"
     with ZipFile(nested_buffer, "w", compression=ZIP_DEFLATED) as nested_archive:
-        nested_archive.writestr("secrets.txt", "OPENAI_API_KEY=should-not-hide\n")
+        nested_archive.writestr("secrets.txt", fake_secret)
     _write_release_archive(archive_path, {"docs/hidden.zip": nested_buffer.getvalue()})
 
     monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
