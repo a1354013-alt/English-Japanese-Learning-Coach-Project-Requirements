@@ -17,6 +17,8 @@ from repositories.errors import (
     InvalidChatLanguageError,
     InvalidChatPaginationError,
     InvalidChatRoleError,
+    InvalidIdempotencyKeyError,
+    LessonLinkIntegrityError,
     LessonLinkNotFoundError,
 )
 
@@ -25,6 +27,7 @@ if TYPE_CHECKING:
 
 VALID_CHAT_LANGUAGES = {"EN", "JP"}
 VALID_CHAT_ROLES = {"system", "user", "assistant"}
+MAX_IDEMPOTENCY_KEY_LENGTH = 255
 
 
 def _as_isoformat(value: datetime) -> str:
@@ -43,6 +46,17 @@ def _decode_metadata(value: Any) -> Optional[Dict[str, Any]]:
             return None
         return parsed if isinstance(parsed, dict) else None
     return None
+
+
+def _encode_metadata(value: Optional[Dict[str, Any]]) -> Optional[str]:
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _max_isoformat(*values: Optional[str]) -> Optional[str]:
+    present = [value for value in values if value]
+    return max(present) if present else None
 
 
 class ChatRepository:
@@ -108,14 +122,18 @@ class ChatRepository:
         summary: Optional[str] = None,
     ) -> ChatConversationRecord:
         normalized_language = self._normalize_language(language)
-        if lesson_id:
-            self._assert_lesson_exists(lesson_id)
-
         now = _as_isoformat(local_now())
         conversation_id = str(uuid4())
         conversation_title = title.strip() if title and title.strip() else "New conversation"
 
         conn = self._database.get_connection()
+        if lesson_id:
+            self._validate_lesson_link(
+                conn=conn,
+                lesson_id=lesson_id,
+                user_id=user_id,
+                conversation_language=normalized_language,
+            )
         conn.execute(
             """
             INSERT INTO chat_conversations (
@@ -197,7 +215,13 @@ class ChatRepository:
         lesson_id: Optional[str],
     ) -> ChatConversationRecord:
         if lesson_id:
-            self._assert_lesson_exists(lesson_id)
+            conversation = self.get_conversation(conversation_id=conversation_id, user_id=user_id)
+            self._validate_lesson_link(
+                conn=self._database.get_connection(),
+                lesson_id=lesson_id,
+                user_id=user_id,
+                conversation_language=str(conversation.language),
+            )
         self._update_conversation_fields(
             conversation_id=conversation_id,
             user_id=user_id,
@@ -244,16 +268,27 @@ class ChatRepository:
         idempotency_key: Optional[str] = None,
     ) -> ChatMessageRecord:
         normalized_role = self._normalize_role(role)
+        normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
 
         conn = self._database.get_connection()
         message_id = str(uuid4())
-        created_at = _as_isoformat(local_now())
-        metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True) if metadata is not None else None
+        metadata_json = _encode_metadata(metadata)
 
         conn.execute("BEGIN IMMEDIATE")
         try:
+            conversation_row = conn.execute(
+                """
+                SELECT conversation_id, updated_at, last_message_at
+                FROM chat_conversations
+                WHERE conversation_id = ? AND user_id = ?
+                """,
+                (conversation_id, user_id),
+            ).fetchone()
+            if conversation_row is None:
+                raise ConversationNotFoundError(f"Conversation not found: {conversation_id}")
+
             existing = None
-            if idempotency_key:
+            if normalized_idempotency_key is not None:
                 existing = conn.execute(
                     """
                     SELECT message_id, conversation_id, role, content, sequence_number,
@@ -261,47 +296,75 @@ class ChatRepository:
                     FROM chat_messages
                     WHERE conversation_id = ? AND idempotency_key = ?
                     """,
-                    (conversation_id, idempotency_key),
+                    (conversation_id, normalized_idempotency_key),
                 ).fetchone()
                 if existing is not None:
-                    existing_message = self._row_to_message(existing)
                     if (
-                        existing_message.role != normalized_role
-                        or existing_message.content != content
-                        or existing_message.metadata != (metadata or None)
+                        str(existing["role"]) != normalized_role
+                        or str(existing["content"]) != content
+                        or existing["metadata_json"] != metadata_json
                     ):
                         raise IdempotencyConflictError(
                             f"Idempotency key conflict for conversation {conversation_id}"
                         )
+                    existing_message = self._row_to_message(existing)
                     conn.execute("COMMIT")
                     return existing_message
 
-            conversation_row = conn.execute(
-                "SELECT conversation_id FROM chat_conversations WHERE conversation_id = ? AND user_id = ?",
-                (conversation_id, user_id),
-            ).fetchone()
-            if conversation_row is None:
-                raise ConversationNotFoundError(f"Conversation not found: {conversation_id}")
-
-            next_sequence = self._allocate_next_sequence(conn=conn, conversation_id=conversation_id)
-            conn.execute(
-                """
-                INSERT INTO chat_messages (
-                    message_id, conversation_id, role, content, sequence_number,
-                    metadata_json, idempotency_key, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    message_id,
-                    conversation_id,
-                    normalized_role,
-                    content,
-                    next_sequence,
-                    metadata_json,
-                    idempotency_key,
-                    created_at,
-                ),
+            created_at = _max_isoformat(
+                _as_isoformat(local_now()),
+                conversation_row["last_message_at"],
+                conversation_row["updated_at"],
             )
+            if created_at is None:
+                created_at = _as_isoformat(local_now())
+            next_sequence = self._allocate_next_sequence(conn=conn, conversation_id=conversation_id)
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO chat_messages (
+                        message_id, conversation_id, role, content, sequence_number,
+                        metadata_json, idempotency_key, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        message_id,
+                        conversation_id,
+                        normalized_role,
+                        content,
+                        next_sequence,
+                        metadata_json,
+                        normalized_idempotency_key,
+                        created_at,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                if normalized_idempotency_key is None:
+                    raise
+                existing = conn.execute(
+                    """
+                    SELECT message_id, conversation_id, role, content, sequence_number,
+                           metadata_json, idempotency_key, created_at
+                    FROM chat_messages
+                    WHERE conversation_id = ? AND idempotency_key = ?
+                    """,
+                    (conversation_id, normalized_idempotency_key),
+                ).fetchone()
+                if existing is None:
+                    raise IdempotencyConflictError(
+                        f"Idempotency key conflict for conversation {conversation_id}"
+                    ) from exc
+                if (
+                    str(existing["role"]) != normalized_role
+                    or str(existing["content"]) != content
+                    or existing["metadata_json"] != metadata_json
+                ):
+                    raise IdempotencyConflictError(
+                        f"Idempotency key conflict for conversation {conversation_id}"
+                    ) from exc
+                existing_message = self._row_to_message(existing)
+                conn.execute("COMMIT")
+                return existing_message
             cur = conn.execute(
                 """
                 UPDATE chat_conversations
@@ -401,11 +464,24 @@ class ChatRepository:
         if cur.rowcount == 0:
             raise ConversationNotFoundError(f"Conversation not found: {conversation_id}")
 
-    def _assert_lesson_exists(self, lesson_id: str) -> None:
-        conn = self._database.get_connection()
-        row = conn.execute("SELECT lesson_id FROM lessons WHERE lesson_id = ?", (lesson_id,)).fetchone()
+    def _validate_lesson_link(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        lesson_id: str,
+        user_id: str,
+        conversation_language: str,
+    ) -> None:
+        row = conn.execute(
+            "SELECT lesson_id, user_id, language FROM lessons WHERE lesson_id = ?",
+            (lesson_id,),
+        ).fetchone()
         if row is None:
             raise LessonLinkNotFoundError(f"Lesson not found: {lesson_id}")
+        if str(row["user_id"]) != user_id:
+            raise LessonLinkNotFoundError(f"Lesson not found: {lesson_id}")
+        if str(row["language"]).strip().upper() != conversation_language:
+            raise LessonLinkIntegrityError("Lesson language must match the conversation language.")
 
     def _allocate_next_sequence(self, *, conn: sqlite3.Connection, conversation_id: str) -> int:
         row = conn.execute(
@@ -424,6 +500,18 @@ class ChatRepository:
         normalized = role.strip().lower()
         if normalized not in VALID_CHAT_ROLES:
             raise InvalidChatRoleError(f"Unsupported chat role: {role}")
+        return normalized
+
+    def _normalize_idempotency_key(self, idempotency_key: Optional[str]) -> Optional[str]:
+        if idempotency_key is None:
+            return None
+        normalized = idempotency_key.strip()
+        if not normalized:
+            raise InvalidIdempotencyKeyError("Idempotency key must not be blank.")
+        if len(normalized) > MAX_IDEMPOTENCY_KEY_LENGTH:
+            raise InvalidIdempotencyKeyError(
+                f"Idempotency key must be at most {MAX_IDEMPOTENCY_KEY_LENGTH} characters."
+            )
         return normalized
 
     def _validate_pagination(self, *, limit: int, offset: int) -> None:

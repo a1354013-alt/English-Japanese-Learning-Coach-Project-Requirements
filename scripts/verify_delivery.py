@@ -80,6 +80,7 @@ is_excluded_runtime_artifact = _release_file_policy.is_excluded_runtime_artifact
 is_safe_env_template = _release_file_policy.is_safe_env_template
 is_sensitive_credential_file = _release_file_policy.is_sensitive_credential_file
 is_sensitive_env_file = _release_file_policy.is_sensitive_env_file
+is_nested_release_archive = _release_file_policy.is_nested_release_archive
 is_virtualenv_artifact = _release_file_policy.is_virtualenv_artifact
 
 SOURCE_TREE_ARTIFACT_PATHS = (
@@ -89,6 +90,9 @@ SOURCE_TREE_ARTIFACT_PATHS = (
     REPO_ROOT / ".coverage",
     REPO_ROOT / "coverage",
     REPO_ROOT / ".venv311_hotfix2",
+    REPO_ROOT / "dist_phase1_check",
+    REPO_ROOT / "dist_test",
+    REPO_ROOT / "dist-local",
     FRONTEND_DIR / "coverage",
 )
 SECRET_SCAN_PATTERNS = (
@@ -572,6 +576,8 @@ def verify_release_archive() -> None:
             raise StepFailed(f"Release archive contains excluded virtual-environment artifact: {name}")
         if is_excluded_runtime_artifact(path):
             raise StepFailed(f"Release archive contains excluded artifact: {name}")
+        if is_nested_release_archive(path):
+            raise StepFailed(f"Release archive contains forbidden nested archive: {name}")
 
     print(f"Verified release archive contents: {RELEASE_ARCHIVE}")
 
@@ -583,6 +589,10 @@ def verify_release_archive_secret_patterns() -> None:
     text_suffixes = {".md", ".txt", ".json", ".toml", ".ini", ".cfg", ".yml", ".yaml", ".py", ".ts", ".js", ".css", ".html", ".sh"}
     with ZipFile(RELEASE_ARCHIVE) as archive:
         for member in archive.infolist():
+            if is_nested_release_archive(member.filename):
+                raise StepFailed(
+                    f"Release archive secret-pattern scan rejected nested archive payload: {member.filename}"
+                )
             if Path(member.filename).suffix.lower() not in text_suffixes:
                 continue
             content = archive.read(member).decode("utf-8", errors="ignore")

@@ -51,6 +51,9 @@ chroma/
 
 # Build outputs and dependencies
 dist/
+/dist_phase1_check/
+/dist_test/
+/dist-local/
 node_modules/
 build/
 frontend/test-results/
@@ -58,3 +61,7 @@ frontend/dist/
 frontend/playwright-report/
 frontend/coverage/
 coverage/
+*.zip
+*.tar
+*.tar.gz
+*.tgz

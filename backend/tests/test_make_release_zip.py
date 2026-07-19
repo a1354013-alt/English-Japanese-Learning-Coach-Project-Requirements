@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import shutil
 from pathlib import Path
 from types import ModuleType
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
@@ -147,6 +148,9 @@ def _seed_runtime_artifacts(repo_root: Path) -> None:
     _write_text(repo_root / "backend" / ".playwright-data" / "language_coach.db", "db")
     _write_text(repo_root / "backend" / ".pytest_cache" / "state", "cache")
     _write_text(repo_root / "__pycache__" / "module.pyc", "pyc")
+    _write_text(repo_root / "dist_phase1_check" / "english-japanese-learning-coach-v9.9.9.zip", "zip")
+    _write_text(repo_root / "dist_test" / "preview.zip", "zip")
+    _write_text(repo_root / "dist-local" / "preview.tar.gz", "tar")
 
 
 def _seed_virtualenv_artifacts(repo_root: Path) -> None:
@@ -158,7 +162,7 @@ def _seed_virtualenv_artifacts(repo_root: Path) -> None:
         _write_text(repo_root / dirname / "Lib" / "site-packages" / "compiled.pyd", "binary")
 
 
-def _write_release_archive(archive_path: Path, extra_files: dict[str, str] | None = None) -> None:
+def _write_release_archive(archive_path: Path, extra_files: dict[str, str | bytes] | None = None) -> None:
     extra_files = extra_files or {}
     with ZipFile(archive_path, "w") as archive:
         for name in REQUIRED_RELEASE_FILES:
@@ -315,6 +319,13 @@ def test_shared_policy_covers_required_artifact_patterns():
     assert make_release_zip.should_skip(Path(".venv311_hotfix2/Lib/site-packages/pkg/__init__.py"))
     assert make_release_zip.should_skip(Path("venv-3.11/Scripts/python.exe"))
     assert make_release_zip.should_skip(Path(".venv/pyvenv.cfg"))
+    assert make_release_zip.should_skip(Path("dist_phase1_check/english-japanese-learning-coach-v1.4.3.zip"))
+    assert make_release_zip.should_skip(Path("dist_test/preview.zip"))
+    assert make_release_zip.should_skip(Path("dist-local/preview.tar.gz"))
+    assert make_release_zip.should_skip(Path("docs/release-bundle.zip"))
+    assert make_release_zip.should_skip(Path("docs/release-bundle.tar"))
+    assert make_release_zip.should_skip(Path("docs/release-bundle.tar.gz"))
+    assert make_release_zip.should_skip(Path("docs/release-bundle.tgz"))
     assert not make_release_zip.should_skip(Path("data/.gitkeep"))
 
 
@@ -408,6 +419,29 @@ def test_verify_release_archive_secret_pattern_scan_rejects_private_key_material
         verify_delivery.verify_release_archive_secret_patterns()
 
 
+def test_verify_release_archive_rejects_nested_archive_payload(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    _write_release_archive(archive_path, {"docs/bundle.zip": "nested"})
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="forbidden nested archive"):
+        verify_delivery.verify_release_archive()
+
+
+def test_verify_release_archive_secret_scan_rejects_nested_zip_payload(tmp_path, monkeypatch):
+    archive_path = tmp_path / "release.zip"
+    nested_buffer = io.BytesIO()
+    with ZipFile(nested_buffer, "w", compression=ZIP_DEFLATED) as nested_archive:
+        nested_archive.writestr("secrets.txt", "OPENAI_API_KEY=should-not-hide\n")
+    _write_release_archive(archive_path, {"docs/hidden.zip": nested_buffer.getvalue()})
+
+    monkeypatch.setattr(verify_delivery, "RELEASE_ARCHIVE", archive_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="nested archive payload"):
+        verify_delivery.verify_release_archive_secret_patterns()
+
+
 def test_release_archive_extraction_bootstrap_smoke(tmp_path, monkeypatch):
     archive_path = tmp_path / "release.zip"
     _write_release_archive(archive_path)
@@ -427,6 +461,29 @@ def test_release_archive_extraction_bootstrap_smoke(tmp_path, monkeypatch):
     assert (extract_root / "backend" / ".env").read_text(encoding="utf-8") == "BACKEND_TEMPLATE=1\n"
     assert (extract_root / "backend" / "main.py").exists()
     assert (extract_root / "frontend" / "src" / "env.d.ts").exists()
+
+
+def test_verify_clean_source_tree_artifacts_rejects_generated_dist_variants(tmp_path, monkeypatch):
+    repo_root = tmp_path / "repo"
+    frontend_dir = repo_root / "frontend"
+    frontend_dir.mkdir(parents=True, exist_ok=True)
+    generated_dir = repo_root / "dist_phase1_check"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", frontend_dir)
+    monkeypatch.setattr(
+        verify_delivery,
+        "SOURCE_TREE_ARTIFACT_PATHS",
+        (
+            repo_root / "dist_phase1_check",
+            repo_root / "dist_test",
+            repo_root / "dist-local",
+        ),
+    )
+
+    with pytest.raises(verify_delivery.StepFailed, match="dist_phase1_check"):
+        verify_delivery.verify_clean_source_tree_artifacts()
 
 
 def test_shell_syntax_validation_runs_when_supported(tmp_path, monkeypatch):

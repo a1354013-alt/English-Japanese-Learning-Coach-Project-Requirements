@@ -49,6 +49,9 @@ EXCLUDED_DIR_NAMES = frozenset(
         "caches",
         "coverage",
         "dist",
+        "dist-local",
+        "dist_phase1_check",
+        "dist_test",
         "htmlcov",
         "playwright-report",
         "test-results",
@@ -82,6 +85,8 @@ EXCLUDED_RUNTIME_PREFIXES = (
     ("frontend", "playwright-report"),
     ("frontend", "coverage"),
 )
+NESTED_ARCHIVE_SUFFIXES = frozenset({".zip", ".tar", ".tgz"})
+NESTED_ARCHIVE_DOUBLE_SUFFIXES = frozenset({".tar.gz"})
 
 
 def normalize_relative_path(relative_path: Path | str) -> Path:
@@ -169,10 +174,19 @@ def is_excluded_runtime_artifact(relative_path: Path | str) -> bool:
     return any(parts[: len(prefix)] == prefix for prefix in EXCLUDED_RUNTIME_PREFIXES)
 
 
+def is_nested_release_archive(relative_path: Path | str) -> bool:
+    path = normalize_relative_path(relative_path)
+    lower_name = path.name.lower()
+    if any(lower_name.endswith(suffix) for suffix in NESTED_ARCHIVE_DOUBLE_SUFFIXES):
+        return True
+    return path.suffix.lower() in NESTED_ARCHIVE_SUFFIXES
+
+
 def may_include_in_release_archive(relative_path: Path | str) -> bool:
     path = normalize_relative_path(relative_path)
     return (
         not is_sensitive_env_file(path)
         and not is_sensitive_credential_file(path)
         and not is_excluded_runtime_artifact(path)
+        and not is_nested_release_archive(path)
     )

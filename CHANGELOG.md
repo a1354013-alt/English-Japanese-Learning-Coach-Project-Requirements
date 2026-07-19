@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Added persisted-chat Phase 1 storage hardening around ownership-first appends, canonical idempotency-key handling, metadata comparison, lesson-link integrity checks, monotonic message timestamps, and tighter release-archive validation.
+
+### Changed
+
+- Persisted-chat conversation and message storage remains additive-only on schema `0008` while the public release identity stays at `1.4.3`.
+- Frontend package metadata and current runtime Chat Tutor behavior are intentionally unchanged; persisted Phase 1 storage is not yet wired into frontend conversation UI, REST chat APIs, WebSocket flows, or AI prompt-history behavior.
+
 ## [1.4.3] - 2026-07-17
 
 ### Added

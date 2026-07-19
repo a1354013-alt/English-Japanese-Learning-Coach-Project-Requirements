@@ -27,5 +27,13 @@ class LessonLinkNotFoundError(ChatRepositoryError):
     """Raised when a requested lesson link target does not exist."""
 
 
+class LessonLinkIntegrityError(ChatRepositoryError):
+    """Raised when a requested lesson link is incompatible with the conversation."""
+
+
 class IdempotencyConflictError(ChatRepositoryError):
     """Raised when an idempotency key is retried with incompatible content."""
+
+
+class InvalidIdempotencyKeyError(ChatRepositoryError):
+    """Raised when a persisted-chat idempotency key is blank or exceeds policy."""
