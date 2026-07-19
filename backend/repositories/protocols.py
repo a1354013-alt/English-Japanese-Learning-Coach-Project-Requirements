@@ -75,6 +75,7 @@ class PersistedChatRepositoryProtocol(Protocol):
         conversation_id: str,
         user_id: str,
         summary: Optional[str],
+        summary_through_sequence: Optional[int] = None,
     ) -> ChatConversationRecord: ...
 
     def delete_conversation(self, *, conversation_id: str, user_id: str) -> None: ...

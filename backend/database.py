@@ -42,6 +42,60 @@ def _json_loads_list(value: Any) -> List[Any]:
     return []
 
 
+CHAT_SUMMARY_TRIGGER_NAMES = (
+    "trg_chat_conversations_summary_checkpoint_insert",
+    "trg_chat_conversations_summary_checkpoint_update",
+)
+
+CHAT_SUMMARY_INSERT_TRIGGER_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_insert
+BEFORE INSERT ON chat_conversations
+FOR EACH ROW
+BEGIN
+    SELECT
+        CASE
+            WHEN NEW.summary_through_sequence < 0 THEN
+                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
+            WHEN NEW.summary IS NULL AND NEW.summary_through_sequence <> 0 THEN
+                RAISE(ABORT, 'chat summary checkpoint must be 0 when summary is null')
+            WHEN NEW.summary IS NULL AND NEW.summary_updated_at IS NOT NULL THEN
+                RAISE(ABORT, 'chat summary_updated_at must be null when summary is null')
+            WHEN NEW.summary_through_sequence > COALESCE(
+                (SELECT MAX(sequence_number) FROM chat_messages WHERE conversation_id = NEW.conversation_id),
+                0
+            ) THEN
+                RAISE(ABORT, 'chat summary checkpoint exceeds message sequence')
+        END;
+END
+"""
+
+CHAT_SUMMARY_UPDATE_TRIGGER_SQL = """
+CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_update
+BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
+FOR EACH ROW
+BEGIN
+    SELECT
+        CASE
+            WHEN NEW.summary_through_sequence < 0 THEN
+                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
+            WHEN NEW.summary IS NULL AND NEW.summary_through_sequence <> 0 THEN
+                RAISE(ABORT, 'chat summary checkpoint must be 0 when summary is null')
+            WHEN NEW.summary IS NULL AND NEW.summary_updated_at IS NOT NULL THEN
+                RAISE(ABORT, 'chat summary_updated_at must be null when summary is null')
+            WHEN NEW.summary IS NOT NULL
+                 AND OLD.summary IS NOT NULL
+                 AND NEW.summary_through_sequence < OLD.summary_through_sequence THEN
+                RAISE(ABORT, 'chat summary checkpoint must not move backward')
+            WHEN NEW.summary_through_sequence > COALESCE(
+                (SELECT MAX(sequence_number) FROM chat_messages WHERE conversation_id = NEW.conversation_id),
+                0
+            ) THEN
+                RAISE(ABORT, 'chat summary checkpoint exceeds message sequence')
+        END;
+END
+"""
+
+
 class Database:
     """SQLite database handler with connection pooling."""
 
@@ -370,6 +424,9 @@ class Database:
                 }.issubset(set(cols)):
                     conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
                     continue
+            if version == "0009_chat_summary_checkpoint.sql":
+                self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=True)
+                continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
@@ -410,68 +467,10 @@ class Database:
             ON chat_messages(conversation_id, created_at ASC, sequence_number ASC)
             """
         )
-        conversation_cols = {
-            r["name"] for r in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
-        }
         if "chat_conversations" in {
             r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }:
-            if "summary_through_sequence" not in conversation_cols:
-                conn.execute(
-                    """
-                    ALTER TABLE chat_conversations
-                    ADD COLUMN summary_through_sequence INTEGER NOT NULL DEFAULT 0
-                    CHECK (summary_through_sequence >= 0)
-                    """
-                )
-            if "summary_updated_at" not in conversation_cols:
-                conn.execute("ALTER TABLE chat_conversations ADD COLUMN summary_updated_at TIMESTAMP NULL")
-            conn.execute(
-                """
-                CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_insert
-                BEFORE INSERT ON chat_conversations
-                FOR EACH ROW
-                BEGIN
-                    SELECT
-                        CASE
-                            WHEN NEW.summary_through_sequence < 0 THEN
-                                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
-                            WHEN NEW.summary IS NULL AND NEW.summary_through_sequence <> 0 THEN
-                                RAISE(ABORT, 'chat summary checkpoint must be 0 when summary is null')
-                            WHEN NEW.summary IS NULL AND NEW.summary_updated_at IS NOT NULL THEN
-                                RAISE(ABORT, 'chat summary_updated_at must be null when summary is null')
-                            WHEN NEW.summary_through_sequence > COALESCE(
-                                (SELECT MAX(sequence_number) FROM chat_messages WHERE conversation_id = NEW.conversation_id),
-                                0
-                            ) THEN
-                                RAISE(ABORT, 'chat summary checkpoint exceeds message sequence')
-                        END;
-                END
-                """
-            )
-            conn.execute(
-                """
-                CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_update
-                BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
-                FOR EACH ROW
-                BEGIN
-                    SELECT
-                        CASE
-                            WHEN NEW.summary_through_sequence < 0 THEN
-                                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
-                            WHEN NEW.summary IS NULL AND NEW.summary_through_sequence <> 0 THEN
-                                RAISE(ABORT, 'chat summary checkpoint must be 0 when summary is null')
-                            WHEN NEW.summary IS NULL AND NEW.summary_updated_at IS NOT NULL THEN
-                                RAISE(ABORT, 'chat summary_updated_at must be null when summary is null')
-                            WHEN NEW.summary_through_sequence > COALESCE(
-                                (SELECT MAX(sequence_number) FROM chat_messages WHERE conversation_id = NEW.conversation_id),
-                                0
-                            ) THEN
-                                RAISE(ABORT, 'chat summary checkpoint exceeds message sequence')
-                        END;
-                END
-                """
-            )
+            self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
         self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
@@ -536,6 +535,71 @@ class Database:
             )
             """
         )
+
+    def _recover_chat_summary_checkpoint_migration(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        mark_complete: bool,
+    ) -> None:
+        if not self._table_exists(conn=conn, table_name="chat_conversations"):
+            return
+
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        if "summary_through_sequence" not in conversation_cols:
+            conn.execute(
+                """
+                ALTER TABLE chat_conversations
+                ADD COLUMN summary_through_sequence INTEGER NOT NULL DEFAULT 0
+                CHECK (summary_through_sequence >= 0)
+                """
+            )
+        if "summary_updated_at" not in conversation_cols:
+            conn.execute("ALTER TABLE chat_conversations ADD COLUMN summary_updated_at TIMESTAMP NULL")
+
+        existing_triggers = self._existing_trigger_names(conn=conn)
+        if "trg_chat_conversations_summary_checkpoint_insert" not in existing_triggers:
+            conn.execute(CHAT_SUMMARY_INSERT_TRIGGER_SQL)
+        if "trg_chat_conversations_summary_checkpoint_update" not in existing_triggers:
+            conn.execute(CHAT_SUMMARY_UPDATE_TRIGGER_SQL)
+
+        self._validate_chat_summary_checkpoint_schema(conn=conn)
+
+        if mark_complete:
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0009_chat_summary_checkpoint.sql",),
+            )
+
+    def _validate_chat_summary_checkpoint_schema(self, *, conn: sqlite3.Connection) -> None:
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        missing_cols = {"summary_through_sequence", "summary_updated_at"} - conversation_cols
+        if missing_cols:
+            missing = ", ".join(sorted(missing_cols))
+            raise RuntimeError(f"chat summary checkpoint migration incomplete: missing columns {missing}")
+
+        existing_triggers = self._existing_trigger_names(conn=conn)
+        missing_triggers = set(CHAT_SUMMARY_TRIGGER_NAMES) - existing_triggers
+        if missing_triggers:
+            missing = ", ".join(sorted(missing_triggers))
+            raise RuntimeError(f"chat summary checkpoint migration incomplete: missing triggers {missing}")
+
+    def _existing_trigger_names(self, *, conn: sqlite3.Connection) -> set[str]:
+        return {
+            str(row["name"])
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'").fetchall()
+        }
+
+    def _table_exists(self, *, conn: sqlite3.Connection, table_name: str) -> bool:
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+            (table_name,),
+        ).fetchone()
+        return row is not None
 
     # ================= Persisted Chat =================
     def create_chat_session(

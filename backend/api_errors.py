@@ -70,9 +70,13 @@ async def validation_exception_handler(_: Request, exc: Exception) -> JSONRespon
         return await unhandled_exception_handler(_, exc)
     errors = jsonable_encoder(exc.errors())
     message = "; ".join(str(item.get("msg", "Validation error")) for item in errors) or "Validation failed"
+    code = _validation_error_code(_, errors)
+    if code == "invalid_chat_language":
+        bad_language = _extract_invalid_chat_language(errors)
+        message = f"Unsupported chat language: {bad_language}" if bad_language else "Unsupported chat language"
     return JSONResponse(
         status_code=422,
-        content=error_payload(message, "validation_error", detail=errors),
+        content=error_payload(message, code, detail=errors),
     )
 
 
@@ -100,3 +104,24 @@ def _default_code_for_status(status_code: int) -> str:
         503: "service_unavailable",
     }
     return mapping.get(status_code, f"http_{status_code}")
+
+
+def _validation_error_code(request: Request, errors: list[dict[str, Any]]) -> str:
+    if request.url.path.startswith("/api/chat/") and _extract_invalid_chat_language(errors) is not None:
+        return "invalid_chat_language"
+    return "validation_error"
+
+
+def _extract_invalid_chat_language(errors: list[dict[str, Any]]) -> str | None:
+    for item in errors:
+        loc = item.get("loc") or ()
+        if not isinstance(loc, (list, tuple)) or not loc:
+            continue
+        if loc[-1] != "language":
+            continue
+        if item.get("type") != "literal_error":
+            continue
+        value = item.get("input")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None

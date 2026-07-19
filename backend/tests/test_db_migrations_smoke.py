@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from database import Database
 
 
@@ -214,6 +215,145 @@ def _create_v143_baseline(db_path):
         conn.close()
 
 
+def _create_partial_0009_state(
+    db_path,
+    *,
+    include_summary_through_sequence: bool,
+    include_summary_updated_at: bool,
+    include_insert_trigger: bool,
+    include_update_trigger: bool,
+) -> None:
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
+    try:
+        summary_through_sequence_sql = (
+            ", summary_through_sequence INTEGER NOT NULL DEFAULT 0 CHECK (summary_through_sequence >= 0)"
+            if include_summary_through_sequence
+            else ""
+        )
+        summary_updated_at_sql = ", summary_updated_at TIMESTAMP NULL" if include_summary_updated_at else ""
+        conn.executescript(
+            f"""
+            PRAGMA foreign_keys=ON;
+            CREATE TABLE schema_migrations (
+                version TEXT PRIMARY KEY,
+                applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE chat_conversations (
+                conversation_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                title TEXT NOT NULL,
+                lesson_id TEXT NULL,
+                summary TEXT NULL,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                last_message_at TIMESTAMP NULL
+                {summary_through_sequence_sql}
+                {summary_updated_at_sql}
+            );
+            CREATE TABLE chat_messages (
+                message_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL REFERENCES chat_conversations(conversation_id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                sequence_number INTEGER NOT NULL,
+                metadata_json TEXT NULL,
+                idempotency_key TEXT NULL,
+                created_at TIMESTAMP NOT NULL
+            );
+            CREATE UNIQUE INDEX idx_chat_messages_conversation_sequence
+            ON chat_messages(conversation_id, sequence_number);
+            """
+        )
+        for version in (
+            "0001_wrong_answers_and_learning_activity.sql",
+            "0002_lessons_user_id.sql",
+            "0003_exercise_results_unique.sql",
+            "0004_exercise_results_latest_attempt.sql",
+            "0005_vocabulary_categories_and_roots.sql",
+            "0006_learning_items_and_reviews.sql",
+            "0007_micro_lesson_reward_events.sql",
+            "0008_chat_conversations_and_messages.sql",
+        ):
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
+
+        insert_columns = [
+            "conversation_id",
+            "user_id",
+            "language",
+            "title",
+            "lesson_id",
+            "summary",
+            "created_at",
+            "updated_at",
+            "last_message_at",
+        ]
+        insert_values = [
+            "conv-1",
+            "default_user",
+            "EN",
+            "Recovered",
+            None,
+            "summary",
+            "2026-07-19T09:00:00+08:00",
+            "2026-07-19T09:00:00+08:00",
+            "2026-07-19T09:01:00+08:00",
+        ]
+        if include_summary_through_sequence:
+            insert_columns.append("summary_through_sequence")
+            insert_values.append(1)
+        if include_summary_updated_at:
+            insert_columns.append("summary_updated_at")
+            insert_values.append("2026-07-19T09:01:00+08:00")
+        placeholders = ", ".join("?" for _ in insert_columns)
+        conn.execute(
+            f"INSERT INTO chat_conversations ({', '.join(insert_columns)}) VALUES ({placeholders})",
+            insert_values,
+        )
+        conn.execute(
+            """
+            INSERT INTO chat_messages (
+                message_id, conversation_id, role, content, sequence_number,
+                metadata_json, idempotency_key, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("msg-1", "conv-1", "user", "hello", 1, None, "key-1", "2026-07-19T09:01:00+08:00"),
+        )
+
+        if include_insert_trigger and include_summary_through_sequence and include_summary_updated_at:
+            conn.executescript(
+                """
+                CREATE TRIGGER trg_chat_conversations_summary_checkpoint_insert
+                BEFORE INSERT ON chat_conversations
+                FOR EACH ROW
+                BEGIN
+                    SELECT
+                        CASE
+                            WHEN NEW.summary_through_sequence < 0 THEN
+                                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
+                        END;
+                END;
+                """
+            )
+        if include_update_trigger and include_summary_through_sequence and include_summary_updated_at:
+            conn.executescript(
+                """
+                CREATE TRIGGER trg_chat_conversations_summary_checkpoint_update
+                BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
+                FOR EACH ROW
+                BEGIN
+                    SELECT
+                        CASE
+                            WHEN NEW.summary_through_sequence < 0 THEN
+                                RAISE(ABORT, 'chat summary checkpoint must be >= 0')
+                        END;
+                END;
+                """
+            )
+    finally:
+        conn.close()
+
+
 def test_micro_lesson_reward_event_migration_is_tracked_and_idempotent(tmp_path):
     db = Database(str(tmp_path / "t.db"))
 
@@ -349,3 +489,85 @@ def test_upgrade_from_v143_adds_persisted_chat_without_changing_existing_data(tm
     assert version_0009 is not None
     assert "summary_through_sequence" in chat_columns
     assert "summary_updated_at" in chat_columns
+
+
+@pytest.mark.parametrize(
+    (
+        "include_summary_through_sequence",
+        "include_summary_updated_at",
+        "include_insert_trigger",
+        "include_update_trigger",
+    ),
+    (
+        (False, False, False, False),
+        (True, False, False, False),
+        (False, True, False, False),
+        (True, True, False, False),
+        (True, True, True, False),
+        (True, True, False, True),
+    ),
+)
+def test_partial_0009_startup_recovery_is_idempotent_and_preserves_chat_data(
+    tmp_path,
+    include_summary_through_sequence,
+    include_summary_updated_at,
+    include_insert_trigger,
+    include_update_trigger,
+):
+    db_path = tmp_path / "partial-0009.db"
+    _create_partial_0009_state(
+        db_path,
+        include_summary_through_sequence=include_summary_through_sequence,
+        include_summary_updated_at=include_summary_updated_at,
+        include_insert_trigger=include_insert_trigger,
+        include_update_trigger=include_update_trigger,
+    )
+
+    db = Database(str(db_path))
+    db.run_migrations()
+
+    with db.get_connection() as conn:
+        chat_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
+        versions = {
+            row["version"]
+            for row in conn.execute("SELECT version FROM schema_migrations WHERE version = ?", ("0009_chat_summary_checkpoint.sql",)).fetchall()
+        }
+        triggers = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_chat_conversations_summary_checkpoint_%'"
+            ).fetchall()
+        }
+        conversation = conn.execute(
+            """
+            SELECT conversation_id, title, summary, summary_through_sequence, summary_updated_at
+            FROM chat_conversations
+            WHERE conversation_id = ?
+            """,
+            ("conv-1",),
+        ).fetchone()
+        message = conn.execute(
+            """
+            SELECT message_id, conversation_id, sequence_number, content
+            FROM chat_messages
+            WHERE message_id = ?
+            """,
+            ("msg-1",),
+        ).fetchone()
+
+    assert chat_columns.issuperset({"summary_through_sequence", "summary_updated_at"})
+    assert versions == {"0009_chat_summary_checkpoint.sql"}
+    assert triggers == {
+        "trg_chat_conversations_summary_checkpoint_insert",
+        "trg_chat_conversations_summary_checkpoint_update",
+    }
+    assert conversation is not None
+    assert conversation["conversation_id"] == "conv-1"
+    assert conversation["title"] == "Recovered"
+    assert conversation["summary"] == "summary"
+    expected_checkpoint = 1 if include_summary_through_sequence else 0
+    assert int(conversation["summary_through_sequence"]) == expected_checkpoint
+    assert message is not None
+    assert message["conversation_id"] == "conv-1"
+    assert int(message["sequence_number"]) == 1
+    assert message["content"] == "hello"

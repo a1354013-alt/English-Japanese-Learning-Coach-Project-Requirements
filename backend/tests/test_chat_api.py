@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import database as database_module
+import pytest
 from database import Database
 from fastapi.testclient import TestClient
 from main import app
+from models import ChatConversationUpdateRequest
+from pydantic import ValidationError
 from routers import chat as chat_router
 
 
@@ -166,10 +169,10 @@ def test_chat_messages_pagination_returns_cursors_without_idempotency_keys(monke
     first_page = client.get(f"/api/chat/conversations/{conversation.conversation_id}/messages?limit=2")
     assert first_page.status_code == 200
     first_body = first_page.json()
-    assert [item["sequence_number"] for item in first_body["messages"]] == [1, 2]
+    assert [item["sequence_number"] for item in first_body["messages"]] == [4, 5]
     assert first_body["has_more"] is True
-    assert first_body["next_before_sequence"] is None
-    assert first_body["next_after_sequence"] == 2
+    assert first_body["next_before_sequence"] == 4
+    assert first_body["next_after_sequence"] is None
     assert "idempotency_key" not in first_body["messages"][0]
 
     newer_page = client.get(
@@ -187,10 +190,10 @@ def test_chat_messages_pagination_returns_cursors_without_idempotency_keys(monke
     )
     assert older_page.status_code == 200
     older_body = older_page.json()
-    assert [item["sequence_number"] for item in older_body["messages"]] == [1, 2]
-    assert older_body["has_more"] is False
-    assert older_body["next_before_sequence"] is None
-    assert older_body["next_after_sequence"] == 2
+    assert [item["sequence_number"] for item in older_body["messages"]] == [3, 4]
+    assert older_body["has_more"] is True
+    assert older_body["next_before_sequence"] == 3
+    assert older_body["next_after_sequence"] == 4
 
 
 def test_chat_api_rejects_invalid_inputs_and_user_id(monkeypatch, tmp_path):
@@ -205,6 +208,7 @@ def test_chat_api_rejects_invalid_inputs_and_user_id(monkeypatch, tmp_path):
 
     bad_language = client.post("/api/chat/conversations", json={"language": "FR", "title": "Bad"})
     assert bad_language.status_code == 422
+    assert bad_language.json()["code"] == "invalid_chat_language"
 
     long_title = client.post("/api/chat/conversations", json={"language": "EN", "title": "x" * 121})
     assert long_title.status_code == 422
@@ -235,6 +239,48 @@ def test_chat_api_rejects_invalid_inputs_and_user_id(monkeypatch, tmp_path):
         json={"summary": "Missing checkpoint"},
     )
     assert invalid_summary.status_code == 422
+
+
+def test_chat_patch_validation_rejects_ambiguous_or_empty_updates(monkeypatch, tmp_path):
+    db = _patch_chat_db(monkeypatch, tmp_path)
+    conversation = db.chat_repository.create_conversation(
+        user_id="default_user",
+        language="EN",
+        title="Patch validation",
+    )
+    _append_messages(db, conversation.conversation_id, ["m1", "m2", "m3"])
+    client = TestClient(app)
+
+    empty = client.patch(f"/api/chat/conversations/{conversation.conversation_id}", json={})
+    assert empty.status_code == 422
+
+    null_title = client.patch(f"/api/chat/conversations/{conversation.conversation_id}", json={"title": None})
+    assert null_title.status_code == 422
+
+    bad_clear = client.patch(
+        f"/api/chat/conversations/{conversation.conversation_id}",
+        json={"summary": None, "summary_through_sequence": 2},
+    )
+    assert bad_clear.status_code == 422
+
+    clear_ok = client.patch(
+        f"/api/chat/conversations/{conversation.conversation_id}",
+        json={"summary": None, "summary_through_sequence": 0},
+    )
+    assert clear_ok.status_code == 200
+
+
+def test_chat_update_request_model_rejects_invalid_patch_shapes():
+    with pytest.raises(ValidationError):
+        ChatConversationUpdateRequest.model_validate({})
+    with pytest.raises(ValidationError):
+        ChatConversationUpdateRequest.model_validate({"title": None})
+    with pytest.raises(ValidationError):
+        ChatConversationUpdateRequest.model_validate({"summary": None, "summary_through_sequence": 2})
+
+    valid = ChatConversationUpdateRequest.model_validate({"lesson_id": None, "summary": None})
+    assert valid.lesson_id is None
+    assert valid.summary is None
 
 
 def test_chat_summary_checkpoint_validation_and_message_limits(monkeypatch, tmp_path):
@@ -281,6 +327,11 @@ def test_chat_openapi_exposes_typed_schemas(monkeypatch, tmp_path):
         paths["/api/chat/conversations/{conversation_id}/messages"]["get"]["responses"]["200"]["content"][
             "application/json"
         ]["schema"]["$ref"].endswith("/ChatMessageListResponse")
+    )
+    assert (
+        paths["/api/chat/conversations/{conversation_id}"]["patch"]["requestBody"]["content"]["application/json"][
+            "schema"
+        ]["$ref"].endswith("/ChatConversationUpdateRequest")
     )
     assert "ChatConversationCreateRequest" in schemas
     assert "ChatConversationUpdateRequest" in schemas

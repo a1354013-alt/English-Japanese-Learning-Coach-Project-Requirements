@@ -179,56 +179,18 @@ async def get_conversation_messages(
         page = db.chat_repository.get_messages_page(
             conversation_id=conversation_id,
             user_id=user_id,
-            limit=limit + 1,
+            limit=limit,
             before_sequence=before_sequence,
             after_sequence=after_sequence,
         )
-        messages = page.messages
-        has_more = len(messages) > limit
-        if has_more:
-            messages = messages[:limit]
-
-        next_before_sequence = None
-        next_after_sequence = None
-        if messages:
-            first_sequence = messages[0].sequence_number
-            last_sequence = messages[-1].sequence_number
-            with db.get_connection() as conn:
-                older_exists = conn.execute(
-                    """
-                    SELECT 1
-                    FROM chat_messages
-                    WHERE conversation_id = ? AND sequence_number < ?
-                    LIMIT 1
-                    """,
-                    (conversation_id, first_sequence),
-                ).fetchone()
-                newer_exists = conn.execute(
-                    """
-                    SELECT 1
-                    FROM chat_messages
-                    WHERE conversation_id = ? AND sequence_number > ?
-                    LIMIT 1
-                    """,
-                    (conversation_id, last_sequence),
-                ).fetchone()
-            if older_exists is not None:
-                next_before_sequence = first_sequence
-            if newer_exists is not None:
-                next_after_sequence = last_sequence
-
-            if before_sequence is not None:
-                has_more = older_exists is not None
-            else:
-                has_more = newer_exists is not None
 
         return {
             "success": True,
-            "messages": [_message_response(message) for message in messages],
+            "messages": [_message_response(message) for message in page.messages],
             "limit": limit,
-            "has_more": has_more,
-            "next_before_sequence": next_before_sequence,
-            "next_after_sequence": next_after_sequence,
+            "has_more": page.has_more,
+            "next_before_sequence": page.next_before_sequence,
+            "next_after_sequence": page.next_after_sequence,
         }
     except Exception as exc:  # pragma: no cover
         raise _map_chat_error(exc) from exc

@@ -317,9 +317,187 @@ def test_message_ordering_pagination_and_recent_window(tmp_path):
         limit=3,
     )
 
+    assert [message.sequence_number for message in db.chat_repository.get_messages_page(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        limit=2,
+    ).messages] == [4, 5]
     assert [message.sequence_number for message in page_forward.messages] == [3, 4]
     assert [message.content for message in page_backward.messages] == ["message-4", "message-3"]
     assert [message.sequence_number for message in recent] == [3, 4, 5]
+
+
+def test_message_pagination_walks_history_without_gaps_or_duplicates(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+
+    for index in range(1, 11):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user" if index % 2 else "assistant",
+            content=f"message-{index}",
+        )
+
+    seen_backward: list[int] = []
+    before_sequence = None
+    while True:
+        page = db.chat_repository.get_messages_page(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            limit=3,
+            before_sequence=before_sequence,
+        )
+        sequences = [message.sequence_number for message in page.messages]
+        seen_backward = sequences + seen_backward
+        if page.next_before_sequence is None:
+            break
+        before_sequence = page.next_before_sequence
+
+    oldest_page = db.chat_repository.get_messages_page(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        limit=3,
+        before_sequence=2,
+    )
+    seen_forward = [message.sequence_number for message in oldest_page.messages]
+    after_sequence = oldest_page.next_after_sequence
+    while True:
+        if after_sequence is None:
+            break
+        page = db.chat_repository.get_messages_page(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            limit=3,
+            after_sequence=after_sequence,
+        )
+        sequences = [message.sequence_number for message in page.messages]
+        seen_forward.extend(sequences)
+        after_sequence = page.next_after_sequence
+
+    assert seen_backward == list(range(1, 11))
+    assert seen_forward == list(range(1, 11))
+
+
+def test_summary_checkpoint_is_monotonic_except_when_cleared(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+    for index in range(1, 9):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user" if index % 2 else "assistant",
+            content=f"message-{index}",
+        )
+
+    zero = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary="zero checkpoint",
+        summary_through_sequence=0,
+    )
+    five = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary="five checkpoint",
+        summary_through_sequence=5,
+    )
+    same = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary="same checkpoint",
+        summary_through_sequence=5,
+    )
+    eight = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary="eight checkpoint",
+        summary_through_sequence=8,
+    )
+
+    with pytest.raises(InvalidChatSummaryCheckpointError):
+        db.chat_repository.update_conversation_summary(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            summary="backward checkpoint",
+            summary_through_sequence=2,
+        )
+
+    cleared = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary=None,
+    )
+    recreated = db.chat_repository.update_conversation_summary(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        summary="recreated checkpoint",
+        summary_through_sequence=3,
+    )
+
+    assert zero.summary_through_sequence == 0
+    assert five.summary_through_sequence == 5
+    assert same.summary_through_sequence == 5
+    assert eight.summary_through_sequence == 8
+    assert cleared.summary is None
+    assert cleared.summary_through_sequence == 0
+    assert recreated.summary == "recreated checkpoint"
+    assert recreated.summary_through_sequence == 3
+
+
+def test_concurrent_append_and_summary_checkpoint_update_stay_consistent(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+    for index in range(1, 6):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user" if index % 2 else "assistant",
+            content=f"message-{index}",
+            idempotency_key=f"seed-{index}",
+        )
+
+    barrier = Barrier(2)
+
+    def _append() -> int:
+        barrier.wait()
+        return db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user",
+            content="message-6",
+            idempotency_key="seed-6",
+        ).sequence_number
+
+    def _summarize() -> int:
+        barrier.wait()
+        return db.chat_repository.update_conversation_summary(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            summary="stable checkpoint",
+            summary_through_sequence=5,
+        ).summary_through_sequence
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        append_future = executor.submit(_append)
+        summarize_future = executor.submit(_summarize)
+        appended_sequence = append_future.result()
+        summary_checkpoint = summarize_future.result()
+
+    final_conversation = db.chat_repository.get_conversation(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+    )
+    final_messages = db.chat_repository.get_messages_page(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        limit=10,
+    ).messages
+
+    assert appended_sequence == 6
+    assert summary_checkpoint == 5
+    assert final_conversation.summary_through_sequence == 5
+    assert [message.sequence_number for message in final_messages] == [1, 2, 3, 4, 5, 6]
 
 
 def test_delete_conversation_cascades_messages(tmp_path):

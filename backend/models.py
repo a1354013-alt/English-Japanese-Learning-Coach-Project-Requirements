@@ -650,6 +650,9 @@ class ChatMessageRecord(BaseModel):
 class ChatMessagePage(BaseModel):
     messages: List[ChatMessageRecord]
     limit: int = Field(gt=0)
+    has_more: bool = False
+    next_before_sequence: Optional[int] = Field(default=None, ge=1)
+    next_after_sequence: Optional[int] = Field(default=None, ge=1)
     descending: bool = False
 
 
@@ -695,7 +698,7 @@ class ChatConversationUpdateRequest(BaseModel):
     @classmethod
     def validate_optional_title(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
-            return None
+            raise ValueError("title must not be null")
         trimmed = _trimmed_non_empty(value, field_name="title")
         if len(trimmed) > 120:
             raise ValueError("title must be at most 120 characters")
@@ -721,10 +724,14 @@ class ChatConversationUpdateRequest(BaseModel):
     @model_validator(mode="after")
     def validate_summary_checkpoint_pair(self) -> "ChatConversationUpdateRequest":
         supplied = self.model_fields_set
+        if not supplied:
+            raise ValueError("at least one update field is required")
         if "summary" in supplied and self.summary is not None and "summary_through_sequence" not in supplied:
             raise ValueError("summary_through_sequence is required when summary is provided")
         if "summary_through_sequence" in supplied and "summary" not in supplied:
             raise ValueError("summary must be provided when summary_through_sequence is provided")
+        if "summary" in supplied and self.summary is None and self.summary_through_sequence not in (None, 0):
+            raise ValueError("summary_through_sequence must be omitted or 0 when summary is null")
         return self
 
 

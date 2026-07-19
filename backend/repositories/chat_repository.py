@@ -266,7 +266,7 @@ class ChatRepository:
         try:
             conversation = conn.execute(
                 """
-                SELECT conversation_id, language
+                SELECT conversation_id, language, summary, summary_through_sequence
                 FROM chat_conversations
                 WHERE conversation_id = ? AND user_id = ?
                 """,
@@ -299,6 +299,8 @@ class ChatRepository:
                     self._validate_summary_checkpoint(
                         conn=conn,
                         conversation_id=conversation_id,
+                        current_summary=str(conversation["summary"]) if conversation["summary"] is not None else None,
+                        current_summary_through_sequence=int(conversation["summary_through_sequence"]),
                         summary_through_sequence=checkpoint,
                     )
                     assignments["summary"] = summary
@@ -479,29 +481,23 @@ class ChatRepository:
         self._validate_message_page(limit=limit, before_sequence=before_sequence, after_sequence=after_sequence)
         self.get_conversation(conversation_id=conversation_id, user_id=user_id)
 
-        predicates = ["conversation_id = ?"]
-        params: List[Any] = [conversation_id]
-        if before_sequence is not None:
-            predicates.append("sequence_number < ?")
-            params.append(before_sequence)
-        if after_sequence is not None:
-            predicates.append("sequence_number > ?")
-            params.append(after_sequence)
-        order = "DESC" if descending else "ASC"
         conn = self._database.get_connection()
-        rows = conn.execute(
-            f"""
-            SELECT message_id, conversation_id, role, content, sequence_number,
-                   metadata_json, idempotency_key, created_at
-            FROM chat_messages
-            WHERE {" AND ".join(predicates)}
-            ORDER BY sequence_number {order}, created_at {order}, message_id {order}
-            LIMIT ?
-            """,
-            (*params, limit),
-        ).fetchall()
-        messages = [self._row_to_message(row) for row in rows]
-        return ChatMessagePage(messages=messages, limit=limit, descending=descending)
+        conn.execute("SAVEPOINT chat_message_page")
+        try:
+            page = self._read_message_page(
+                conn=conn,
+                conversation_id=conversation_id,
+                limit=limit,
+                before_sequence=before_sequence,
+                after_sequence=after_sequence,
+                descending=descending,
+            )
+            conn.execute("RELEASE SAVEPOINT chat_message_page")
+        except Exception:
+            conn.execute("ROLLBACK TO SAVEPOINT chat_message_page")
+            conn.execute("RELEASE SAVEPOINT chat_message_page")
+            raise
+        return page
 
     def get_recent_messages(
         self,
@@ -561,6 +557,8 @@ class ChatRepository:
         *,
         conn: sqlite3.Connection,
         conversation_id: str,
+        current_summary: Optional[str],
+        current_summary_through_sequence: int,
         summary_through_sequence: int,
     ) -> None:
         if summary_through_sequence < 0:
@@ -577,6 +575,10 @@ class ChatRepository:
         if summary_through_sequence > max_sequence:
             raise InvalidChatSummaryCheckpointError(
                 "summary_through_sequence must not exceed the current maximum message sequence"
+            )
+        if current_summary is not None and summary_through_sequence < current_summary_through_sequence:
+            raise InvalidChatSummaryCheckpointError(
+                "summary_through_sequence must not move backward for a persisted summary"
             )
 
     def _allocate_next_sequence(self, *, conn: sqlite3.Connection, conversation_id: str) -> int:
@@ -627,8 +629,108 @@ class ChatRepository:
             raise InvalidChatPaginationError("before_sequence must be > 0")
         if after_sequence is not None and after_sequence <= 0:
             raise InvalidChatPaginationError("after_sequence must be > 0")
-        if before_sequence is not None and after_sequence is not None and after_sequence >= before_sequence:
-            raise InvalidChatPaginationError("after_sequence must be less than before_sequence")
+        if before_sequence is not None and after_sequence is not None:
+            raise InvalidChatPaginationError("before_sequence and after_sequence cannot be used together")
+
+    def _read_message_page(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        conversation_id: str,
+        limit: int,
+        before_sequence: Optional[int],
+        after_sequence: Optional[int],
+        descending: bool,
+    ) -> ChatMessagePage:
+        fetch_limit = limit + 1
+        if before_sequence is not None:
+            rows = conn.execute(
+                """
+                SELECT message_id, conversation_id, role, content, sequence_number,
+                       metadata_json, idempotency_key, created_at
+                FROM chat_messages
+                WHERE conversation_id = ? AND sequence_number < ?
+                ORDER BY sequence_number DESC, created_at DESC, message_id DESC
+                LIMIT ?
+                """,
+                (conversation_id, before_sequence, fetch_limit),
+            ).fetchall()
+            has_more = len(rows) > limit
+            if has_more:
+                rows = rows[:limit]
+            rows = list(reversed(rows))
+        elif after_sequence is not None:
+            rows = conn.execute(
+                """
+                SELECT message_id, conversation_id, role, content, sequence_number,
+                       metadata_json, idempotency_key, created_at
+                FROM chat_messages
+                WHERE conversation_id = ? AND sequence_number > ?
+                ORDER BY sequence_number ASC, created_at ASC, message_id ASC
+                LIMIT ?
+                """,
+                (conversation_id, after_sequence, fetch_limit),
+            ).fetchall()
+            has_more = len(rows) > limit
+            if has_more:
+                rows = rows[:limit]
+        else:
+            rows = conn.execute(
+                """
+                SELECT message_id, conversation_id, role, content, sequence_number,
+                       metadata_json, idempotency_key, created_at
+                FROM chat_messages
+                WHERE conversation_id = ?
+                ORDER BY sequence_number DESC, created_at DESC, message_id DESC
+                LIMIT ?
+                """,
+                (conversation_id, fetch_limit),
+            ).fetchall()
+            has_more = len(rows) > limit
+            if has_more:
+                rows = rows[:limit]
+            rows = list(reversed(rows))
+
+        messages = [self._row_to_message(row) for row in rows]
+        if descending:
+            messages = list(reversed(messages))
+
+        next_before_sequence: Optional[int] = None
+        next_after_sequence: Optional[int] = None
+        if messages:
+            first_sequence = messages[0].sequence_number if not descending else messages[-1].sequence_number
+            last_sequence = messages[-1].sequence_number if not descending else messages[0].sequence_number
+            older_exists = conn.execute(
+                """
+                SELECT 1
+                FROM chat_messages
+                WHERE conversation_id = ? AND sequence_number < ?
+                LIMIT 1
+                """,
+                (conversation_id, first_sequence),
+            ).fetchone()
+            newer_exists = conn.execute(
+                """
+                SELECT 1
+                FROM chat_messages
+                WHERE conversation_id = ? AND sequence_number > ?
+                LIMIT 1
+                """,
+                (conversation_id, last_sequence),
+            ).fetchone()
+            if older_exists is not None:
+                next_before_sequence = first_sequence
+            if newer_exists is not None:
+                next_after_sequence = last_sequence
+
+        return ChatMessagePage(
+            messages=messages,
+            limit=limit,
+            has_more=has_more,
+            next_before_sequence=next_before_sequence,
+            next_after_sequence=next_after_sequence,
+            descending=descending,
+        )
 
     def _row_to_conversation(self, row: sqlite3.Row) -> ChatConversationRecord:
         return ChatConversationRecord.model_validate(dict(row))
