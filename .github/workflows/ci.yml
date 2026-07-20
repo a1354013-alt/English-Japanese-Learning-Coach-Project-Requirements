@@ -66,7 +66,7 @@ jobs:
           ENABLE_RAG: "false"
           MAX_UPLOAD_SIZE_MB: "10"
       - name: Upload backend coverage artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: coverage/backend
@@ -120,7 +120,7 @@ jobs:
       - name: Build
         run: npm run build
       - name: Upload frontend coverage artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage
