@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import database as database_module
-import pytest
 import chat_handler as chat_handler_module
+import database as database_module
 from database import Database
 from fastapi.testclient import TestClient
 from main import app
@@ -74,4 +73,4 @@ def test_chat_websocket_rejects_language_mismatch_conversation(monkeypatch, tmp_
     with client.websocket_connect(f"/ws/chat/JP?conversation_id={conversation.conversation_id}") as websocket:
         payload = websocket.receive_json()
         assert payload["type"] == "chat.error"
-        assert payload["code"] == "conversation_bootstrap_failed"
+        assert payload["code"] == "conversation_language_mismatch"

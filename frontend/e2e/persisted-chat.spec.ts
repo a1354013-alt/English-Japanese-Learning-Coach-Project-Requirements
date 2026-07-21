@@ -5,7 +5,7 @@ type Language = 'EN' | 'JP'
 interface MockConversation {
   conversation_id: string
   language: Language
-  scenario_id: 'daily-conversation' | 'travel' | 'restaurant' | 'workplace'
+  scenario_id: 'daily_conversation' | 'travel' | 'restaurant' | 'workplace'
   title: string
   lesson_id: null
   summary: null
@@ -28,13 +28,21 @@ interface MockMessage {
 
 const scenarioCatalog = {
   EN: [
-    { scenario_id: 'daily-conversation', language: 'EN', label: 'Daily Conversation' },
+    {
+      scenario_id: 'daily_conversation',
+      language: 'EN',
+      label: 'Daily Conversation',
+    },
     { scenario_id: 'travel', language: 'EN', label: 'Travel' },
     { scenario_id: 'restaurant', language: 'EN', label: 'Restaurant' },
     { scenario_id: 'workplace', language: 'EN', label: 'Workplace' },
   ],
   JP: [
-    { scenario_id: 'daily-conversation', language: 'JP', label: 'Daily Conversation' },
+    {
+      scenario_id: 'daily_conversation',
+      language: 'JP',
+      label: 'Daily Conversation',
+    },
     { scenario_id: 'travel', language: 'JP', label: 'Travel' },
     { scenario_id: 'restaurant', language: 'JP', label: 'Restaurant' },
     { scenario_id: 'workplace', language: 'JP', label: 'Workplace' },
@@ -126,18 +134,30 @@ async function installPersistedChatMocks(page: Page) {
         })
         return
       }
-      await fulfillJson(route, { success: true, lesson: null, items: [], mission: null })
+      await fulfillJson(route, {
+        success: true,
+        lesson: null,
+        items: [],
+        mission: null,
+      })
       return
     }
 
     if (path === '/api/chat/scenarios' && method === 'GET') {
-      const language = (url.searchParams.get('language') === 'JP' ? 'JP' : 'EN') as Language
-      await fulfillJson(route, { success: true, scenarios: scenarioCatalog[language] })
+      const language = (
+        url.searchParams.get('language') === 'JP' ? 'JP' : 'EN'
+      ) as Language
+      await fulfillJson(route, {
+        success: true,
+        scenarios: scenarioCatalog[language],
+      })
       return
     }
 
     if (path === '/api/chat/conversations' && method === 'GET') {
-      const language = (url.searchParams.get('language') === 'JP' ? 'JP' : 'EN') as Language
+      const language = (
+        url.searchParams.get('language') === 'JP' ? 'JP' : 'EN'
+      ) as Language
       const items = Array.from(conversations.values()).filter(
         (item) => item.language === language,
       )
@@ -195,14 +215,22 @@ async function installPersistedChatMocks(page: Page) {
       const body = request.postDataJSON() as { title: string }
       const conversation = conversations.get(conversationId)
       if (!conversation) {
-        await fulfillJson(route, {
-          error: true,
-          message: 'Conversation not found',
-          code: 'conversation_not_found',
-        }, 404)
+        await fulfillJson(
+          route,
+          {
+            error: true,
+            message: 'Conversation not found',
+            code: 'conversation_not_found',
+          },
+          404,
+        )
         return
       }
-      const updated = { ...conversation, title: body.title, updated_at: nowIso() }
+      const updated = {
+        ...conversation,
+        title: body.title,
+        updated_at: nowIso(),
+      }
       conversations.set(conversationId, updated)
       await fulfillJson(route, { success: true, conversation: updated })
       return
@@ -237,28 +265,24 @@ async function installPersistedChatMocks(page: Page) {
           item.role === 'assistant' &&
           item.metadata?.client_message_id === body.client_message_id,
       )
-      const userMessage =
-        userExisting ??
-        {
-          message_id: `msg-${++messageCounter}`,
-          conversation_id: body.conversation_id,
-          role: 'user' as const,
-          content: body.text,
-          sequence_number: existing.length + 1,
-          metadata: { client_message_id: body.client_message_id },
-          created_at: nowIso(),
-        }
-      const assistantMessage =
-        assistantExisting ??
-        {
-          message_id: `msg-${++messageCounter}`,
-          conversation_id: body.conversation_id,
-          role: 'assistant' as const,
-          content: `Mock reply: ${body.text}`,
-          sequence_number: userExisting ? existing.length : existing.length + 2,
-          metadata: { client_message_id: body.client_message_id },
-          created_at: nowIso(),
-        }
+      const userMessage = userExisting ?? {
+        message_id: `msg-${++messageCounter}`,
+        conversation_id: body.conversation_id,
+        role: 'user' as const,
+        content: body.text,
+        sequence_number: existing.length + 1,
+        metadata: { client_message_id: body.client_message_id },
+        created_at: nowIso(),
+      }
+      const assistantMessage = assistantExisting ?? {
+        message_id: `msg-${++messageCounter}`,
+        conversation_id: body.conversation_id,
+        role: 'assistant' as const,
+        content: `Mock reply: ${body.text}`,
+        sequence_number: userExisting ? existing.length : existing.length + 2,
+        metadata: { client_message_id: body.client_message_id },
+        created_at: nowIso(),
+      }
       if (!userExisting) {
         existing.push(userMessage)
       }
@@ -293,6 +317,7 @@ async function installPersistedChatMocks(page: Page) {
       url: string
       readyState = MockSocket.OPEN
       onopen: (() => void) | null = null
+      // eslint-disable-next-line no-unused-vars
       onmessage: ((event: MessageEvent) => void) | null = null
       onerror: (() => void) | null = null
       onclose: (() => void) | null = null
@@ -369,28 +394,40 @@ test('mocked persisted chat flow restores and isolates conversation state', asyn
   await page.getByTestId('chat-scenario-select').selectOption('travel')
   await page.getByTestId('chat-new-conversation').click()
 
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText('Travel')
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Travel')
   await page.getByTestId('chat-input').fill('Hello there')
   await page.getByTestId('chat-send').click()
   await expect(page.getByText('Mock reply: Hello there')).toBeVisible()
 
   await page.reload()
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Hello there')
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Mock reply: Hello there')
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Hello there',
+  )
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Mock reply: Hello there',
+  )
 
   await page.getByTestId('rename-conversation-conv-1').click()
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText('Travel Renamed')
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Travel Renamed')
 
   await page.locator('select.workspace-language').selectOption('JP')
   await expect(page.getByTestId('chat-empty-state')).toBeVisible()
   await page.getByTestId('chat-new-conversation').click()
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText(
-    'Daily Conversation',
-  )
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Daily Conversation')
 
   await page.locator('select.workspace-language').selectOption('EN')
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText('Travel Renamed')
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Hello there')
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Travel Renamed')
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Hello there',
+  )
 
   await page.getByTestId('delete-conversation-conv-1').click()
   await expect(page.getByTestId('chat-empty-state')).toBeVisible()

@@ -620,14 +620,21 @@ class MicroLessonAnswerResponse(BaseModel):
 
 # ============ Persisted Chat Models ============
 ChatMessageRole: TypeAlias = Literal["system", "user", "assistant"]
-ChatScenarioId: TypeAlias = Literal["daily-conversation", "travel", "restaurant", "workplace"]
+ChatScenarioId: TypeAlias = Literal["daily_conversation", "travel", "restaurant", "workplace"]
+
+
+def _normalize_chat_scenario_id(value: Any) -> str:
+    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized not in {"daily_conversation", "travel", "restaurant", "workplace"}:
+        raise ValueError("scenario_id must be one of daily_conversation, travel, restaurant, workplace")
+    return normalized
 
 
 class ChatConversationRecord(BaseModel):
     conversation_id: str
     user_id: str
     language: LanguageCode
-    scenario_id: ChatScenarioId
+    scenario_id: ChatScenarioId = "daily_conversation"
     title: str
     lesson_id: Optional[str] = None
     summary: Optional[str] = None
@@ -636,6 +643,11 @@ class ChatConversationRecord(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message_at: Optional[datetime] = None
+
+    @field_validator("scenario_id", mode="before")
+    @classmethod
+    def normalize_scenario_id(cls, value: Any) -> str:
+        return _normalize_chat_scenario_id(value)
 
 
 class ChatMessageRecord(BaseModel):
@@ -669,9 +681,14 @@ class ChatConversationCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     language: LanguageCode
-    scenario_id: ChatScenarioId = "daily-conversation"
+    scenario_id: ChatScenarioId = "daily_conversation"
     title: str = Field(min_length=1, max_length=120)
     lesson_id: Optional[str] = None
+
+    @field_validator("scenario_id", mode="before")
+    @classmethod
+    def validate_scenario_id(cls, value: Any) -> str:
+        return _normalize_chat_scenario_id(value)
 
     @field_validator("title")
     @classmethod
@@ -751,6 +768,11 @@ class ChatConversationResponse(BaseModel):
     updated_at: datetime
     last_message_at: Optional[datetime] = None
 
+    @field_validator("scenario_id", mode="before")
+    @classmethod
+    def normalize_scenario_id(cls, value: Any) -> str:
+        return _normalize_chat_scenario_id(value)
+
 
 class ChatConversationListResponse(BaseModel):
     success: bool = True
@@ -773,6 +795,11 @@ class ChatScenarioResponse(BaseModel):
     scenario_id: ChatScenarioId
     language: LanguageCode
     label: str
+
+    @field_validator("scenario_id", mode="before")
+    @classmethod
+    def normalize_scenario_id(cls, value: Any) -> str:
+        return _normalize_chat_scenario_id(value)
 
 
 class ChatScenarioListResponse(BaseModel):

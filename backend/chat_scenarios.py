@@ -6,56 +6,56 @@ from typing import Final
 
 from models import LanguageCode
 
-DEFAULT_SCENARIO_ID: Final[str] = "daily-conversation"
+DEFAULT_SCENARIO_ID: Final[str] = "daily_conversation"
 
 SCENARIO_DEFINITIONS: Final[tuple[dict[str, object], ...]] = (
     {
-        "scenario_id": "daily-conversation",
+        "scenario_id": "daily_conversation",
         "language": "EN",
         "label": "Daily Conversation",
-        "system_prompt": "Practice a natural everyday conversation in English.",
+        "system_prompt": "Practice a natural everyday conversation with practical follow-up questions.",
     },
     {
         "scenario_id": "travel",
         "language": "EN",
         "label": "Travel",
-        "system_prompt": "Practice useful English for travel situations like transit, hotels, and sightseeing.",
+        "system_prompt": "Practice travel situations such as transit, hotels, directions, and polite requests.",
     },
     {
         "scenario_id": "restaurant",
         "language": "EN",
         "label": "Restaurant",
-        "system_prompt": "Practice ordering food, asking questions, and handling restaurant situations in English.",
+        "system_prompt": "Practice ordering food, asking about dishes, and handling restaurant conversations.",
     },
     {
         "scenario_id": "workplace",
         "language": "EN",
         "label": "Workplace",
-        "system_prompt": "Practice practical English for meetings, updates, collaboration, and workplace conversations.",
+        "system_prompt": "Practice professional workplace conversation with clear, respectful phrasing.",
     },
     {
-        "scenario_id": "daily-conversation",
+        "scenario_id": "daily_conversation",
         "language": "JP",
         "label": "Daily Conversation",
-        "system_prompt": "Practice a natural everyday conversation in Japanese.",
+        "system_prompt": "Practice a natural everyday conversation with practical follow-up questions.",
     },
     {
         "scenario_id": "travel",
         "language": "JP",
         "label": "Travel",
-        "system_prompt": "Practice useful Japanese for travel situations like transit, hotels, and sightseeing.",
+        "system_prompt": "Practice travel situations such as transit, hotels, directions, and polite requests.",
     },
     {
         "scenario_id": "restaurant",
         "language": "JP",
         "label": "Restaurant",
-        "system_prompt": "Practice ordering food, asking questions, and handling restaurant situations in Japanese.",
+        "system_prompt": "Practice ordering food, asking about dishes, and handling restaurant conversations.",
     },
     {
         "scenario_id": "workplace",
         "language": "JP",
         "label": "Workplace",
-        "system_prompt": "Practice practical Japanese for meetings, updates, collaboration, and workplace conversations.",
+        "system_prompt": "Practice professional workplace conversation with clear, respectful phrasing.",
     },
 )
 

@@ -77,10 +77,10 @@ def test_chat_conversation_crud_and_language_isolation(monkeypatch, tmp_path):
     en_body = created_en.json()["conversation"]
     jp_body = created_jp.json()["conversation"]
     assert en_body["language"] == "EN"
-    assert en_body["scenario_id"] == "daily-conversation"
+    assert en_body["scenario_id"] == "daily_conversation"
     assert en_body["title"] == "English chat"
     assert jp_body["language"] == "JP"
-    assert jp_body["scenario_id"] == "daily-conversation"
+    assert jp_body["scenario_id"] == "daily_conversation"
 
     listed_en = client.get("/api/chat/conversations?language=EN")
     listed_jp = client.get("/api/chat/conversations?language=JP")
@@ -92,6 +92,35 @@ def test_chat_conversation_crud_and_language_isolation(monkeypatch, tmp_path):
     fetched = client.get(f"/api/chat/conversations/{en_body['conversation_id']}")
     assert fetched.status_code == 200
     assert fetched.json()["conversation"]["conversation_id"] == en_body["conversation_id"]
+    assert fetched.json()["conversation"]["scenario_id"] == "daily_conversation"
+
+
+def test_chat_conversation_create_list_and_detail_include_scenario(monkeypatch, tmp_path):
+    _patch_chat_db(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    created = client.post(
+        "/api/chat/conversations",
+        json={"language": "EN", "scenario_id": "travel", "title": "Travel chat"},
+    )
+
+    assert created.status_code == 201
+    body = created.json()["conversation"]
+    assert body["scenario_id"] == "travel"
+
+    listed = client.get("/api/chat/conversations?language=EN")
+    assert listed.status_code == 200
+    assert listed.json()["conversations"][0]["scenario_id"] == "travel"
+
+    fetched = client.get(f"/api/chat/conversations/{body['conversation_id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["conversation"]["scenario_id"] == "travel"
+
+    invalid = client.post(
+        "/api/chat/conversations",
+        json={"language": "EN", "scenario_id": "write a custom prompt", "title": "Bad"},
+    )
+    assert invalid.status_code == 422
 
 
 def test_chat_conversation_patch_supports_rename_link_summary_and_unlink(monkeypatch, tmp_path):
@@ -356,7 +385,7 @@ def test_chat_scenarios_endpoint_returns_language_specific_catalog(monkeypatch, 
     assert response.status_code == 200
     body = response.json()
     assert [item["scenario_id"] for item in body["scenarios"]] == [
-        "daily-conversation",
+        "daily_conversation",
         "travel",
         "restaurant",
         "workplace",

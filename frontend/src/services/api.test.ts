@@ -116,13 +116,17 @@ describe('api client', () => {
   })
 
   it('calls typed chat conversation endpoints', async () => {
-    mocks.getMock.mockResolvedValueOnce({ data: { success: true, scenarios: [] } })
+    mocks.getMock.mockResolvedValueOnce({
+      data: { success: true, scenarios: [] },
+    })
     await chatApi.listScenarios('EN')
     expect(mocks.getMock).toHaveBeenCalledWith('/chat/scenarios', {
       params: { language: 'EN' },
     })
 
-    mocks.postMock.mockResolvedValueOnce({ data: { success: true, conversation: {} } })
+    mocks.postMock.mockResolvedValueOnce({
+      data: { success: true, conversation: {} },
+    })
     await chatApi.createConversation({
       language: 'EN',
       scenario_id: 'travel',
@@ -134,7 +138,9 @@ describe('api client', () => {
       title: 'Travel',
     })
 
-    mocks.patchMock.mockResolvedValueOnce({ data: { success: true, conversation: {} } })
+    mocks.patchMock.mockResolvedValueOnce({
+      data: { success: true, conversation: {} },
+    })
     await chatApi.renameConversation('conv-1', 'Renamed')
     expect(mocks.patchMock).toHaveBeenCalledWith('/chat/conversations/conv-1', {
       title: 'Renamed',

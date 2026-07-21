@@ -651,7 +651,7 @@ export interface DemoResetResponse {
 }
 
 export type ChatScenarioId =
-  | 'daily-conversation'
+  | 'daily_conversation'
   | 'travel'
   | 'restaurant'
   | 'workplace'

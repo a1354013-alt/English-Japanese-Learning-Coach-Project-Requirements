@@ -67,11 +67,23 @@ def test_create_and_list_conversations_isolate_by_language(tmp_path):
 
     en_conversation = _create_conversation(db, "EN")
     jp_conversation = _create_conversation(db, "JP")
+    travel_conversation = db.chat_repository.create_conversation(
+        user_id="default_user",
+        language="EN",
+        scenario_id="travel",
+        title="Travel",
+    )
 
     en_list = db.chat_repository.list_conversations(user_id="default_user", language="EN")
     jp_list = db.chat_repository.list_conversations(user_id="default_user", language="JP")
 
-    assert [conversation.conversation_id for conversation in en_list] == [en_conversation.conversation_id]
+    assert {conversation.conversation_id for conversation in en_list} == {
+        travel_conversation.conversation_id,
+        en_conversation.conversation_id,
+    }
+    scenarios_by_id = {conversation.conversation_id: conversation.scenario_id for conversation in en_list}
+    assert scenarios_by_id[en_conversation.conversation_id] == "daily_conversation"
+    assert scenarios_by_id[travel_conversation.conversation_id] == "travel"
     assert [conversation.conversation_id for conversation in jp_list] == [jp_conversation.conversation_id]
 
 
@@ -325,6 +337,42 @@ def test_message_ordering_pagination_and_recent_window(tmp_path):
     assert [message.sequence_number for message in page_forward.messages] == [3, 4]
     assert [message.content for message in page_backward.messages] == ["message-4", "message-3"]
     assert [message.sequence_number for message in recent] == [3, 4, 5]
+
+
+def test_recent_messages_after_summary_checkpoint_returns_latest_chronological_window(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+
+    for index in range(1, 101):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user" if index % 2 else "assistant",
+            content=f"message-{index}",
+        )
+
+    recent = db.chat_repository.get_recent_messages_after_sequence(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        after_sequence=10,
+        limit=5,
+    )
+
+    assert [message.sequence_number for message in recent] == [96, 97, 98, 99, 100]
+
+
+@pytest.mark.parametrize("content", ("", "   ", "\n\t"))
+def test_append_message_rejects_blank_content(tmp_path, content):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+
+    with pytest.raises(ValueError, match="Message content must not be blank"):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="assistant",
+            content=content,
+        )
 
 
 def test_message_pagination_walks_history_without_gaps_or_duplicates(tmp_path):

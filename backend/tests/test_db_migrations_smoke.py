@@ -1,9 +1,28 @@
 """DB init/migration smoke test (ensures migrations apply cleanly on a fresh DB)."""
 
+import re
 import sqlite3
 
 import pytest
-from database import Database
+from database import CHAT_SUMMARY_CANONICAL_TRIGGER_SQL, Database
+
+
+def _normalize_sql(sql: str) -> str:
+    normalized = re.sub(r"\bIF\s+NOT\s+EXISTS\b", "", sql, flags=re.IGNORECASE)
+    normalized = re.sub(r";+\s*$", "", normalized.strip())
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.lower()
+
+
+def _trigger_sql(conn, name: str) -> str:
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?", (name,)).fetchone()
+    assert row is not None
+    return str(row["sql"])
+
+
+def _assert_canonical_summary_triggers(conn) -> None:
+    for name, expected in CHAT_SUMMARY_CANONICAL_TRIGGER_SQL.items():
+        assert _normalize_sql(_trigger_sql(conn, name)) == _normalize_sql(expected)
 
 
 def test_db_init_and_migrations_smoke(tmp_path):
@@ -21,6 +40,11 @@ def test_db_init_and_migrations_smoke(tmp_path):
     assert "summary_through_sequence" in chat_columns
     assert "summary_updated_at" in chat_columns
     assert "scenario_id" in chat_columns
+    with db.get_connection() as conn:
+        versions = {r["version"] for r in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+        _assert_canonical_summary_triggers(conn)
+    assert "0010_chat_summary_trigger_canonicalization.sql" in versions
+    assert "0011_chat_conversation_scenario.sql" in versions
 
 
 def _create_v143_baseline(db_path):
@@ -351,6 +375,7 @@ def _create_partial_0009_state(
                 END;
                 """
             )
+        conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", ("0009_chat_summary_checkpoint.sql",))
     finally:
         conn.close()
 
@@ -491,6 +516,18 @@ def test_upgrade_from_v143_adds_persisted_chat_without_changing_existing_data(tm
     assert "summary_through_sequence" in chat_columns
     assert "summary_updated_at" in chat_columns
     assert "scenario_id" in chat_columns
+    with db.get_connection() as conn:
+        version_0010 = conn.execute(
+            "SELECT version FROM schema_migrations WHERE version = ?",
+            ("0010_chat_summary_trigger_canonicalization.sql",),
+        ).fetchone()
+        version_0011 = conn.execute(
+            "SELECT version FROM schema_migrations WHERE version = ?",
+            ("0011_chat_conversation_scenario.sql",),
+        ).fetchone()
+        _assert_canonical_summary_triggers(conn)
+    assert version_0010 is not None
+    assert version_0011 is not None
 
 
 @pytest.mark.parametrize(
@@ -532,7 +569,10 @@ def test_partial_0009_startup_recovery_is_idempotent_and_preserves_chat_data(
         chat_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
         versions = {
             row["version"]
-            for row in conn.execute("SELECT version FROM schema_migrations WHERE version = ?", ("0009_chat_summary_checkpoint.sql",)).fetchall()
+            for row in conn.execute(
+                "SELECT version FROM schema_migrations WHERE version IN (?, ?)",
+                ("0009_chat_summary_checkpoint.sql", "0010_chat_summary_trigger_canonicalization.sql"),
+            ).fetchall()
         }
         triggers = {
             row["name"]
@@ -558,7 +598,7 @@ def test_partial_0009_startup_recovery_is_idempotent_and_preserves_chat_data(
         ).fetchone()
 
     assert chat_columns.issuperset({"summary_through_sequence", "summary_updated_at"})
-    assert versions == {"0009_chat_summary_checkpoint.sql"}
+    assert versions == {"0009_chat_summary_checkpoint.sql", "0010_chat_summary_trigger_canonicalization.sql"}
     assert triggers == {
         "trg_chat_conversations_summary_checkpoint_insert",
         "trg_chat_conversations_summary_checkpoint_update",
@@ -573,3 +613,141 @@ def test_partial_0009_startup_recovery_is_idempotent_and_preserves_chat_data(
     assert message["conversation_id"] == "conv-1"
     assert int(message["sequence_number"]) == 1
     assert message["content"] == "hello"
+    with db.get_connection() as conn:
+        _assert_canonical_summary_triggers(conn)
+
+
+def test_0010_canonicalizes_previous_phase_2a_triggers_and_preserves_data(tmp_path):
+    db_path = tmp_path / "phase-2a.db"
+    _create_partial_0009_state(
+        db_path,
+        include_summary_through_sequence=True,
+        include_summary_updated_at=True,
+        include_insert_trigger=True,
+        include_update_trigger=True,
+    )
+
+    db = Database(str(db_path))
+
+    with db.get_connection() as conn:
+        versions = {row["version"] for row in conn.execute("SELECT version FROM schema_migrations").fetchall()}
+        _assert_canonical_summary_triggers(conn)
+        conversation = conn.execute(
+            """
+            SELECT conversation_id, title, summary, summary_through_sequence, summary_updated_at
+            FROM chat_conversations
+            WHERE conversation_id = ?
+            """,
+            ("conv-1",),
+        ).fetchone()
+        message = conn.execute("SELECT content FROM chat_messages WHERE message_id = ?", ("msg-1",)).fetchone()
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                """
+                UPDATE chat_conversations
+                SET summary = ?, summary_through_sequence = ?, summary_updated_at = ?
+                WHERE conversation_id = ?
+                """,
+                ("older summary", 0, "2026-07-19T09:02:00+08:00", "conv-1"),
+            )
+
+    assert "0009_chat_summary_checkpoint.sql" in versions
+    assert "0010_chat_summary_trigger_canonicalization.sql" in versions
+    assert conversation is not None
+    assert conversation["title"] == "Recovered"
+    assert conversation["summary"] == "summary"
+    assert int(conversation["summary_through_sequence"]) == 1
+    assert message is not None
+    assert message["content"] == "hello"
+
+    updated = db.chat_repository.update_conversation_summary(
+        conversation_id="conv-1",
+        user_id="default_user",
+        summary="new summary",
+        summary_through_sequence=1,
+    )
+    assert updated.summary == "new summary"
+
+    before = {
+        row["name"]: row["sql"]
+        for row in db.get_connection().execute(
+            "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_chat_conversations_summary_checkpoint_%'"
+        ).fetchall()
+    }
+    db.run_migrations()
+    after = {
+        row["name"]: row["sql"]
+        for row in db.get_connection().execute(
+            "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_chat_conversations_summary_checkpoint_%'"
+        ).fetchall()
+    }
+    assert after == before
+
+
+def test_0011_adds_chat_scenario_to_existing_0010_schema_with_safe_default(tmp_path):
+    db_path = tmp_path / "phase-2b-2.db"
+    _create_partial_0009_state(
+        db_path,
+        include_summary_through_sequence=True,
+        include_summary_updated_at=True,
+        include_insert_trigger=True,
+        include_update_trigger=True,
+    )
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
+    try:
+        conn.execute(
+            "INSERT INTO schema_migrations (version) VALUES (?)",
+            ("0010_chat_summary_trigger_canonicalization.sql",),
+        )
+    finally:
+        conn.close()
+
+    db = Database(str(db_path))
+
+    with db.get_connection() as conn:
+        chat_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
+        version_0011 = conn.execute(
+            "SELECT version FROM schema_migrations WHERE version = ?",
+            ("0011_chat_conversation_scenario.sql",),
+        ).fetchone()
+        conversation = conn.execute(
+            "SELECT scenario_id, title FROM chat_conversations WHERE conversation_id = ?",
+            ("conv-1",),
+        ).fetchone()
+
+    assert "scenario_id" in chat_columns
+    assert version_0011 is not None
+    assert conversation is not None
+    assert conversation["scenario_id"] == "daily_conversation"
+    assert conversation["title"] == "Recovered"
+
+
+def test_startup_rebuilds_malformed_summary_trigger_body(tmp_path):
+    db_path = tmp_path / "malformed.db"
+    _create_partial_0009_state(
+        db_path,
+        include_summary_through_sequence=True,
+        include_summary_updated_at=True,
+        include_insert_trigger=True,
+        include_update_trigger=True,
+    )
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
+    try:
+        conn.execute("DROP TRIGGER trg_chat_conversations_summary_checkpoint_update")
+        conn.executescript(
+            """
+            CREATE TRIGGER trg_chat_conversations_summary_checkpoint_update
+            BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
+            FOR EACH ROW
+            BEGIN
+                SELECT CASE WHEN NEW.summary_through_sequence < 0 THEN RAISE(ABORT, 'old') END;
+            END;
+            """
+        )
+    finally:
+        conn.close()
+
+    db = Database(str(db_path))
+
+    with db.get_connection() as upgraded:
+        _assert_canonical_summary_triggers(upgraded)

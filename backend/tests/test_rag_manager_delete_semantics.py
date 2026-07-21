@@ -13,7 +13,7 @@ from config import settings
 from rag_manager import RAGManager
 
 pytestmark = pytest.mark.rag
-pytest.importorskip("chromadb")
+pytest.importorskip("chromadb", exc_type=(ImportError, AttributeError))
 
 
 def test_delete_material_distinguishes_missing_doc_id(tmp_path, monkeypatch):

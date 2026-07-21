@@ -94,13 +94,17 @@ test('full-stack persisted chat restores, isolates, renames, and deletes convers
 
   await page.getByTestId('chat-input').fill('Hello from Playwright')
   await page.getByTestId('chat-send').click()
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Hello from Playwright')
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Hello from Playwright',
+  )
   await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
     '[Travel] I heard: Hello from Playwright',
   )
 
   await page.reload()
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Hello from Playwright')
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Hello from Playwright',
+  )
 
   await page.getByTestId('chat-input').fill('Second turn')
   await page.getByTestId('chat-send').click()
@@ -108,18 +112,24 @@ test('full-stack persisted chat restores, isolates, renames, and deletes convers
 
   const renameButtons = page.locator('[data-testid^="rename-conversation-"]')
   await renameButtons.first().click()
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText(
-    'Travel Renamed',
-  )
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Travel Renamed')
 
   await page.locator('select.workspace-language').selectOption('JP')
   await expect(page.getByTestId('chat-empty-state')).toBeVisible()
   await page.getByTestId('chat-new-conversation').click()
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toBeVisible()
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toBeVisible()
 
   await page.locator('select.workspace-language').selectOption('EN')
-  await expect(page.locator('[data-testid^="conversation-item-"]').first()).toContainText('Travel Renamed')
-  await expect(page.locator('[data-testid="chat-messages"]')).toContainText('Hello from Playwright')
+  await expect(
+    page.locator('[data-testid^="conversation-item-"]').first(),
+  ).toContainText('Travel Renamed')
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Hello from Playwright',
+  )
 
   const deleteButtons = page.locator('[data-testid^="delete-conversation-"]')
   await deleteButtons.first().click()

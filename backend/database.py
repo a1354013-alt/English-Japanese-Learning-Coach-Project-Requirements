@@ -1,5 +1,6 @@
 """Database operations for Language Coach."""
 import json
+import re
 import sqlite3
 import threading
 from datetime import date, datetime, timedelta
@@ -48,7 +49,7 @@ CHAT_SUMMARY_TRIGGER_NAMES = (
 )
 
 CHAT_SUMMARY_INSERT_TRIGGER_SQL = """
-CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_insert
+CREATE TRIGGER trg_chat_conversations_summary_checkpoint_insert
 BEFORE INSERT ON chat_conversations
 FOR EACH ROW
 BEGIN
@@ -70,7 +71,7 @@ END
 """
 
 CHAT_SUMMARY_UPDATE_TRIGGER_SQL = """
-CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_update
+CREATE TRIGGER trg_chat_conversations_summary_checkpoint_update
 BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
 FOR EACH ROW
 BEGIN
@@ -94,6 +95,11 @@ BEGIN
         END;
 END
 """
+
+CHAT_SUMMARY_CANONICAL_TRIGGER_SQL = {
+    "trg_chat_conversations_summary_checkpoint_insert": CHAT_SUMMARY_INSERT_TRIGGER_SQL,
+    "trg_chat_conversations_summary_checkpoint_update": CHAT_SUMMARY_UPDATE_TRIGGER_SQL,
+}
 
 
 class Database:
@@ -427,12 +433,12 @@ class Database:
             if version == "0009_chat_summary_checkpoint.sql":
                 self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=True)
                 continue
-            if version == "0010_chat_canonical_summary_triggers.sql":
-                self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
+            if version == "0010_chat_summary_trigger_canonicalization.sql":
+                self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=True)
                 conn.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)", (version,))
                 continue
-            if version == "0011_chat_conversation_scenarios.sql":
-                self._recover_chat_conversation_scenario_migration(conn=conn, mark_complete=True)
+            if version == "0011_chat_conversation_scenario.sql":
+                self._recover_chat_scenario_migration(conn=conn, mark_complete=True)
                 continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
@@ -478,7 +484,7 @@ class Database:
             r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }:
             self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
-            self._recover_chat_conversation_scenario_migration(conn=conn, mark_complete=False)
+            self._recover_chat_scenario_migration(conn=conn, mark_complete=False)
         self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
@@ -567,11 +573,7 @@ class Database:
         if "summary_updated_at" not in conversation_cols:
             conn.execute("ALTER TABLE chat_conversations ADD COLUMN summary_updated_at TIMESTAMP NULL")
 
-        existing_triggers = self._existing_trigger_names(conn=conn)
-        if "trg_chat_conversations_summary_checkpoint_insert" not in existing_triggers:
-            conn.execute(CHAT_SUMMARY_INSERT_TRIGGER_SQL)
-        if "trg_chat_conversations_summary_checkpoint_update" not in existing_triggers:
-            conn.execute(CHAT_SUMMARY_UPDATE_TRIGGER_SQL)
+        self._ensure_chat_summary_triggers(conn=conn)
 
         self._validate_chat_summary_checkpoint_schema(conn=conn)
 
@@ -582,6 +584,10 @@ class Database:
             )
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0010_chat_summary_trigger_canonicalization.sql",),
+            )
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE version = ?",
                 ("0010_chat_canonical_summary_triggers.sql",),
             )
 
@@ -594,13 +600,14 @@ class Database:
             missing = ", ".join(sorted(missing_cols))
             raise RuntimeError(f"chat summary checkpoint migration incomplete: missing columns {missing}")
 
-        existing_triggers = self._existing_trigger_names(conn=conn)
-        missing_triggers = set(CHAT_SUMMARY_TRIGGER_NAMES) - existing_triggers
-        if missing_triggers:
-            missing = ", ".join(sorted(missing_triggers))
-            raise RuntimeError(f"chat summary checkpoint migration incomplete: missing triggers {missing}")
+        malformed_triggers = [
+            name for name in CHAT_SUMMARY_TRIGGER_NAMES if not self._trigger_is_canonical(conn=conn, name=name)
+        ]
+        if malformed_triggers:
+            malformed = ", ".join(sorted(malformed_triggers))
+            raise RuntimeError(f"chat summary checkpoint migration incomplete: malformed triggers {malformed}")
 
-    def _recover_chat_conversation_scenario_migration(
+    def _recover_chat_scenario_migration(
         self,
         *,
         conn: sqlite3.Connection,
@@ -616,14 +623,18 @@ class Database:
             conn.execute(
                 """
                 ALTER TABLE chat_conversations
-                ADD COLUMN scenario_id TEXT NOT NULL DEFAULT 'daily-conversation'
+                ADD COLUMN scenario_id TEXT NOT NULL DEFAULT 'daily_conversation'
+                CHECK (scenario_id IN ('daily_conversation', 'travel', 'restaurant', 'workplace'))
                 """
             )
         conn.execute(
             """
             UPDATE chat_conversations
-            SET scenario_id = 'daily-conversation'
-            WHERE scenario_id IS NULL OR TRIM(scenario_id) = ''
+            SET scenario_id = CASE
+                WHEN scenario_id IS NULL OR TRIM(scenario_id) = '' THEN 'daily_conversation'
+                WHEN scenario_id = 'daily-conversation' THEN 'daily_conversation'
+                ELSE REPLACE(REPLACE(LOWER(TRIM(scenario_id)), '-', '_'), ' ', '_')
+            END
             """
         )
         conn.execute(
@@ -632,11 +643,46 @@ class Database:
             ON chat_conversations(user_id, language, scenario_id, created_at DESC)
             """
         )
+        self._validate_chat_scenario_schema(conn=conn)
         if mark_complete:
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0011_chat_conversation_scenario.sql",),
+            )
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE version = ?",
                 ("0011_chat_conversation_scenarios.sql",),
             )
+
+    def _validate_chat_scenario_schema(self, *, conn: sqlite3.Connection) -> None:
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        if "scenario_id" not in conversation_cols:
+            raise RuntimeError("chat scenario migration incomplete: missing column scenario_id")
+
+    def _ensure_chat_summary_triggers(self, *, conn: sqlite3.Connection) -> None:
+        for name, sql in CHAT_SUMMARY_CANONICAL_TRIGGER_SQL.items():
+            if self._trigger_is_canonical(conn=conn, name=name):
+                continue
+            conn.execute(f"DROP TRIGGER IF EXISTS {name}")
+            conn.execute(sql)
+
+    def _trigger_is_canonical(self, *, conn: sqlite3.Connection, name: str) -> bool:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?",
+            (name,),
+        ).fetchone()
+        if row is None or row["sql"] is None:
+            return False
+        expected = CHAT_SUMMARY_CANONICAL_TRIGGER_SQL.get(name)
+        return expected is not None and self._normalize_sql(str(row["sql"])) == self._normalize_sql(expected)
+
+    def _normalize_sql(self, sql: str) -> str:
+        normalized = re.sub(r"\bIF\s+NOT\s+EXISTS\b", "", sql, flags=re.IGNORECASE)
+        normalized = re.sub(r";+\s*$", "", normalized.strip())
+        normalized = re.sub(r"\s+", " ", normalized)
+        return normalized.lower()
 
     def _existing_trigger_names(self, *, conn: sqlite3.Connection) -> set[str]:
         return {

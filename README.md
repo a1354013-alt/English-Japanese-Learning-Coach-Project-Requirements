@@ -69,6 +69,10 @@ Version `1.5.0-rc1` is the first persisted-chat release candidate. It keeps the 
 - Persisted chat now includes typed REST scenario/conversation APIs, canonical persisted WebSocket events, scenario-aware conversation storage, and frontend conversation/history restoration across reloads.
 - Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp, with canonical trigger recovery captured by migrations `0009` and `0010`.
 - Scenario continuity now persists through migration `0011` so existing Travel, Restaurant, Workplace, and Daily Conversation chats reconnect without silent scenario replacement.
+- Migrations `0008`, `0009`, `0010`, and `0011` cover persisted conversation/message storage, summary checkpoints, canonical trigger recovery, and scenario continuity.
+- WebSocket chat emits `conversation.ready`, persists idempotent user and assistant turns, keeps per-conversation turns ordered in the local single-process runtime, preserves user messages across provider failures, and retries assistant persistence with idempotency.
+- Provider prompts use a bounded persisted summary plus the latest recent messages after the summary checkpoint. The context builder reserves a bounded summary portion, preserves `User:` and `Assistant:` role prefixes, prioritizes the current user message, and treats transcript content as user-level context rather than system instructions.
+- Chat scenarios are server-owned identifiers: `daily_conversation`, `travel`, `restaurant`, and `workplace`. Unsupported scenario text is rejected before it can enter the system prompt.
 - Release packaging and archive verification still enforce the stricter secret, nested-archive, and virtual-environment checks from the `v1.4.3` release line.
 
 Current limitations remain explicit:
@@ -94,6 +98,9 @@ The adaptive study flow remains:
 
 Current limitations remain explicit:
 
+- The frontend conversation-management sidebar/history UI is not implemented yet.
+- Rolling AI summary generation is not implemented yet; existing summaries are only supplied by persisted REST update paths.
+- Per-conversation turn ordering is local to one backend process and is not a distributed lock.
 - TTS is provider-ready but disabled by default unless a real provider is configured.
 - Immersion is currently text shadowing rather than live audio coaching.
 - RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.

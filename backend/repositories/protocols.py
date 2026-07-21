@@ -15,6 +15,7 @@ class PersistedChatRepositoryProtocol(Protocol):
         *,
         user_id: str,
         language: str,
+        scenario_id: str = "daily_conversation",
         title: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str: ...
@@ -37,6 +38,7 @@ class PersistedChatRepositoryProtocol(Protocol):
         *,
         user_id: str,
         language: str,
+        scenario_id: str = "daily_conversation",
         title: Optional[str] = None,
         lesson_id: Optional[str] = None,
         summary: Optional[str] = None,

@@ -92,6 +92,7 @@ async def websocket_endpoint(
     language: LanguageCode,
     conversation_id: str | None = Query(default=None),
     scenario_id: str | None = Query(default=None),
+    scenario: str | None = Query(default=None),
     user_id: str = Depends(get_default_demo_user_id),
 ):
     await chat_manager.handle_chat(
@@ -99,5 +100,5 @@ async def websocket_endpoint(
         user_id=user_id,
         language=language,
         conversation_id=conversation_id,
-        scenario_id=scenario_id,
+        scenario_id=scenario_id or scenario,
     )

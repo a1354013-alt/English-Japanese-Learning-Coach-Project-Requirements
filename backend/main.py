@@ -13,6 +13,7 @@ from api_errors import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from chat_handler import chat_manager
 from config import settings
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         lesson_scheduler.stop()
+        await chat_manager.shutdown()
         await ollama_client.aclose()
         database_module.db.close_all_connections()
 

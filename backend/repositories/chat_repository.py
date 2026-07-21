@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import uuid4
 
-from chat_scenarios import DEFAULT_SCENARIO_ID, get_scenario
+from chat_contract import MAX_IDEMPOTENCY_KEY_LENGTH
 from models import ChatConversationRecord, ChatMessagePage, ChatMessageRecord
 from time_utils import local_now
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 VALID_CHAT_LANGUAGES = {"EN", "JP"}
 VALID_CHAT_ROLES = {"system", "user", "assistant"}
-MAX_IDEMPOTENCY_KEY_LENGTH = 255
+VALID_CHAT_SCENARIOS = {"daily_conversation", "travel", "restaurant", "workplace"}
 
 
 def _as_isoformat(value: datetime) -> str:
@@ -79,6 +79,7 @@ class ChatRepository:
         conversation = self.create_conversation(
             user_id=user_id,
             language=language,
+            scenario_id=str(metadata["scenario_id"]) if metadata and metadata.get("scenario_id") else "daily_conversation",
             title=title,
             lesson_id=str(metadata["lesson_id"]) if metadata and metadata.get("lesson_id") else None,
             summary=str(metadata["summary"]) if metadata and metadata.get("summary") else None,
@@ -120,16 +121,13 @@ class ChatRepository:
         *,
         user_id: str,
         language: str,
-        scenario_id: str = DEFAULT_SCENARIO_ID,
+        scenario_id: str = "daily_conversation",
         title: Optional[str] = None,
         lesson_id: Optional[str] = None,
         summary: Optional[str] = None,
     ) -> ChatConversationRecord:
         normalized_language = self._normalize_language(language)
-        normalized_scenario_id = self._normalize_scenario_id(
-            language=normalized_language,
-            scenario_id=scenario_id,
-        )
+        normalized_scenario_id = self._normalize_scenario_id(scenario_id)
         now = _as_isoformat(local_now())
         conversation_id = str(uuid4())
         conversation_title = title.strip() if title and title.strip() else "New conversation"
@@ -351,6 +349,7 @@ class ChatRepository:
         idempotency_key: Optional[str] = None,
     ) -> ChatMessageRecord:
         normalized_role = self._normalize_role(role)
+        normalized_content = self._normalize_content(content)
         normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
 
         conn = self._database.get_connection()
@@ -384,7 +383,7 @@ class ChatRepository:
                 if existing is not None:
                     if (
                         str(existing["role"]) != normalized_role
-                        or str(existing["content"]) != content
+                        or str(existing["content"]) != normalized_content
                         or existing["metadata_json"] != metadata_json
                     ):
                         raise IdempotencyConflictError(
@@ -414,7 +413,7 @@ class ChatRepository:
                         message_id,
                         conversation_id,
                         normalized_role,
-                        content,
+                        normalized_content,
                         next_sequence,
                         metadata_json,
                         normalized_idempotency_key,
@@ -439,7 +438,7 @@ class ChatRepository:
                     ) from exc
                 if (
                     str(existing["role"]) != normalized_role
-                    or str(existing["content"]) != content
+                    or str(existing["content"]) != normalized_content
                     or existing["metadata_json"] != metadata_json
                 ):
                     raise IdempotencyConflictError(
@@ -522,6 +521,52 @@ class ChatRepository:
         )
         return list(reversed(page.messages))
 
+    def get_recent_messages_after_sequence(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        after_sequence: int,
+        limit: int = 20,
+    ) -> List[ChatMessageRecord]:
+        if limit <= 0:
+            raise InvalidChatPaginationError("limit must be > 0")
+        if after_sequence < 0:
+            raise InvalidChatPaginationError("after_sequence must be >= 0")
+        self.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        rows = self._database.get_connection().execute(
+            """
+            SELECT message_id, conversation_id, role, content, sequence_number,
+                   metadata_json, idempotency_key, created_at
+            FROM chat_messages
+            WHERE conversation_id = ? AND sequence_number > ?
+            ORDER BY sequence_number DESC, created_at DESC, message_id DESC
+            LIMIT ?
+            """,
+            (conversation_id, after_sequence, limit),
+        ).fetchall()
+        return [self._row_to_message(row) for row in reversed(rows)]
+
+    def get_message_by_idempotency_key(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        idempotency_key: str,
+    ) -> Optional[ChatMessageRecord]:
+        normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
+        self.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        row = self._database.get_connection().execute(
+            """
+            SELECT message_id, conversation_id, role, content, sequence_number,
+                   metadata_json, idempotency_key, created_at
+            FROM chat_messages
+            WHERE conversation_id = ? AND idempotency_key = ?
+            """,
+            (conversation_id, normalized_idempotency_key),
+        ).fetchone()
+        return self._row_to_message(row) if row is not None else None
+
     def _update_conversation_fields(
         self,
         *,
@@ -602,18 +647,24 @@ class ChatRepository:
             raise InvalidChatLanguageError(f"Unsupported chat language: {language}")
         return normalized
 
-    def _normalize_scenario_id(self, *, language: str, scenario_id: str) -> str:
-        normalized = scenario_id.strip() if scenario_id.strip() else DEFAULT_SCENARIO_ID
-        if get_scenario(language, normalized) is None:
-            raise InvalidChatScenarioError(
-                f"Unsupported chat scenario {scenario_id!r} for language {language}"
-            )
-        return normalized
-
     def _normalize_role(self, role: str) -> str:
         normalized = role.strip().lower()
         if normalized not in VALID_CHAT_ROLES:
             raise InvalidChatRoleError(f"Unsupported chat role: {role}")
+        return normalized
+
+    def _normalize_scenario_id(self, scenario_id: str | None) -> str:
+        normalized = str(scenario_id or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if not normalized:
+            normalized = "daily_conversation"
+        if normalized not in VALID_CHAT_SCENARIOS:
+            raise InvalidChatScenarioError(f"Unsupported chat scenario: {scenario_id}")
+        return normalized
+
+    def _normalize_content(self, content: str) -> str:
+        normalized = str(content).strip()
+        if not normalized:
+            raise ValueError("Message content must not be blank.")
         return normalized
 
     def _normalize_idempotency_key(self, idempotency_key: Optional[str]) -> Optional[str]:

@@ -9,11 +9,16 @@ All notable changes to this project will be documented in this file.
 - Added learner-facing persisted chat integration for conversation selection, history restore, optimistic reconciliation, scenario continuity, and reconnect-safe WebSocket persistence.
 - Added persisted-chat scenario catalog APIs plus additive migrations `0010` and `0011` for canonical summary triggers and conversation scenarios.
 - Added mocked and full-stack persisted-chat browser coverage that does not require a live Ollama runtime.
+- Added persisted WebSocket chat runtime turns with conversation-ready events, user/assistant idempotency, provider failure retry behavior, per-conversation turn serialization, bounded persisted context, and server-owned scenario identifiers.
+- Added regressions for long persisted-chat context windows, concurrent turn ordering, local lock pressure, provider response validation, scenario validation, and WebSocket cleanup.
+- Added release-scan-safe nested archive regression coverage that still proves hidden secrets are rejected at runtime.
 
 ### Changed
 
 - Release candidate identity is now `1.5.0-rc1` across backend/frontend/runtime metadata and current release markers.
 - Chat Tutor now uses canonical persisted conversation/message IDs, isolates EN and JP state, and restores conversation history through the typed REST + WebSocket contract.
+- Updated the frontend lockfile so `brace-expansion` resolves to `5.0.7` and nested `2.x` copies resolve to `2.1.2`, preserving the full npm audit gate.
+- Persisted-chat storage now spans additive schemas `0008`, `0009`, `0010`, and `0011`, and the runtime Chat Tutor path now persists user and assistant messages while preserving reconnect-safe scenario continuity.
 
 ## [1.4.3] - 2026-07-17
 

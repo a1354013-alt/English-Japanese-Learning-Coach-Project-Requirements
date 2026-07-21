@@ -36,6 +36,10 @@ BEGIN
                 RAISE(ABORT, 'chat summary checkpoint must be 0 when summary is null')
             WHEN NEW.summary IS NULL AND NEW.summary_updated_at IS NOT NULL THEN
                 RAISE(ABORT, 'chat summary_updated_at must be null when summary is null')
+            WHEN NEW.summary IS NOT NULL
+                 AND OLD.summary IS NOT NULL
+                 AND NEW.summary_through_sequence < OLD.summary_through_sequence THEN
+                RAISE(ABORT, 'chat summary checkpoint must not move backward')
             WHEN NEW.summary_through_sequence > COALESCE(
                 (SELECT MAX(sequence_number) FROM chat_messages WHERE conversation_id = NEW.conversation_id),
                 0

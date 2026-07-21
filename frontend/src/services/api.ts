@@ -495,9 +495,12 @@ export const systemApi = {
 
 export const chatApi = {
   async listScenarios(language: Language) {
-    const response = await api.get<ChatScenarioListResponse>('/chat/scenarios', {
-      params: { language },
-    })
+    const response = await api.get<ChatScenarioListResponse>(
+      '/chat/scenarios',
+      {
+        params: { language },
+      },
+    )
     return response.data
   },
 

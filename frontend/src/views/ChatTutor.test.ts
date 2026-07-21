@@ -30,6 +30,7 @@ class MockWebSocket {
   static OPEN = 1
 
   onopen: (() => void) | null = null
+  // eslint-disable-next-line no-unused-vars
   onmessage: ((event: MessageEvent) => void) | null = null
   onerror: (() => void) | null = null
   onclose: (() => void) | null = null
@@ -55,12 +56,20 @@ function flushPromises() {
 }
 
 const scenarios = [
-  { scenario_id: 'daily-conversation', language: 'EN', label: 'Daily Conversation' },
+  {
+    scenario_id: 'daily_conversation',
+    language: 'EN',
+    label: 'Daily Conversation',
+  },
   { scenario_id: 'travel', language: 'EN', label: 'Travel' },
 ]
 
 const jpScenarios = [
-  { scenario_id: 'daily-conversation', language: 'JP', label: 'Daily Conversation' },
+  {
+    scenario_id: 'daily_conversation',
+    language: 'JP',
+    label: 'Daily Conversation',
+  },
   { scenario_id: 'travel', language: 'JP', label: 'Travel' },
 ]
 
@@ -77,66 +86,73 @@ describe('ChatTutor.vue', () => {
     window.prompt = vi.fn(() => 'Renamed chat')
     window.confirm = vi.fn(() => true)
 
-    chatApiMocks.listScenarios.mockImplementation(async (language: 'EN' | 'JP') => ({
-      success: true,
-      scenarios: language === 'EN' ? scenarios : jpScenarios,
-    }))
-    chatApiMocks.listConversations.mockImplementation(async (language: 'EN' | 'JP') => ({
-      success: true,
-      count: language === 'EN' ? 1 : 1,
-      conversations: language === 'EN'
-        ? [
-            {
-              conversation_id: 'conv-en',
-              language: 'EN',
-              scenario_id: 'travel',
-              title: 'English Travel',
-              lesson_id: null,
-              summary: null,
-              summary_through_sequence: 0,
-              summary_updated_at: null,
-              created_at: '2026-07-21T10:00:00Z',
-              updated_at: '2026-07-21T10:00:00Z',
-              last_message_at: '2026-07-21T10:00:00Z',
-            },
-          ]
-        : [
-            {
-              conversation_id: 'conv-jp',
-              language: 'JP',
-              scenario_id: 'daily-conversation',
-              title: 'Japanese Daily',
-              lesson_id: null,
-              summary: null,
-              summary_through_sequence: 0,
-              summary_updated_at: null,
-              created_at: '2026-07-21T11:00:00Z',
-              updated_at: '2026-07-21T11:00:00Z',
-              last_message_at: '2026-07-21T11:00:00Z',
-            },
-          ],
-    }))
-    chatApiMocks.readMessagesPage.mockImplementation(async (conversationId: string) => ({
-      success: true,
-      messages:
-        conversationId === 'conv-en'
-          ? [
-              {
-                message_id: 'm1',
-                conversation_id: 'conv-en',
-                role: 'user',
-                content: 'Hello',
-                sequence_number: 1,
-                metadata: { client_message_id: 'seed-1' },
-                created_at: '2026-07-21T10:01:00Z',
-              },
-            ]
-          : [],
-      limit: 50,
-      has_more: false,
-      next_before_sequence: null,
-      next_after_sequence: null,
-    }))
+    chatApiMocks.listScenarios.mockImplementation(
+      async (language: 'EN' | 'JP') => ({
+        success: true,
+        scenarios: language === 'EN' ? scenarios : jpScenarios,
+      }),
+    )
+    chatApiMocks.listConversations.mockImplementation(
+      async (language: 'EN' | 'JP') => ({
+        success: true,
+        count: language === 'EN' ? 1 : 1,
+        conversations:
+          language === 'EN'
+            ? [
+                {
+                  conversation_id: 'conv-en',
+                  language: 'EN',
+                  scenario_id: 'travel',
+                  title: 'English Travel',
+                  lesson_id: null,
+                  summary: null,
+                  summary_through_sequence: 0,
+                  summary_updated_at: null,
+                  created_at: '2026-07-21T10:00:00Z',
+                  updated_at: '2026-07-21T10:00:00Z',
+                  last_message_at: '2026-07-21T10:00:00Z',
+                },
+              ]
+            : [
+                {
+                  conversation_id: 'conv-jp',
+                  language: 'JP',
+                  scenario_id: 'daily_conversation',
+                  title: 'Japanese Daily',
+                  lesson_id: null,
+                  summary: null,
+                  summary_through_sequence: 0,
+                  summary_updated_at: null,
+                  created_at: '2026-07-21T11:00:00Z',
+                  updated_at: '2026-07-21T11:00:00Z',
+                  last_message_at: '2026-07-21T11:00:00Z',
+                },
+              ],
+      }),
+    )
+    chatApiMocks.readMessagesPage.mockImplementation(
+      async (conversationId: string) => ({
+        success: true,
+        messages:
+          conversationId === 'conv-en'
+            ? [
+                {
+                  message_id: 'm1',
+                  conversation_id: 'conv-en',
+                  role: 'user',
+                  content: 'Hello',
+                  sequence_number: 1,
+                  metadata: { client_message_id: 'seed-1' },
+                  created_at: '2026-07-21T10:01:00Z',
+                },
+              ]
+            : [],
+        limit: 50,
+        has_more: false,
+        next_before_sequence: null,
+        next_after_sequence: null,
+      }),
+    )
     chatApiMocks.createConversation.mockResolvedValue({
       success: true,
       conversation: {
@@ -190,7 +206,9 @@ describe('ChatTutor.vue', () => {
     await flushPromises()
 
     expect(chatApiMocks.listConversations).toHaveBeenCalledWith('EN')
-    expect(chatApiMocks.readMessagesPage).toHaveBeenCalledWith('conv-en', { limit: 50 })
+    expect(chatApiMocks.readMessagesPage).toHaveBeenCalledWith('conv-en', {
+      limit: 50,
+    })
     expect(wrapper.text()).toContain('English Travel')
     expect(wrapper.text()).toContain('Hello')
     expect(MockWebSocket.instances[0]?.url).toContain('conversation_id=conv-en')
@@ -298,7 +316,9 @@ describe('ChatTutor.vue', () => {
     })
     await flushPromises()
 
-    await wrapper.get(`[data-testid="retry-message-${firstPayload.client_message_id}"]`).trigger('click')
+    await wrapper
+      .get(`[data-testid="retry-message-${firstPayload.client_message_id}"]`)
+      .trigger('click')
     const secondPayload = JSON.parse(socket.send.mock.calls[1][0] as string)
 
     expect(secondPayload.client_message_id).toBe(firstPayload.client_message_id)
@@ -309,11 +329,18 @@ describe('ChatTutor.vue', () => {
     await flushPromises()
     await flushPromises()
 
-    await wrapper.get('[data-testid="rename-conversation-conv-en"]').trigger('click')
+    await wrapper
+      .get('[data-testid="rename-conversation-conv-en"]')
+      .trigger('click')
     await flushPromises()
-    expect(chatApiMocks.renameConversation).toHaveBeenCalledWith('conv-en', 'Renamed chat')
+    expect(chatApiMocks.renameConversation).toHaveBeenCalledWith(
+      'conv-en',
+      'Renamed chat',
+    )
 
-    await wrapper.get('[data-testid="delete-conversation-conv-en"]').trigger('click')
+    await wrapper
+      .get('[data-testid="delete-conversation-conv-en"]')
+      .trigger('click')
     await flushPromises()
     expect(chatApiMocks.deleteConversation).toHaveBeenCalledWith('conv-en')
   })

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from api_errors import COMMON_ERROR_RESPONSES, api_error
+from chat_scenarios import list_scenarios
 from database import db
 from fastapi import APIRouter, Depends, Query, Request, status
 from models import (
@@ -13,13 +14,13 @@ from models import (
     ChatConversationDetailResponse,
     ChatConversationListResponse,
     ChatConversationResponse,
-    ChatScenarioListResponse,
-    ChatScenarioResponse,
     ChatConversationUpdateRequest,
     ChatMessageListResponse,
     ChatMessageResponse,
+    ChatScenarioListResponse,
+    ChatScenarioResponse,
+    LanguageCode,
 )
-from chat_scenarios import list_scenarios
 from repositories.errors import (
     ConversationNotFoundError,
     InvalidChatLanguageError,
@@ -121,7 +122,7 @@ async def get_scenarios(
     language: str = Query(...),
 ):
     try:
-        normalized_language = db.chat_repository._normalize_language(language)
+        normalized_language: LanguageCode = db.chat_repository._normalize_language(language)  # type: ignore[assignment]
     except Exception as exc:  # pragma: no cover
         raise _map_chat_error(exc) from exc
     return {

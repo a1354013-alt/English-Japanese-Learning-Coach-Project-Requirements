@@ -22,6 +22,8 @@ python scripts/python_dependency_locks.py refresh
 
 Ordinary CI and release verification should use `python scripts/python_dependency_locks.py check`, which validates lock metadata fingerprints plus portability/secret-redaction rules without re-resolving the package index.
 
+Chat runtime limits are validated at backend startup. Keep `CHAT_CLIENT_MESSAGE_ID_MAX_CHARS` at or below 250 so the stored `user:` idempotency-key prefix still fits the repository's 255-character limit.
+
 ## Frontend Setup
 
 Run these commands from the repository root so `nvm` picks up the pinned version from `.nvmrc`:

@@ -1,7 +1,7 @@
 DROP TRIGGER IF EXISTS trg_chat_conversations_summary_checkpoint_insert;
 DROP TRIGGER IF EXISTS trg_chat_conversations_summary_checkpoint_update;
 
-CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_insert
+CREATE TRIGGER trg_chat_conversations_summary_checkpoint_insert
 BEFORE INSERT ON chat_conversations
 FOR EACH ROW
 BEGIN
@@ -21,7 +21,7 @@ BEGIN
         END;
 END;
 
-CREATE TRIGGER IF NOT EXISTS trg_chat_conversations_summary_checkpoint_update
+CREATE TRIGGER trg_chat_conversations_summary_checkpoint_update
 BEFORE UPDATE OF summary, summary_through_sequence, summary_updated_at ON chat_conversations
 FOR EACH ROW
 BEGIN

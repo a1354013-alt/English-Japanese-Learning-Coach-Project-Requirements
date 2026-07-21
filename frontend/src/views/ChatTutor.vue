@@ -48,7 +48,9 @@
             id="chat-scenario-select"
             v-model="activeState.pendingScenarioId"
             data-testid="chat-scenario-select"
-            :disabled="activeState.creatingConversation || activeState.scenarioLoading"
+            :disabled="
+              activeState.creatingConversation || activeState.scenarioLoading
+            "
           >
             <option
               v-for="scenario in activeState.scenarios"
@@ -84,7 +86,9 @@
           {{ activeState.listError }}
         </div>
         <div
-          v-if="activeState.listLoading && activeState.conversations.length === 0"
+          v-if="
+            activeState.listLoading && activeState.conversations.length === 0
+          "
           class="sidebar-feedback"
         >
           {{ tr('chat.loadingConversations', 'Loading conversations...') }}
@@ -111,7 +115,8 @@
               class="conversation-item"
               :class="{
                 active:
-                  conversation.conversation_id === activeState.selectedConversationId,
+                  conversation.conversation_id ===
+                  activeState.selectedConversationId,
               }"
               :data-testid="`conversation-item-${conversation.conversation_id}`"
               @click="selectConversation(conversation.conversation_id)"
@@ -181,7 +186,11 @@
           {{ connectionNotice }}
         </div>
 
-        <div ref="messagesContainer" class="messages" data-testid="chat-messages">
+        <div
+          ref="messagesContainer"
+          class="messages"
+          data-testid="chat-messages"
+        >
           <button
             v-if="activeState.hasOlderMessages"
             type="button"
@@ -198,7 +207,10 @@
           </button>
 
           <div
-            v-if="activeState.historyLoading && activeState.renderMessages.length === 0"
+            v-if="
+              activeState.historyLoading &&
+              activeState.renderMessages.length === 0
+            "
             class="system-message"
           >
             {{ tr('chat.loadingHistory', 'Loading conversation history...') }}
@@ -212,7 +224,9 @@
             class="system-message"
             data-testid="chat-history-empty"
           >
-            {{ tr('chat.emptyHistory', 'No messages yet. Send the first one.') }}
+            {{
+              tr('chat.emptyHistory', 'No messages yet. Send the first one.')
+            }}
           </div>
           <div
             v-else-if="!activeConversation"
@@ -242,7 +256,11 @@
             </strong>
             <span>{{ msg.content }}</span>
             <button
-              v-if="msg.role === 'user' && msg.status === 'failed' && msg.clientMessageId"
+              v-if="
+                msg.role === 'user' &&
+                msg.status === 'failed' &&
+                msg.clientMessageId
+              "
               type="button"
               class="link-button"
               :data-testid="`retry-message-${msg.clientMessageId}`"
@@ -276,7 +294,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue'
 import { useI18n } from 'vue-i18n'
 import { chatApi } from '@/services/api'
 import type {
@@ -373,7 +399,7 @@ const SELECTED_CONVERSATION_STORAGE_KEYS: Record<Language, string> = {
   JP: 'chat.selectedConversationId.JP',
 }
 
-const DEFAULT_SCENARIO_ID: ChatScenarioId = 'daily-conversation'
+const DEFAULT_SCENARIO_ID: ChatScenarioId = 'daily_conversation'
 
 const createLanguageState = (): LanguageChatState => ({
   conversations: [],
@@ -400,10 +426,12 @@ const languageStates: Record<Language, LanguageChatState> = reactive({
 
 const activeState = computed(() => languageStates[selectedLanguage.value])
 
-const activeConversation = computed(() =>
-  activeState.value.conversations.find(
-    (item) => item.conversation_id === activeState.value.selectedConversationId,
-  ) ?? null,
+const activeConversation = computed(
+  () =>
+    activeState.value.conversations.find(
+      (item) =>
+        item.conversation_id === activeState.value.selectedConversationId,
+    ) ?? null,
 )
 
 const activeLanguageLabel = computed(() =>
@@ -439,13 +467,18 @@ function getState(language: Language) {
 
 function getStoredConversationId(language: Language): string | null {
   try {
-    return window.localStorage.getItem(SELECTED_CONVERSATION_STORAGE_KEYS[language])
+    return window.localStorage.getItem(
+      SELECTED_CONVERSATION_STORAGE_KEYS[language],
+    )
   } catch {
     return null
   }
 }
 
-function setStoredConversationId(language: Language, conversationId: string | null) {
+function setStoredConversationId(
+  language: Language,
+  conversationId: string | null,
+) {
   try {
     const key = SELECTED_CONVERSATION_STORAGE_KEYS[language]
     if (conversationId) {
@@ -460,8 +493,8 @@ function setStoredConversationId(language: Language, conversationId: string | nu
 
 function scenarioLabel(scenarioId: ChatScenarioId): string {
   return (
-    activeState.value.scenarios.find((item) => item.scenario_id === scenarioId)?.label ??
-    scenarioId
+    activeState.value.scenarios.find((item) => item.scenario_id === scenarioId)
+      ?.label ?? scenarioId
   )
 }
 
@@ -535,7 +568,10 @@ function mergeCanonicalMessages(
 
 function reconcilePersistedMessage(message: ChatMessage) {
   const state = activeState.value
-  if (message.conversation_id !== state.selectedConversationId || message.role === 'system') {
+  if (
+    message.conversation_id !== state.selectedConversationId ||
+    message.role === 'system'
+  ) {
     return
   }
   state.renderMessages = mergeCanonicalMessages(state.renderMessages, [message])
@@ -575,7 +611,8 @@ function upsertOptimisticMessage(clientMessageId: string, content: string) {
 }
 
 function parseApiMessage(error: unknown, fallback: string): string {
-  const payload = (error as { response?: { data?: ApiErrorPayload } })?.response?.data
+  const payload = (error as { response?: { data?: ApiErrorPayload } })?.response
+    ?.data
   if (payload?.code === 'conversation_not_found') {
     return tr('chat.errorConversationNotFound', 'Conversation not found.')
   }
@@ -583,16 +620,28 @@ function parseApiMessage(error: unknown, fallback: string): string {
     return tr('chat.errorScenarioMismatch', 'Scenario is not supported.')
   }
   if (payload?.code === 'invalid_chat_language') {
-    return tr('chat.errorLanguageMismatch', 'Language does not match this conversation.')
+    return tr(
+      'chat.errorLanguageMismatch',
+      'Language does not match this conversation.',
+    )
   }
   if (payload?.code === 'invalid_chat_pagination') {
-    return tr('chat.errorInvalidPagination', 'Unable to load this page of messages.')
+    return tr(
+      'chat.errorInvalidPagination',
+      'Unable to load this page of messages.',
+    )
   }
   if (payload?.code === 'idempotency_conflict') {
-    return tr('chat.errorIdempotencyConflict', 'This message conflicts with a previous retry.')
+    return tr(
+      'chat.errorIdempotencyConflict',
+      'This message conflicts with a previous retry.',
+    )
   }
   if (payload?.code === 'provider_failure') {
-    return tr('chat.errorProviderFailure', 'The chat provider is temporarily unavailable.')
+    return tr(
+      'chat.errorProviderFailure',
+      'The chat provider is temporarily unavailable.',
+    )
   }
   return payload?.message || fallback
 }
@@ -604,8 +653,13 @@ async function loadScenarioList(language: Language) {
   try {
     const response = await chatApi.listScenarios(language)
     state.scenarios = response.scenarios
-    if (!state.scenarios.some((item) => item.scenario_id === state.pendingScenarioId)) {
-      state.pendingScenarioId = state.scenarios[0]?.scenario_id ?? DEFAULT_SCENARIO_ID
+    if (
+      !state.scenarios.some(
+        (item) => item.scenario_id === state.pendingScenarioId,
+      )
+    ) {
+      state.pendingScenarioId =
+        state.scenarios[0]?.scenario_id ?? DEFAULT_SCENARIO_ID
     }
   } catch (error) {
     state.scenarioError = parseApiMessage(
@@ -638,7 +692,8 @@ async function loadConversationList(language: Language) {
     ) {
       // keep current
     } else {
-      state.selectedConversationId = state.conversations[0]?.conversation_id ?? null
+      state.selectedConversationId =
+        state.conversations[0]?.conversation_id ?? null
     }
     setStoredConversationId(language, state.selectedConversationId)
   } catch (error) {
@@ -656,7 +711,9 @@ async function loadMessages(language: Language, conversationId: string) {
   state.historyLoading = true
   state.historyError = null
   try {
-    const response = await chatApi.readMessagesPage(conversationId, { limit: 50 })
+    const response = await chatApi.readMessagesPage(conversationId, {
+      limit: 50,
+    })
     state.renderMessages = mergeCanonicalMessages([], response.messages)
     state.hasOlderMessages = response.has_more
     state.nextBeforeSequence = response.next_before_sequence ?? null
@@ -676,7 +733,10 @@ async function loadMessages(language: Language, conversationId: string) {
 
 async function selectConversation(conversationId: string) {
   const state = activeState.value
-  if (state.selectedConversationId === conversationId && state.renderMessages.length > 0) {
+  if (
+    state.selectedConversationId === conversationId &&
+    state.renderMessages.length > 0
+  ) {
     return
   }
   disposeActiveSocket()
@@ -756,8 +816,12 @@ async function deleteConversation(conversation: ChatConversation) {
     if (deletedSelected) {
       disposeActiveSocket()
       state.renderMessages = []
-      state.selectedConversationId = state.conversations[0]?.conversation_id ?? null
-      setStoredConversationId(selectedLanguage.value, state.selectedConversationId)
+      state.selectedConversationId =
+        state.conversations[0]?.conversation_id ?? null
+      setStoredConversationId(
+        selectedLanguage.value,
+        state.selectedConversationId,
+      )
       if (state.selectedConversationId) {
         await loadMessages(selectedLanguage.value, state.selectedConversationId)
         connectForSelectedConversation()
@@ -855,10 +919,11 @@ function connectForSelectedConversation() {
         setStoredConversationId(selectedLanguage.value, data.conversation_id)
       }
       if (data.scenario_id && activeConversation.value) {
-        activeState.value.conversations = activeState.value.conversations.map((item) =>
-          item.conversation_id === data.conversation_id
-            ? { ...item, scenario_id: data.scenario_id ?? item.scenario_id }
-            : item,
+        activeState.value.conversations = activeState.value.conversations.map(
+          (item) =>
+            item.conversation_id === data.conversation_id
+              ? { ...item, scenario_id: data.scenario_id ?? item.scenario_id }
+              : item,
         )
       }
       return
@@ -903,11 +968,15 @@ function connectForSelectedConversation() {
       connectionStatus.value = 'idle'
       return
     }
-    if (connectionStatus.value === 'connected' || connectionStatus.value === 'connecting') {
+    if (
+      connectionStatus.value === 'connected' ||
+      connectionStatus.value === 'connecting'
+    ) {
       connectionStatus.value = 'reconnecting'
       cleanupReconnectTimer()
       reconnectTimer.value = window.setTimeout(() => {
-        if (!isMounted.value || generation !== connectionGeneration.value) return
+        if (!isMounted.value || generation !== connectionGeneration.value)
+          return
         connectForSelectedConversation()
       }, 1000)
       return
@@ -989,7 +1058,8 @@ watch(
 onMounted(async () => {
   isMounted.value = true
   for (const language of ['EN', 'JP'] as const) {
-    getState(language).selectedConversationId = getStoredConversationId(language)
+    getState(language).selectedConversationId =
+      getStoredConversationId(language)
   }
   await Promise.all([
     loadScenarioList('EN'),
@@ -998,7 +1068,10 @@ onMounted(async () => {
     loadConversationList('JP'),
   ])
   if (activeState.value.selectedConversationId) {
-    await loadMessages(selectedLanguage.value, activeState.value.selectedConversationId)
+    await loadMessages(
+      selectedLanguage.value,
+      activeState.value.selectedConversationId,
+    )
     connectForSelectedConversation()
   }
 })

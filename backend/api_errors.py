@@ -136,7 +136,7 @@ def _extract_invalid_chat_scenario(errors: list[dict[str, Any]]) -> str | None:
             continue
         if loc[-1] != "scenario_id":
             continue
-        if item.get("type") != "literal_error":
+        if item.get("type") not in {"literal_error", "value_error"}:
             continue
         value = item.get("input")
         if isinstance(value, str) and value.strip():
