@@ -514,6 +514,26 @@ class ChatRepository:
         )
         return list(reversed(page.messages))
 
+    def get_message_by_idempotency_key(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        idempotency_key: str,
+    ) -> Optional[ChatMessageRecord]:
+        normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
+        self.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        row = self._database.get_connection().execute(
+            """
+            SELECT message_id, conversation_id, role, content, sequence_number,
+                   metadata_json, idempotency_key, created_at
+            FROM chat_messages
+            WHERE conversation_id = ? AND idempotency_key = ?
+            """,
+            (conversation_id, normalized_idempotency_key),
+        ).fetchone()
+        return self._row_to_message(row) if row is not None else None
+
     def _update_conversation_fields(
         self,
         *,

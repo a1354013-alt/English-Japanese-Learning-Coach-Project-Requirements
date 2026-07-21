@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     # Single-tenant demo default; override for multi-user / auth later.
     default_user_id: str = "default_user"
+    chat_recent_message_limit: int = 20
+    chat_context_max_chars: int = 12000
+    chat_message_max_chars: int = 8000
+    chat_client_message_id_max_chars: int = 255
 
     @property
     def data_path(self) -> Path:

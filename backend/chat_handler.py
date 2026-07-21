@@ -1,15 +1,25 @@
 """WebSocket handler for AI role-play chat."""
+import asyncio
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from config import settings
+from database import db
 from fastapi import WebSocket, WebSocketDisconnect
 from ollama_client import ollama_client
+from repositories.errors import (
+    ConversationNotFoundError,
+    IdempotencyConflictError,
+    InvalidIdempotencyKeyError,
+)
+from services.chat_context_builder import ChatContextBuilder
 
 
 class ChatManager:
     def __init__(self) -> None:
         self.active_connections: List[WebSocket] = []
+        self._turn_locks: dict[str, asyncio.Lock] = {}
+        # Local demo scope: duplicate-turn serialization is single-process only.
 
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -30,66 +40,242 @@ class ChatManager:
                 lines.append(f"Assistant: {msg['content']}")
         return "\n".join(lines)
 
-    async def handle_chat(self, websocket: WebSocket, language: str, scenario: str) -> None:
-        # TODO: replace with persisted memory source; this is explicit fallback.
-        user_memory_fallback = "No stored user memory is available in this build."
+    async def handle_chat(
+        self,
+        websocket: WebSocket,
+        language: str,
+        scenario: str,
+        conversation_id: Optional[str] = None,
+    ) -> None:
+        user_id = settings.default_user_id
+        try:
+            conversation = self._resolve_conversation(
+                user_id=user_id,
+                language=language,
+                scenario=scenario,
+                conversation_id=conversation_id,
+            )
+        except ConversationNotFoundError:
+            await websocket.send_json(
+                {
+                    "type": "chat.error",
+                    "code": "conversation_not_found",
+                    "message": "Conversation not found.",
+                }
+            )
+            await websocket.close(code=1008)
+            self.disconnect(websocket)
+            return
+        except ValueError as exc:
+            await websocket.send_json(
+                {
+                    "type": "chat.error",
+                    "code": "conversation_language_mismatch",
+                    "message": str(exc),
+                }
+            )
+            await websocket.close(code=1008)
+            self.disconnect(websocket)
+            return
 
-        system_prompt = (
-            "You are a supportive language coach. "
-            f"Scenario: {scenario}. Language: {language}. "
-            f"Memory fallback: {user_memory_fallback} "
-            "Respond in 1-3 sentences and end with one follow-up question."
+        await websocket.send_json(
+            {
+                "type": "conversation.ready",
+                "conversation_id": conversation.conversation_id,
+                "language": conversation.language,
+            }
         )
-
-        history: List[Dict[str, Any]] = [{"role": "system", "content": system_prompt}]
 
         try:
             while True:
                 raw = await websocket.receive_text()
-                try:
-                    payload = json.loads(raw)
-                except json.JSONDecodeError:
-                    await websocket.send_json(
-                        {
-                            "role": "system",
-                            "text": 'Invalid message format. Send JSON: {"text":"your message"}.',
-                        }
+                parsed = self._parse_payload(raw)
+                if parsed.get("error"):
+                    await websocket.send_json(parsed["error"])
+                    continue
+                user_text = parsed["text"]
+                client_message_id = parsed.get("client_message_id")
+                lock_key = f"{conversation.conversation_id}:{client_message_id}" if client_message_id else ""
+                lock = self._turn_locks.setdefault(lock_key, asyncio.Lock()) if lock_key else None
+                if lock is None:
+                    await self._handle_turn(
+                        websocket=websocket,
+                        user_id=user_id,
+                        conversation_id=conversation.conversation_id,
+                        language=language,
+                        scenario=scenario,
+                        user_text=user_text,
+                        client_message_id=client_message_id,
                     )
-                    continue
-
-                if not isinstance(payload, dict):
-                    await websocket.send_json(
-                        {"role": "system", "text": "Message must be a JSON object with a \"text\" field."}
-                    )
-                    continue
-
-                user_text = str(payload.get("text", "")).strip()
-                if not user_text:
-                    continue
-
-                full_prompt = self.build_prompt(history, user_text)
-
-                response = await ollama_client.generate(
-                    prompt=full_prompt,
-                    system_prompt=system_prompt,
-                    model=settings.small_model_name,
-                    format="text",
-                    use_cache=False,
-                    timeout_profile="chat",
-                )
-
-                if response.get("success"):
-                    ai_text = response.get("response", "")
-                    history.append({"role": "user", "content": user_text})
-                    history.append({"role": "assistant", "content": ai_text})
-                    await websocket.send_json({"role": "assistant", "text": ai_text})
                 else:
-                    await websocket.send_json({
-                        "role": "system",
-                        "text": "AI chat is currently unavailable.",
-                    })
+                    async with lock:
+                        await self._handle_turn(
+                            websocket=websocket,
+                            user_id=user_id,
+                            conversation_id=conversation.conversation_id,
+                            language=language,
+                            scenario=scenario,
+                            user_text=user_text,
+                            client_message_id=client_message_id,
+                        )
+                    if not lock.locked():
+                        self._turn_locks.pop(lock_key, None)
         except WebSocketDisconnect:
             self.disconnect(websocket)
+
+    def _resolve_conversation(self, *, user_id: str, language: str, scenario: str, conversation_id: Optional[str]):
+        if not conversation_id:
+            return db.chat_repository.create_conversation(
+                user_id=user_id,
+                language=language,
+                title=f"{language} {scenario}".strip(),
+            )
+        conversation = db.chat_repository.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        if conversation.language != language:
+            raise ValueError("Conversation language does not match the WebSocket language.")
+        return conversation
+
+    def _parse_payload(self, raw: str) -> Dict[str, Any]:
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return {"error": self._validation_error("invalid_json", 'Invalid message format. Send JSON: {"text":"your message"}.')}
+        if not isinstance(payload, dict):
+            return {"error": self._validation_error("invalid_payload", 'Message must be a JSON object with a "text" field.')}
+        unknown = set(payload) - {"text", "client_message_id"}
+        if unknown:
+            return {"error": self._validation_error("unknown_fields", f"Unknown fields are not supported: {', '.join(sorted(unknown))}.")}
+        user_text = str(payload.get("text", "")).strip()
+        if not user_text:
+            return {"error": self._validation_error("blank_text", "Text must not be blank.")}
+        if len(user_text) > settings.chat_message_max_chars:
+            return {
+                "error": self._validation_error(
+                    "text_too_long",
+                    f"Text must be at most {settings.chat_message_max_chars} characters.",
+                )
+            }
+        client_message_id = payload.get("client_message_id")
+        if client_message_id is not None:
+            client_message_id = str(client_message_id).strip()
+            if not client_message_id:
+                return {"error": self._validation_error("blank_client_message_id", "client_message_id must not be blank.")}
+            if len(client_message_id) > settings.chat_client_message_id_max_chars:
+                return {
+                    "error": self._validation_error(
+                        "client_message_id_too_long",
+                        f"client_message_id must be at most {settings.chat_client_message_id_max_chars} characters.",
+                    )
+                }
+        return {"text": user_text, "client_message_id": client_message_id}
+
+    def _validation_error(self, code: str, message: str) -> Dict[str, str]:
+        return {"type": "chat.validation_error", "role": "system", "code": code, "text": message, "message": message}
+
+    async def _handle_turn(
+        self,
+        *,
+        websocket: WebSocket,
+        user_id: str,
+        conversation_id: str,
+        language: str,
+        scenario: str,
+        user_text: str,
+        client_message_id: Optional[str],
+    ) -> None:
+        user_key = f"user:{client_message_id}" if client_message_id else None
+        try:
+            user_message = db.chat_repository.append_message(
+                conversation_id=conversation_id,
+                user_id=user_id,
+                role="user",
+                content=user_text,
+                metadata={"source": "websocket", "client_message_id": client_message_id} if client_message_id else {"source": "websocket"},
+                idempotency_key=user_key,
+            )
+        except (IdempotencyConflictError, InvalidIdempotencyKeyError):
+            await websocket.send_json(
+                {
+                    "type": "chat.error",
+                    "role": "system",
+                    "code": "idempotency_conflict",
+                    "text": "This client_message_id was already used for a different chat turn.",
+                    "message": "This client_message_id was already used for a different chat turn.",
+                    "conversation_id": conversation_id,
+                }
+            )
+            return
+
+        await websocket.send_json(
+            {
+                "type": "chat.user.persisted",
+                "conversation_id": conversation_id,
+                "message_id": user_message.message_id,
+                "sequence_number": user_message.sequence_number,
+                "client_message_id": client_message_id,
+            }
+        )
+
+        assistant_key = f"assistant:{user_message.message_id}"
+        existing_assistant = db.chat_repository.get_message_by_idempotency_key(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            idempotency_key=assistant_key,
+        )
+        if existing_assistant is not None:
+            await self._send_assistant(websocket, existing_assistant)
+            return
+
+        conversation = db.chat_repository.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        context = ChatContextBuilder(db.chat_repository).build(
+            conversation=conversation,
+            user_id=user_id,
+            scenario=scenario,
+        )
+        response = await ollama_client.generate(
+            prompt=context.prompt,
+            system_prompt=context.system_prompt,
+            model=settings.small_model_name,
+            format="text",
+            use_cache=False,
+            timeout_profile="chat",
+        )
+        if not response.get("success"):
+            await websocket.send_json(
+                {
+                    "type": "chat.error",
+                    "role": "system",
+                    "code": "provider_unavailable",
+                    "text": "AI chat is currently unavailable.",
+                    "message": "AI chat is currently unavailable.",
+                    "conversation_id": conversation_id,
+                    "user_message_id": user_message.message_id,
+                }
+            )
+            return
+
+        ai_text = str(response.get("response", "")).strip()
+        assistant_message = db.chat_repository.append_message(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role="assistant",
+            content=ai_text,
+            metadata={"source": "ollama", "user_message_id": user_message.message_id},
+            idempotency_key=assistant_key,
+        )
+        await self._send_assistant(websocket, assistant_message)
+
+    async def _send_assistant(self, websocket: WebSocket, message: Any) -> None:
+        await websocket.send_json(
+            {
+                "type": "chat.assistant",
+                "role": "assistant",
+                "text": message.content,
+                "conversation_id": message.conversation_id,
+                "message_id": message.message_id,
+                "sequence_number": message.sequence_number,
+            }
+        )
 
 
 chat_manager = ChatManager()
