@@ -108,7 +108,12 @@ test('full-stack persisted chat restores, isolates, renames, and deletes convers
 
   await page.getByTestId('chat-input').fill('Second turn')
   await page.getByTestId('chat-send').click()
-  await expect(page.getByText('Second turn')).toHaveCount(1)
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    'Second turn',
+  )
+  await expect(page.locator('[data-testid="chat-messages"]')).toContainText(
+    '[Travel] I heard: Second turn',
+  )
 
   const renameButtons = page.locator('[data-testid^="rename-conversation-"]')
   await renameButtons.first().click()

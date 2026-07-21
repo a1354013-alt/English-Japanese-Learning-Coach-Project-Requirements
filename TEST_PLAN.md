@@ -1,6 +1,6 @@
 # Test Plan
 
-Use this plan when validating a clean checkout or release candidate.
+Use this plan when validating a clean checkout or release.
 
 ## Toolchain
 
@@ -55,7 +55,7 @@ npm run test:e2e:fullstack:smoke -- --project=chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```
 
-The `v1.5.0-rc1` persisted-chat release gate should explicitly verify:
+The `v1.5.0` persisted-chat release gate should explicitly verify:
 
 - Conversation list loading and empty state
 - Create, select, rename, and delete conversation flows

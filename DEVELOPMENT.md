@@ -1,6 +1,6 @@
 # Development Guide
 
-This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `v1.5.0-rc1`.
+This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `v1.5.0`.
 
 ## Backend Setup
 

@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.5.0-rc1 -->
-Current release: `v1.5.0-rc1`.
+<!-- release:current=v1.5.0 -->
+Current release: `v1.5.0`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -62,9 +62,9 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
-## v1.5.0-rc1 Release Candidate
+## v1.5.0 Release
 
-Version `1.5.0-rc1` is the first persisted-chat release candidate. It keeps the released `v1.4.3` adaptive-learning baseline intact while completing the learner-facing persisted conversation workflow:
+Version `1.5.0` promotes the verified persisted-chat baseline from release candidate to final release. It keeps the released `v1.4.3` adaptive-learning baseline intact while completing the learner-facing persisted conversation workflow:
 
 - Persisted chat now includes typed REST scenario/conversation APIs, canonical persisted WebSocket events, scenario-aware conversation storage, and frontend conversation/history restoration across reloads.
 - Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp, with canonical trigger recovery captured by migrations `0009` and `0010`.
@@ -79,7 +79,6 @@ Current limitations remain explicit:
 
 - This remains a local single-user demonstration build, not a production multi-user SaaS deployment.
 - Local single-process turn serialization is preserved; there is no distributed locking layer.
-- Automatic rolling-summary generation is still out of scope.
 - TTS is provider-ready but disabled by default unless a real provider is configured.
 - Immersion is currently text shadowing rather than live audio coaching.
 - Real recording and speech comparison are not part of this release.
@@ -98,7 +97,6 @@ The adaptive study flow remains:
 
 Current limitations remain explicit:
 
-- The frontend conversation-management sidebar/history UI is not implemented yet.
 - Rolling AI summary generation is not implemented yet; existing summaries are only supplied by persisted REST update paths.
 - Per-conversation turn ordering is local to one backend process and is not a distributed lock.
 - TTS is provider-ready but disabled by default unless a real provider is configured.

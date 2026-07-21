@@ -1,6 +1,6 @@
-# Architecture Boundaries for v1.5 rc1
+# Architecture Boundaries for v1.5.0
 
-This release candidate keeps `backend/database.py` as the runtime facade while documenting the persisted-chat boundaries that now back learner-facing conversation history in `v1.5.0-rc1`.
+This release keeps `backend/database.py` as the runtime facade while documenting the persisted-chat boundaries that now back learner-facing conversation history in `v1.5.0`.
 
 ## Current runtime rule
 
@@ -44,9 +44,9 @@ backend/
 4. Extract learning-session persistence second once the feature contract is stable.
 5. Leave lesson, review, and analytics extraction for later releases unless a concrete change requires it.
 
-## Non-goals for v1.5.0-rc1
+## Non-goals for v1.5.0
 
 - No multi-user redesign
 - No database engine change
 - No schema rewrite for existing study, review, or analytics data
-- No hidden platform rewrite behind the persisted-chat release candidate
+- No hidden platform rewrite behind the persisted-chat release

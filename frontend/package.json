@@ -1,7 +1,7 @@
 {
   "name": "language-coach-frontend",
   "private": true,
-  "version": "1.5.0-rc1",
+  "version": "1.5.0",
   "packageManager": "npm@10.9.3",
   "type": "module",
   "engines": {
