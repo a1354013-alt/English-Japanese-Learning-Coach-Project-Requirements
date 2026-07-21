@@ -676,6 +676,44 @@ def test_0010_canonicalizes_previous_phase_2a_triggers_and_preserves_data(tmp_pa
     assert after == before
 
 
+def test_0011_adds_chat_scenario_to_existing_0010_schema_with_safe_default(tmp_path):
+    db_path = tmp_path / "phase-2b-2.db"
+    _create_partial_0009_state(
+        db_path,
+        include_summary_through_sequence=True,
+        include_summary_updated_at=True,
+        include_insert_trigger=True,
+        include_update_trigger=True,
+    )
+    conn = sqlite3.connect(str(db_path), isolation_level=None)
+    try:
+        conn.execute(
+            "INSERT INTO schema_migrations (version) VALUES (?)",
+            ("0010_chat_summary_trigger_canonicalization.sql",),
+        )
+    finally:
+        conn.close()
+
+    db = Database(str(db_path))
+
+    with db.get_connection() as conn:
+        chat_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
+        version_0011 = conn.execute(
+            "SELECT version FROM schema_migrations WHERE version = ?",
+            ("0011_chat_conversation_scenario.sql",),
+        ).fetchone()
+        conversation = conn.execute(
+            "SELECT scenario_id, title FROM chat_conversations WHERE conversation_id = ?",
+            ("conv-1",),
+        ).fetchone()
+
+    assert "scenario_id" in chat_columns
+    assert version_0011 is not None
+    assert conversation is not None
+    assert conversation["scenario_id"] == "daily_conversation"
+    assert conversation["title"] == "Recovered"
+
+
 def test_startup_rebuilds_malformed_summary_trigger_body(tmp_path):
     db_path = tmp_path / "malformed.db"
     _create_partial_0009_state(

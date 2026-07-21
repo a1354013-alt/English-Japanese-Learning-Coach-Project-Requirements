@@ -39,11 +39,15 @@ class _Socket:
     def __init__(self, *, fail_on_type: str | None = None) -> None:
         self.events: list[dict[str, Any]] = []
         self.fail_on_type = fail_on_type
+        self.closed = False
 
     async def send_json(self, event: dict[str, Any]) -> None:
         if self.fail_on_type == event.get("type"):
             raise RuntimeError("forced socket send failure")
         self.events.append(event)
+
+    async def close(self, code: int = 1000) -> None:
+        self.closed = True
 
 
 def test_websocket_auto_creates_conversation_and_accepts_legacy_payload(tmp_path, monkeypatch):
@@ -64,6 +68,7 @@ def test_websocket_auto_creates_conversation_and_accepts_legacy_payload(tmp_path
         assistant_event = _next_type(ws, "chat.assistant")
 
     assert ready["conversation_id"] == user_event["conversation_id"] == assistant_event["conversation_id"]
+    assert ready["scenario_id"] == "daily_conversation"
     assert assistant_event["role"] == "assistant"
     assert assistant_event["text"] == "Hello back."
     messages = temp_db.chat_repository.get_messages_page(
@@ -86,11 +91,80 @@ def test_websocket_resumes_existing_conversation_and_isolates_language(tmp_path,
         ready = _ready(ws)
 
     assert ready["conversation_id"] == conversation.conversation_id
+    assert ready["scenario_id"] == "daily_conversation"
 
     with TestClient(app).websocket_connect(f"/ws/chat/EN?conversation_id={conversation.conversation_id}") as ws:
         event = ws.receive_json()
         assert event["type"] == "chat.error"
         assert event["code"] == "conversation_language_mismatch"
+
+
+def test_websocket_travel_conversation_reconnects_as_travel_when_scenario_omitted(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+    import chat_handler
+
+    captured_system_prompts: list[str] = []
+
+    async def _generate(**kwargs):
+        captured_system_prompts.append(kwargs["system_prompt"])
+        return {"success": True, "response": "Travel answer."}
+
+    monkeypatch.setattr(chat_handler.ollama_client, "generate", _generate)
+
+    with TestClient(app).websocket_connect("/ws/chat/EN?scenario=travel") as ws:
+        ready = _ready(ws)
+
+    assert ready["scenario_id"] == "travel"
+    stored = temp_db.chat_repository.get_conversation(
+        conversation_id=ready["conversation_id"],
+        user_id="default_user",
+    )
+    assert stored.scenario_id == "travel"
+
+    with TestClient(app).websocket_connect(f"/ws/chat/EN?conversation_id={ready['conversation_id']}") as ws:
+        reconnect_ready = _ready(ws)
+        ws.send_json({"text": "I need directions", "client_message_id": "travel-reconnect"})
+        _next_type(ws, "chat.assistant")
+
+    assert reconnect_ready["scenario_id"] == "travel"
+    assert any("Scenario: Practice travel situations" in prompt for prompt in captured_system_prompts)
+
+
+def test_websocket_rejects_scenario_mismatch_without_changing_history(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+    conversation = temp_db.chat_repository.create_conversation(
+        user_id="default_user",
+        language="EN",
+        scenario_id="restaurant",
+        title="Restaurant",
+    )
+    temp_db.chat_repository.append_message(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        role="user",
+        content="Existing order",
+    )
+
+    with TestClient(app).websocket_connect(
+        f"/ws/chat/EN?conversation_id={conversation.conversation_id}&scenario=workplace"
+    ) as ws:
+        event = ws.receive_json()
+
+    messages = temp_db.chat_repository.get_messages_page(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        limit=10,
+    ).messages
+    refreshed = temp_db.chat_repository.get_conversation(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+    )
+    assert event["type"] == "chat.error"
+    assert event["code"] == "conversation_scenario_mismatch"
+    assert refreshed.scenario_id == "restaurant"
+    assert [(message.role, message.content) for message in messages] == [("user", "Existing order")]
 
 
 def test_websocket_treats_wrong_owner_conversation_as_not_found(tmp_path, monkeypatch):
@@ -131,6 +205,92 @@ def test_websocket_client_message_id_retry_reuses_messages(tmp_path, monkeypatch
         limit=10,
     ).messages
     assert len(messages) == 2
+
+
+def test_websocket_accepts_250_character_client_message_id(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+    import chat_handler
+
+    monkeypatch.setattr(
+        chat_handler.ollama_client,
+        "generate",
+        AsyncMock(return_value={"success": True, "response": "Boundary accepted."}),
+    )
+    client_message_id = "x" * 250
+
+    with TestClient(app).websocket_connect("/ws/chat/EN") as ws:
+        ready = _ready(ws)
+        ws.send_json({"text": "Hello", "client_message_id": client_message_id})
+        user_event = _next_type(ws, "chat.user.persisted")
+        assistant = _next_type(ws, "chat.assistant")
+
+    assert user_event["client_message_id"] == client_message_id
+    assert assistant["text"] == "Boundary accepted."
+    messages = temp_db.chat_repository.get_messages_page(
+        conversation_id=ready["conversation_id"],
+        user_id="default_user",
+        limit=10,
+    ).messages
+    assert len(messages) == 2
+
+
+def test_websocket_rejects_251_character_client_message_id_before_database_access(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+
+    def _fail_append(*_args, **_kwargs):
+        raise AssertionError("append_message should not be called for an overlong client_message_id")
+
+    monkeypatch.setattr(temp_db.chat_repository, "append_message", _fail_append)
+
+    with TestClient(app).websocket_connect("/ws/chat/EN") as ws:
+        ready = _ready(ws)
+        ws.send_json({"text": "Hello", "client_message_id": "x" * 251})
+        event = ws.receive_json()
+
+    assert event["type"] == "chat.validation_error"
+    assert event["code"] == "client_message_id_too_long"
+    messages = temp_db.chat_repository.get_messages_page(
+        conversation_id=ready["conversation_id"],
+        user_id="default_user",
+        limit=10,
+    ).messages
+    assert messages == []
+
+
+def test_invalid_idempotency_key_maps_to_client_message_validation_error(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+    import chat_handler
+
+    manager = ChatManager()
+    conversation = temp_db.chat_repository.create_conversation(user_id="default_user", language="EN", title="EN")
+    monkeypatch.setattr(chat_handler.settings, "chat_client_message_id_max_chars", 255)
+    socket = _Socket()
+
+    asyncio.run(
+        manager._handle_turn(
+            websocket=socket,
+            user_id="default_user",
+            conversation_id=conversation.conversation_id,
+            language="EN",
+            scenario="Daily Conversation",
+            user_text="Hello",
+            client_message_id="x" * 251,
+        )
+    )
+
+    assert socket.events == [
+        {
+            "type": "chat.validation_error",
+            "role": "system",
+            "code": "client_message_id_too_long",
+            "text": "client_message_id must be at most 255 characters.",
+            "message": "client_message_id must be at most 255 characters.",
+            "conversation_id": conversation.conversation_id,
+        }
+    ]
 
 
 def test_websocket_incompatible_retry_reports_conflict(tmp_path, monkeypatch):
@@ -491,6 +651,27 @@ def test_three_task_lock_pressure_never_overlaps_provider_section(tmp_path, monk
     asyncio.run(_run())
     assert max_provider_overlap == 1
     assert list(manager._turn_locks) == [conversation.conversation_id]
+
+
+def test_chat_manager_shutdown_closes_connections_and_clears_retained_locks():
+    manager = ChatManager()
+    socket = _Socket()
+    manager.active_connections.append(socket)  # type: ignore[arg-type]
+    lock = manager._conversation_lock("conversation-1")
+
+    assert manager.forget_conversation("conversation-1") is True
+    lock = manager._conversation_lock("conversation-1")
+
+    async def _run() -> None:
+        async with lock:
+            assert manager.forget_conversation("conversation-1") is False
+        await manager.shutdown()
+
+    asyncio.run(_run())
+
+    assert socket.closed is True
+    assert manager.active_connections == []
+    assert manager._turn_locks == {}
 
 
 def test_invalid_scenario_is_rejected_without_creating_conversation(tmp_path, monkeypatch):

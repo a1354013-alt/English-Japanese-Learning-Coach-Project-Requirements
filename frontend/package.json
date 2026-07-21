@@ -2,6 +2,7 @@
   "name": "language-coach-frontend",
   "private": true,
   "version": "1.5.0-dev.1",
+  "packageManager": "npm@10.9.3",
   "type": "module",
   "engines": {
     "node": "22.18.0"

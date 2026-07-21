@@ -76,6 +76,7 @@ async def create_conversation(
         conversation = db.chat_repository.create_conversation(
             user_id=user_id,
             language=request.language,
+            scenario_id=request.scenario_id,
             title=request.title,
             lesson_id=request.lesson_id,
         )

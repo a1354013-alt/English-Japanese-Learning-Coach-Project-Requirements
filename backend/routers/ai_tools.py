@@ -90,7 +90,7 @@ async def get_audio_file(filename: str):
 async def websocket_endpoint(
     websocket: WebSocket,
     language: LanguageCode,
-    scenario: str = "Daily Conversation",
+    scenario: str | None = None,
     conversation_id: str | None = None,
 ):
     await chat_manager.handle_chat(websocket, language, scenario, conversation_id)

@@ -437,6 +437,9 @@ class Database:
                 self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=True)
                 conn.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)", (version,))
                 continue
+            if version == "0011_chat_conversation_scenario.sql":
+                self._recover_chat_scenario_migration(conn=conn, mark_complete=True)
+                continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
@@ -481,6 +484,7 @@ class Database:
             r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }:
             self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
+            self._recover_chat_scenario_migration(conn=conn, mark_complete=False)
         self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
@@ -594,6 +598,40 @@ class Database:
         if malformed_triggers:
             malformed = ", ".join(sorted(malformed_triggers))
             raise RuntimeError(f"chat summary checkpoint migration incomplete: malformed triggers {malformed}")
+
+    def _recover_chat_scenario_migration(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        mark_complete: bool,
+    ) -> None:
+        if not self._table_exists(conn=conn, table_name="chat_conversations"):
+            return
+
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        if "scenario_id" not in conversation_cols:
+            conn.execute(
+                """
+                ALTER TABLE chat_conversations
+                ADD COLUMN scenario_id TEXT NOT NULL DEFAULT 'daily_conversation'
+                CHECK (scenario_id IN ('daily_conversation', 'travel', 'restaurant', 'workplace'))
+                """
+            )
+        self._validate_chat_scenario_schema(conn=conn)
+        if mark_complete:
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0011_chat_conversation_scenario.sql",),
+            )
+
+    def _validate_chat_scenario_schema(self, *, conn: sqlite3.Connection) -> None:
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        if "scenario_id" not in conversation_cols:
+            raise RuntimeError("chat scenario migration incomplete: missing column scenario_id")
 
     def _ensure_chat_summary_triggers(self, *, conn: sqlite3.Connection) -> None:
         for name, sql in CHAT_SUMMARY_CANONICAL_TRIGGER_SQL.items():

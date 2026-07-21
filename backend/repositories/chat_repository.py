@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import uuid4
 
+from chat_contract import MAX_IDEMPOTENCY_KEY_LENGTH
 from models import ChatConversationRecord, ChatMessagePage, ChatMessageRecord
 from time_utils import local_now
 
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 
 VALID_CHAT_LANGUAGES = {"EN", "JP"}
 VALID_CHAT_ROLES = {"system", "user", "assistant"}
-MAX_IDEMPOTENCY_KEY_LENGTH = 255
+VALID_CHAT_SCENARIOS = {"daily_conversation", "travel", "restaurant", "workplace"}
 
 
 def _as_isoformat(value: datetime) -> str:
@@ -118,11 +119,13 @@ class ChatRepository:
         *,
         user_id: str,
         language: str,
+        scenario_id: str = "daily_conversation",
         title: Optional[str] = None,
         lesson_id: Optional[str] = None,
         summary: Optional[str] = None,
     ) -> ChatConversationRecord:
         normalized_language = self._normalize_language(language)
+        normalized_scenario_id = self._normalize_scenario_id(scenario_id)
         now = _as_isoformat(local_now())
         conversation_id = str(uuid4())
         conversation_title = title.strip() if title and title.strip() else "New conversation"
@@ -138,14 +141,15 @@ class ChatRepository:
         conn.execute(
             """
             INSERT INTO chat_conversations (
-                conversation_id, user_id, language, title, lesson_id, summary,
+                conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                 created_at, updated_at, last_message_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             """,
             (
                 conversation_id,
                 user_id,
                 normalized_language,
+                normalized_scenario_id,
                 conversation_title,
                 lesson_id,
                 summary,
@@ -168,7 +172,7 @@ class ChatRepository:
         conn = self._database.get_connection()
         rows = conn.execute(
             """
-            SELECT conversation_id, user_id, language, title, lesson_id, summary,
+            SELECT conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                    summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
@@ -184,7 +188,7 @@ class ChatRepository:
         conn = self._database.get_connection()
         row = conn.execute(
             """
-            SELECT conversation_id, user_id, language, title, lesson_id, summary,
+            SELECT conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                    summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
@@ -645,6 +649,12 @@ class ChatRepository:
         normalized = role.strip().lower()
         if normalized not in VALID_CHAT_ROLES:
             raise InvalidChatRoleError(f"Unsupported chat role: {role}")
+        return normalized
+
+    def _normalize_scenario_id(self, scenario_id: str) -> str:
+        normalized = str(scenario_id).strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized not in VALID_CHAT_SCENARIOS:
+            raise ValueError(f"Unsupported chat scenario: {scenario_id}")
         return normalized
 
     def _normalize_content(self, content: str) -> str:

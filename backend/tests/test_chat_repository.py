@@ -67,11 +67,23 @@ def test_create_and_list_conversations_isolate_by_language(tmp_path):
 
     en_conversation = _create_conversation(db, "EN")
     jp_conversation = _create_conversation(db, "JP")
+    travel_conversation = db.chat_repository.create_conversation(
+        user_id="default_user",
+        language="EN",
+        scenario_id="travel",
+        title="Travel",
+    )
 
     en_list = db.chat_repository.list_conversations(user_id="default_user", language="EN")
     jp_list = db.chat_repository.list_conversations(user_id="default_user", language="JP")
 
-    assert [conversation.conversation_id for conversation in en_list] == [en_conversation.conversation_id]
+    assert {conversation.conversation_id for conversation in en_list} == {
+        travel_conversation.conversation_id,
+        en_conversation.conversation_id,
+    }
+    scenarios_by_id = {conversation.conversation_id: conversation.scenario_id for conversation in en_list}
+    assert scenarios_by_id[en_conversation.conversation_id] == "daily_conversation"
+    assert scenarios_by_id[travel_conversation.conversation_id] == "travel"
     assert [conversation.conversation_id for conversation in jp_list] == [jp_conversation.conversation_id]
 
 

@@ -101,6 +101,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Node/npm preflight
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
       - name: Install
         run: npm ci
       - name: Production dependency audit
@@ -139,6 +145,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Node/npm preflight
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
       - name: Install CJK PDF fonts
         run: |
           sudo apt-get update
@@ -170,6 +182,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Node/npm preflight
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -202,6 +220,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Node/npm preflight
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
       - name: Install CJK PDF fonts
         working-directory: .
         run: |
@@ -351,6 +375,12 @@ jobs:
           node-version: "22.18.0"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Node/npm preflight
+        run: |
+          node --version
+          npm --version
+          test "$(node --version)" = "v22.18.0"
+          test "$(npm --version)" = "10.9.3"
       - name: Install CJK PDF fonts
         working-directory: .
         run: |
