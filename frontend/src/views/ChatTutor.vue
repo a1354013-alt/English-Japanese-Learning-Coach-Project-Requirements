@@ -581,7 +581,7 @@ function reconcilePersistedMessage(message: ChatMessage) {
 function markMessageFailed(clientMessageId: string) {
   const state = activeState.value
   state.renderMessages = state.renderMessages.map((item) =>
-    item.clientMessageId === clientMessageId && !item.canonicalMessageId
+    item.clientMessageId === clientMessageId
       ? { ...item, status: 'failed' }
       : item,
   )
@@ -954,6 +954,16 @@ function connectForSelectedConversation() {
         (typeof data.message === 'string' ? data.message : undefined) ||
         tr('chat.providerFailed', 'Unable to complete this turn right now.')
       return
+    }
+    if (data.type === 'chat.validation_error') {
+      if (data.client_message_id) {
+        markMessageFailed(data.client_message_id)
+      }
+      activeState.value.historyError =
+        data.content ||
+        data.text ||
+        (typeof data.message === 'string' ? data.message : undefined) ||
+        tr('chat.providerFailed', 'Unable to complete this turn right now.')
     }
   }
 

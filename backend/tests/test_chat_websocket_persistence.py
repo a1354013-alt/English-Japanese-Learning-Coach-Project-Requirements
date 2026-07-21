@@ -259,6 +259,56 @@ def test_websocket_rejects_251_character_client_message_id_before_database_acces
     assert messages == []
 
 
+def test_websocket_rejects_blank_client_message_id_before_database_access(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+
+    def _fail_append(*_args, **_kwargs):
+        raise AssertionError("append_message should not be called for a blank client_message_id")
+
+    monkeypatch.setattr(temp_db.chat_repository, "append_message", _fail_append)
+
+    with TestClient(app).websocket_connect("/ws/chat/EN") as ws:
+        _ready(ws)
+        ws.send_json({"text": "Hello", "client_message_id": "   "})
+        event = ws.receive_json()
+
+    assert event["type"] == "chat.validation_error"
+    assert event["code"] == "blank_client_message_id"
+    assert "client_message_id" not in event
+
+
+def test_websocket_validation_error_includes_client_message_id_for_unknown_fields(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+
+    with TestClient(app).websocket_connect("/ws/chat/EN") as ws:
+        _ready(ws)
+        ws.send_json({"text": "Hello", "client_message_id": "client-extra", "unexpected": True})
+        event = ws.receive_json()
+
+    assert event["type"] == "chat.validation_error"
+    assert event["code"] == "unknown_fields"
+    assert event["client_message_id"] == "client-extra"
+
+
+def test_websocket_validation_error_includes_client_message_id_for_text_too_long(tmp_path, monkeypatch):
+    temp_db = _make_db(tmp_path)
+    _patch_chat_db(monkeypatch, temp_db)
+    import chat_handler
+
+    monkeypatch.setattr(chat_handler.settings, "chat_message_max_chars", 5)
+
+    with TestClient(app).websocket_connect("/ws/chat/EN") as ws:
+        _ready(ws)
+        ws.send_json({"text": "Hello there", "client_message_id": "client-long-text"})
+        event = ws.receive_json()
+
+    assert event["type"] == "chat.validation_error"
+    assert event["code"] == "text_too_long"
+    assert event["client_message_id"] == "client-long-text"
+
+
 def test_invalid_idempotency_key_maps_to_client_message_validation_error(tmp_path, monkeypatch):
     temp_db = _make_db(tmp_path)
     _patch_chat_db(monkeypatch, temp_db)
@@ -289,6 +339,7 @@ def test_invalid_idempotency_key_maps_to_client_message_validation_error(tmp_pat
             "text": "client_message_id must be at most 255 characters.",
             "message": "client_message_id must be at most 255 characters.",
             "conversation_id": conversation.conversation_id,
+            "client_message_id": "x" * 251,
         }
     ]
 

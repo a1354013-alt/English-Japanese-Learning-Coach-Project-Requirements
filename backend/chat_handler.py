@@ -73,6 +73,19 @@ class ChatManager:
                 lines.append(f"Assistant: {content}")
         return "\n".join(lines)
 
+    def _mock_chat_response(
+        self,
+        *,
+        language: str,
+        scenario_id: str | None,
+        user_text: str,
+    ) -> dict[str, Any]:
+        normalized_language: LanguageCode = db.chat_repository._normalize_language(language)  # type: ignore[assignment]
+        resolved_scenario_id = scenario_id or DEFAULT_SCENARIO_ID
+        scenario = get_scenario(normalized_language, resolved_scenario_id)
+        scenario_label = str(scenario["label"]) if scenario is not None else resolved_scenario_id
+        return {"success": True, "response": f"[{scenario_label}] I heard: {user_text}"}
+
     async def handle_chat(
         self,
         websocket: WebSocket,
@@ -243,26 +256,6 @@ class ChatManager:
                     'Message must be a JSON object with a "text" field.',
                 )
             }
-        unknown = set(payload) - {"text", "client_message_id"}
-        if unknown:
-            return {
-                "error": self._validation_error(
-                    "unknown_fields",
-                    f"Unknown fields are not supported: {', '.join(sorted(unknown))}.",
-                )
-            }
-
-        user_text = str(payload.get("text", "")).strip()
-        if not user_text:
-            return {"error": self._validation_error("blank_text", "Text must not be blank.")}
-        if len(user_text) > settings.chat_message_max_chars:
-            return {
-                "error": self._validation_error(
-                    "text_too_long",
-                    f"Text must be at most {settings.chat_message_max_chars} characters.",
-                )
-            }
-
         client_message_id = payload.get("client_message_id")
         if client_message_id is not None:
             client_message_id = str(client_message_id).strip()
@@ -281,10 +274,47 @@ class ChatManager:
                     )
                 }
 
+        unknown = set(payload) - {"text", "client_message_id"}
+        if unknown:
+            return {
+                "error": self._validation_error(
+                    "unknown_fields",
+                    f"Unknown fields are not supported: {', '.join(sorted(unknown))}.",
+                    client_message_id=client_message_id,
+                )
+            }
+
+        user_text = str(payload.get("text", "")).strip()
+        if not user_text:
+            return {
+                "error": self._validation_error(
+                    "blank_text",
+                    "Text must not be blank.",
+                    client_message_id=client_message_id,
+                )
+            }
+        if len(user_text) > settings.chat_message_max_chars:
+            return {
+                "error": self._validation_error(
+                    "text_too_long",
+                    f"Text must be at most {settings.chat_message_max_chars} characters.",
+                    client_message_id=client_message_id,
+                )
+            }
+
         return {"text": user_text, "client_message_id": client_message_id}
 
-    def _validation_error(self, code: str, message: str) -> dict[str, str]:
-        return {"type": "chat.validation_error", "role": "system", "code": code, "text": message, "message": message}
+    def _validation_error(
+        self,
+        code: str,
+        message: str,
+        *,
+        client_message_id: str | None = None,
+    ) -> dict[str, str]:
+        event = {"type": "chat.validation_error", "role": "system", "code": code, "text": message, "message": message}
+        if client_message_id is not None:
+            event["client_message_id"] = client_message_id
+        return event
 
     def _conversation_lock(self, conversation_id: str) -> asyncio.Lock:
         lock = self._turn_locks.get(conversation_id)
@@ -361,6 +391,7 @@ class ChatManager:
                     "text": f"client_message_id must be at most {settings.chat_client_message_id_max_chars} characters.",
                     "message": f"client_message_id must be at most {settings.chat_client_message_id_max_chars} characters.",
                     "conversation_id": conversation_id,
+                    "client_message_id": client_message_id,
                 }
             )
             return
@@ -411,14 +442,21 @@ class ChatManager:
             user_id=user_id,
             scenario=scenario,
         )
-        response = await ollama_client.generate(
-            prompt=context.prompt,
-            system_prompt=context.system_prompt,
-            model=settings.small_model_name,
-            format="text",
-            use_cache=False,
-            timeout_profile="chat",
-        )
+        if settings.chat_provider_mode == "mock":
+            response = self._mock_chat_response(
+                language=language,
+                scenario_id=scenario_id,
+                user_text=user_text,
+            )
+        else:
+            response = await ollama_client.generate(
+                prompt=context.prompt,
+                system_prompt=context.system_prompt,
+                model=settings.small_model_name,
+                format="text",
+                use_cache=False,
+                timeout_profile="chat",
+            )
         if not response.get("success"):
             await websocket.send_json(
                 {

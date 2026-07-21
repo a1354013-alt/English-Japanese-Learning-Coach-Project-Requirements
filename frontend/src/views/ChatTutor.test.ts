@@ -324,6 +324,75 @@ describe('ChatTutor.vue', () => {
     expect(secondPayload.client_message_id).toBe(firstPayload.client_message_id)
   })
 
+  it('handles validation errors without rendering them as chat messages and retries without duplicates', async () => {
+    const wrapper = mount(ChatTutor)
+    await flushPromises()
+    await flushPromises()
+
+    const socket = MockWebSocket.instances[0]
+    socket.onopen?.()
+    await wrapper.vm.$nextTick()
+    await wrapper.get('[data-testid="chat-input"]').setValue('Too long')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const firstPayload = JSON.parse(socket.send.mock.calls[0][0] as string)
+    socket.emit({
+      type: 'chat.validation_error',
+      client_message_id: firstPayload.client_message_id,
+      message: 'Text must be at most 5 characters.',
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Text must be at most 5 characters.')
+    expect(wrapper.findAll('[data-testid^="chat-message-"]').length).toBe(2)
+    expect(
+      wrapper.findAll(
+        `[data-testid="retry-message-${firstPayload.client_message_id}"]`,
+      ).length,
+    ).toBe(1)
+
+    await wrapper
+      .get(`[data-testid="retry-message-${firstPayload.client_message_id}"]`)
+      .trigger('click')
+    await flushPromises()
+
+    const secondPayload = JSON.parse(socket.send.mock.calls[1][0] as string)
+    expect(secondPayload.client_message_id).toBe(firstPayload.client_message_id)
+    expect(wrapper.findAll('[data-testid^="chat-message-"]').length).toBe(2)
+
+    socket.emit({
+      type: 'chat.user.persisted',
+      client_message_id: firstPayload.client_message_id,
+      message: {
+        message_id: 'm-user-retry',
+        conversation_id: 'conv-en',
+        role: 'user',
+        content: 'Too long',
+        sequence_number: 2,
+        metadata: { client_message_id: firstPayload.client_message_id },
+        created_at: '2026-07-21T10:02:00Z',
+      },
+    })
+    socket.emit({
+      type: 'chat.assistant.persisted',
+      client_message_id: firstPayload.client_message_id,
+      message: {
+        message_id: 'm-assistant-retry',
+        conversation_id: 'conv-en',
+        role: 'assistant',
+        content: 'Retry worked.',
+        sequence_number: 3,
+        metadata: { client_message_id: firstPayload.client_message_id },
+        created_at: '2026-07-21T10:02:10Z',
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid^="chat-message-"]').length).toBe(3)
+    expect(wrapper.text()).toContain('Retry worked.')
+  })
+
   it('renames and deletes conversations', async () => {
     const wrapper = mount(ChatTutor)
     await flushPromises()
