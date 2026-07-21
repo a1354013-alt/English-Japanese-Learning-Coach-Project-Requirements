@@ -14,6 +14,7 @@ export default defineConfig({
       env: {
         ...process.env,
         ENABLE_RAG: 'false',
+        CHAT_PROVIDER_MODE: 'mock',
         MAX_UPLOAD_SIZE_MB: '10',
         ALLOW_DEMO_RESET: 'true',
         DATA_DIR: '.playwright-data',

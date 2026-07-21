@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     model_name: str = "llama2:13b"
     small_model_name: str = "llama3:8b"
     large_model_name: str = "llama2:13b"
+    chat_provider_mode: str = "ollama"
 
     # Storage
     data_dir: str = str(DEFAULT_DATA_DIR)

@@ -620,12 +620,14 @@ class MicroLessonAnswerResponse(BaseModel):
 
 # ============ Persisted Chat Models ============
 ChatMessageRole: TypeAlias = Literal["system", "user", "assistant"]
+ChatScenarioId: TypeAlias = Literal["daily-conversation", "travel", "restaurant", "workplace"]
 
 
 class ChatConversationRecord(BaseModel):
     conversation_id: str
     user_id: str
     language: LanguageCode
+    scenario_id: ChatScenarioId
     title: str
     lesson_id: Optional[str] = None
     summary: Optional[str] = None
@@ -667,6 +669,7 @@ class ChatConversationCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     language: LanguageCode
+    scenario_id: ChatScenarioId = "daily-conversation"
     title: str = Field(min_length=1, max_length=120)
     lesson_id: Optional[str] = None
 
@@ -738,6 +741,7 @@ class ChatConversationUpdateRequest(BaseModel):
 class ChatConversationResponse(BaseModel):
     conversation_id: str
     language: LanguageCode
+    scenario_id: ChatScenarioId
     title: str
     lesson_id: Optional[str] = None
     summary: Optional[str] = None
@@ -763,6 +767,17 @@ class ChatConversationDeleteResponse(BaseModel):
     success: bool = True
     message: str
     conversation_id: str
+
+
+class ChatScenarioResponse(BaseModel):
+    scenario_id: ChatScenarioId
+    language: LanguageCode
+    label: str
+
+
+class ChatScenarioListResponse(BaseModel):
+    success: bool = True
+    scenarios: List[ChatScenarioResponse]
 
 
 class ChatMessageResponse(BaseModel):

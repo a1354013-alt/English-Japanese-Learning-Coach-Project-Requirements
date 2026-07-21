@@ -1,6 +1,6 @@
 # Development Guide
 
-This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0.
+This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `v1.5.0-rc1`.
 
 ## Backend Setup
 
@@ -55,6 +55,8 @@ npm run e2e:install
 npm run test:e2e:fullstack:smoke -- --project=chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```
+
+The full-stack persisted-chat browser lane now uses `CHAT_PROVIDER_MODE=mock` in Playwright so ordinary frontend release validation does not require a live Ollama process.
 
 ## Frontend Verification
 

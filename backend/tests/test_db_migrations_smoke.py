@@ -20,6 +20,7 @@ def test_db_init_and_migrations_smoke(tmp_path):
         chat_columns = {r["name"] for r in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()}
     assert "summary_through_sequence" in chat_columns
     assert "summary_updated_at" in chat_columns
+    assert "scenario_id" in chat_columns
 
 
 def _create_v143_baseline(db_path):
@@ -489,6 +490,7 @@ def test_upgrade_from_v143_adds_persisted_chat_without_changing_existing_data(tm
     assert version_0009 is not None
     assert "summary_through_sequence" in chat_columns
     assert "summary_updated_at" in chat_columns
+    assert "scenario_id" in chat_columns
 
 
 @pytest.mark.parametrize(

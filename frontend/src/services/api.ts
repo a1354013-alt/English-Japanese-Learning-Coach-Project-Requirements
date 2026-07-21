@@ -35,6 +35,12 @@ import type {
   LearningItemType,
   LearningItemWeakResponse,
   LessonListItem,
+  ChatConversationDeleteResponse,
+  ChatConversationDetailResponse,
+  ChatConversationListResponse,
+  ChatMessageListResponse,
+  ChatScenarioId,
+  ChatScenarioListResponse,
   DiagnosticQuestion,
   LearningPlan,
   MicroLesson,
@@ -483,6 +489,75 @@ export const analyticsApi = {
 export const systemApi = {
   async resetDemo() {
     const response = await api.post<DemoResetResponse>('/demo/reset')
+    return response.data
+  },
+}
+
+export const chatApi = {
+  async listScenarios(language: Language) {
+    const response = await api.get<ChatScenarioListResponse>('/chat/scenarios', {
+      params: { language },
+    })
+    return response.data
+  },
+
+  async createConversation(payload: {
+    language: Language
+    title: string
+    scenario_id: ChatScenarioId
+    lesson_id?: string | null
+  }) {
+    const response = await api.post<ChatConversationDetailResponse>(
+      '/chat/conversations',
+      payload,
+    )
+    return response.data
+  },
+
+  async listConversations(language: Language, limit = 20) {
+    const response = await api.get<ChatConversationListResponse>(
+      '/chat/conversations',
+      {
+        params: { language, limit },
+      },
+    )
+    return response.data
+  },
+
+  async readConversation(conversationId: string) {
+    const response = await api.get<ChatConversationDetailResponse>(
+      `/chat/conversations/${encodeURIComponent(conversationId)}`,
+    )
+    return response.data
+  },
+
+  async renameConversation(conversationId: string, title: string) {
+    const response = await api.patch<ChatConversationDetailResponse>(
+      `/chat/conversations/${encodeURIComponent(conversationId)}`,
+      { title },
+    )
+    return response.data
+  },
+
+  async deleteConversation(conversationId: string) {
+    const response = await api.delete<ChatConversationDeleteResponse>(
+      `/chat/conversations/${encodeURIComponent(conversationId)}`,
+    )
+    return response.data
+  },
+
+  async readMessagesPage(
+    conversationId: string,
+    params: {
+      limit?: number
+      before_sequence?: number
+      after_sequence?: number
+    } = {},
+  ) {
+    const response = await api.get<ChatMessageListResponse>(
+      `/chat/conversations/${encodeURIComponent(conversationId)}/messages`,
+      { params },
+    )
     return response.data
   },
 }

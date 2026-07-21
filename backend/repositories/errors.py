@@ -15,6 +15,10 @@ class InvalidChatLanguageError(ChatRepositoryError):
     """Raised when a persisted-chat language is unsupported."""
 
 
+class InvalidChatScenarioError(ChatRepositoryError):
+    """Raised when a persisted-chat scenario is unsupported or mismatched."""
+
+
 class InvalidChatRoleError(ChatRepositoryError):
     """Raised when a persisted-chat role is unsupported."""
 

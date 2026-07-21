@@ -272,6 +272,7 @@ def reset_demo_dataset(db: Database) -> dict[str, Any]:
 
 
 def _clear_database(db: Database, user_id: str) -> None:
+    db.chat_repository.clear_conversations_for_demo_user(user_id=user_id)
     tables = [
         "learning_item_reviews",
         "learning_item_srs",

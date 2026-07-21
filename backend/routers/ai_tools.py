@@ -5,7 +5,7 @@ from api_errors import COMMON_ERROR_RESPONSES, api_error
 from chat_handler import chat_manager
 from config import settings
 from database import db
-from fastapi import APIRouter, Depends, WebSocket
+from fastapi import APIRouter, Depends, Query, WebSocket
 from fastapi.responses import FileResponse
 from models import (
     LanguageCode,
@@ -20,7 +20,7 @@ from study_planner import study_planner
 from tts_service import tts_service
 from writing_assistant import writing_assistant
 
-from routers.deps import require_demo_user_id
+from routers.deps import get_default_demo_user_id, require_demo_user_id
 
 router = APIRouter(prefix="/api", tags=["ai-tools"], responses=COMMON_ERROR_RESPONSES)
 
@@ -87,6 +87,17 @@ async def get_audio_file(filename: str):
 
 
 @chat_ws_router.websocket("/ws/chat/{language}")
-async def websocket_endpoint(websocket: WebSocket, language: LanguageCode, scenario: str = "Daily Conversation"):
-    await chat_manager.connect(websocket)
-    await chat_manager.handle_chat(websocket, language, scenario)
+async def websocket_endpoint(
+    websocket: WebSocket,
+    language: LanguageCode,
+    conversation_id: str | None = Query(default=None),
+    scenario_id: str | None = Query(default=None),
+    user_id: str = Depends(get_default_demo_user_id),
+):
+    await chat_manager.handle_chat(
+        websocket,
+        user_id=user_id,
+        language=language,
+        conversation_id=conversation_id,
+        scenario_id=scenario_id,
+    )

@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from uuid import uuid4
 
+from chat_scenarios import DEFAULT_SCENARIO_ID, get_scenario
 from models import ChatConversationRecord, ChatMessagePage, ChatMessageRecord
 from time_utils import local_now
 
@@ -17,6 +18,7 @@ from repositories.errors import (
     InvalidChatLanguageError,
     InvalidChatPaginationError,
     InvalidChatRoleError,
+    InvalidChatScenarioError,
     InvalidChatSummaryCheckpointError,
     InvalidIdempotencyKeyError,
     LessonLinkIntegrityError,
@@ -118,11 +120,16 @@ class ChatRepository:
         *,
         user_id: str,
         language: str,
+        scenario_id: str = DEFAULT_SCENARIO_ID,
         title: Optional[str] = None,
         lesson_id: Optional[str] = None,
         summary: Optional[str] = None,
     ) -> ChatConversationRecord:
         normalized_language = self._normalize_language(language)
+        normalized_scenario_id = self._normalize_scenario_id(
+            language=normalized_language,
+            scenario_id=scenario_id,
+        )
         now = _as_isoformat(local_now())
         conversation_id = str(uuid4())
         conversation_title = title.strip() if title and title.strip() else "New conversation"
@@ -138,14 +145,15 @@ class ChatRepository:
         conn.execute(
             """
             INSERT INTO chat_conversations (
-                conversation_id, user_id, language, title, lesson_id, summary,
+                conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                 created_at, updated_at, last_message_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             """,
             (
                 conversation_id,
                 user_id,
                 normalized_language,
+                normalized_scenario_id,
                 conversation_title,
                 lesson_id,
                 summary,
@@ -168,7 +176,7 @@ class ChatRepository:
         conn = self._database.get_connection()
         rows = conn.execute(
             """
-            SELECT conversation_id, user_id, language, title, lesson_id, summary,
+            SELECT conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                    summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
@@ -184,7 +192,7 @@ class ChatRepository:
         conn = self._database.get_connection()
         row = conn.execute(
             """
-            SELECT conversation_id, user_id, language, title, lesson_id, summary,
+            SELECT conversation_id, user_id, language, scenario_id, title, lesson_id, summary,
                    summary_through_sequence, summary_updated_at,
                    created_at, updated_at, last_message_at
             FROM chat_conversations
@@ -266,7 +274,7 @@ class ChatRepository:
         try:
             conversation = conn.execute(
                 """
-                SELECT conversation_id, language, summary, summary_through_sequence
+                SELECT conversation_id, language, scenario_id, summary, summary_through_sequence
                 FROM chat_conversations
                 WHERE conversation_id = ? AND user_id = ?
                 """,
@@ -592,6 +600,14 @@ class ChatRepository:
         normalized = language.strip().upper()
         if normalized not in VALID_CHAT_LANGUAGES:
             raise InvalidChatLanguageError(f"Unsupported chat language: {language}")
+        return normalized
+
+    def _normalize_scenario_id(self, *, language: str, scenario_id: str) -> str:
+        normalized = scenario_id.strip() if scenario_id.strip() else DEFAULT_SCENARIO_ID
+        if get_scenario(language, normalized) is None:
+            raise InvalidChatScenarioError(
+                f"Unsupported chat scenario {scenario_id!r} for language {language}"
+            )
         return normalized
 
     def _normalize_role(self, role: str) -> str:

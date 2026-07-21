@@ -77,8 +77,10 @@ def test_chat_conversation_crud_and_language_isolation(monkeypatch, tmp_path):
     en_body = created_en.json()["conversation"]
     jp_body = created_jp.json()["conversation"]
     assert en_body["language"] == "EN"
+    assert en_body["scenario_id"] == "daily-conversation"
     assert en_body["title"] == "English chat"
     assert jp_body["language"] == "JP"
+    assert jp_body["scenario_id"] == "daily-conversation"
 
     listed_en = client.get("/api/chat/conversations?language=EN")
     listed_jp = client.get("/api/chat/conversations?language=JP")
@@ -210,6 +212,13 @@ def test_chat_api_rejects_invalid_inputs_and_user_id(monkeypatch, tmp_path):
     assert bad_language.status_code == 422
     assert bad_language.json()["code"] == "invalid_chat_language"
 
+    bad_scenario = client.post(
+        "/api/chat/conversations",
+        json={"language": "EN", "title": "Bad", "scenario_id": "unknown"},
+    )
+    assert bad_scenario.status_code == 422
+    assert bad_scenario.json()["code"] == "invalid_chat_scenario"
+
     long_title = client.post("/api/chat/conversations", json={"language": "EN", "title": "x" * 121})
     assert long_title.status_code == 422
 
@@ -337,3 +346,18 @@ def test_chat_openapi_exposes_typed_schemas(monkeypatch, tmp_path):
     assert "ChatConversationUpdateRequest" in schemas
     assert "ChatConversationResponse" in schemas
     assert "ChatMessageListResponse" in schemas
+
+
+def test_chat_scenarios_endpoint_returns_language_specific_catalog(monkeypatch, tmp_path):
+    _patch_chat_db(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    response = client.get("/api/chat/scenarios?language=EN")
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["scenario_id"] for item in body["scenarios"]] == [
+        "daily-conversation",
+        "travel",
+        "restaurant",
+        "workplace",
+    ]

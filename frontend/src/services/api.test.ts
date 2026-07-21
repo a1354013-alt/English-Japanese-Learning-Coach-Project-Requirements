@@ -28,7 +28,14 @@ vi.mock('axios', async () => {
   }
 })
 
-import { aiTutorApi, importApi, lessonApi, progressApi, reviewApi } from './api'
+import {
+  aiTutorApi,
+  chatApi,
+  importApi,
+  lessonApi,
+  progressApi,
+  reviewApi,
+} from './api'
 import type { ReviewAnswer } from '@/types'
 
 describe('api client', () => {
@@ -106,5 +113,31 @@ describe('api client', () => {
     mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
     await reviewApi.submitReview(answers)
     expect(mocks.postMock).toHaveBeenCalledWith('/review', answers, undefined)
+  })
+
+  it('calls typed chat conversation endpoints', async () => {
+    mocks.getMock.mockResolvedValueOnce({ data: { success: true, scenarios: [] } })
+    await chatApi.listScenarios('EN')
+    expect(mocks.getMock).toHaveBeenCalledWith('/chat/scenarios', {
+      params: { language: 'EN' },
+    })
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true, conversation: {} } })
+    await chatApi.createConversation({
+      language: 'EN',
+      scenario_id: 'travel',
+      title: 'Travel',
+    })
+    expect(mocks.postMock).toHaveBeenCalledWith('/chat/conversations', {
+      language: 'EN',
+      scenario_id: 'travel',
+      title: 'Travel',
+    })
+
+    mocks.patchMock.mockResolvedValueOnce({ data: { success: true, conversation: {} } })
+    await chatApi.renameConversation('conv-1', 'Renamed')
+    expect(mocks.patchMock).toHaveBeenCalledWith('/chat/conversations/conv-1', {
+      title: 'Renamed',
+    })
   })
 })

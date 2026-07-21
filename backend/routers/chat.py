@@ -13,14 +13,18 @@ from models import (
     ChatConversationDetailResponse,
     ChatConversationListResponse,
     ChatConversationResponse,
+    ChatScenarioListResponse,
+    ChatScenarioResponse,
     ChatConversationUpdateRequest,
     ChatMessageListResponse,
     ChatMessageResponse,
 )
+from chat_scenarios import list_scenarios
 from repositories.errors import (
     ConversationNotFoundError,
     InvalidChatLanguageError,
     InvalidChatPaginationError,
+    InvalidChatScenarioError,
     InvalidChatSummaryCheckpointError,
     LessonLinkIntegrityError,
     LessonLinkNotFoundError,
@@ -41,6 +45,8 @@ def _map_chat_error(exc: Exception) -> Exception:
         return api_error(404, "Conversation not found", "conversation_not_found")
     if isinstance(exc, InvalidChatLanguageError):
         return api_error(422, str(exc), "invalid_chat_language")
+    if isinstance(exc, InvalidChatScenarioError):
+        return api_error(422, str(exc), "invalid_chat_scenario")
     if isinstance(exc, InvalidChatPaginationError):
         return api_error(422, str(exc), "invalid_chat_pagination")
     if isinstance(exc, InvalidChatSummaryCheckpointError):
@@ -76,6 +82,7 @@ async def create_conversation(
         conversation = db.chat_repository.create_conversation(
             user_id=user_id,
             language=request.language,
+            scenario_id=request.scenario_id,
             title=request.title,
             lesson_id=request.lesson_id,
         )
@@ -102,6 +109,26 @@ async def list_conversations(
         "success": True,
         "count": len(conversations),
         "conversations": [_conversation_response(conversation) for conversation in conversations],
+    }
+
+
+@router.get(
+    "/scenarios",
+    response_model=ChatScenarioListResponse,
+    dependencies=[Depends(_reject_user_id_query)],
+)
+async def get_scenarios(
+    language: str = Query(...),
+):
+    try:
+        normalized_language = db.chat_repository._normalize_language(language)
+    except Exception as exc:  # pragma: no cover
+        raise _map_chat_error(exc) from exc
+    return {
+        "success": True,
+        "scenarios": [
+            ChatScenarioResponse.model_validate(item) for item in list_scenarios(normalized_language)
+        ],
     }
 
 

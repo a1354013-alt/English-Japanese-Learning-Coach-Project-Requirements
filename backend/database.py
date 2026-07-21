@@ -427,6 +427,13 @@ class Database:
             if version == "0009_chat_summary_checkpoint.sql":
                 self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=True)
                 continue
+            if version == "0010_chat_canonical_summary_triggers.sql":
+                self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
+                conn.execute("INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)", (version,))
+                continue
+            if version == "0011_chat_conversation_scenarios.sql":
+                self._recover_chat_conversation_scenario_migration(conn=conn, mark_complete=True)
+                continue
             sql = file_path.read_text(encoding="utf-8")
             conn.executescript(sql)
             conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (version,))
@@ -471,6 +478,7 @@ class Database:
             r["name"] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }:
             self._recover_chat_summary_checkpoint_migration(conn=conn, mark_complete=False)
+            self._recover_chat_conversation_scenario_migration(conn=conn, mark_complete=False)
         self._cleanup_exercise_result_duplicates(conn)
         conn.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_exercise_results_unique "
@@ -572,6 +580,10 @@ class Database:
                 "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
                 ("0009_chat_summary_checkpoint.sql",),
             )
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0010_chat_canonical_summary_triggers.sql",),
+            )
 
     def _validate_chat_summary_checkpoint_schema(self, *, conn: sqlite3.Connection) -> None:
         conversation_cols = {
@@ -587,6 +599,44 @@ class Database:
         if missing_triggers:
             missing = ", ".join(sorted(missing_triggers))
             raise RuntimeError(f"chat summary checkpoint migration incomplete: missing triggers {missing}")
+
+    def _recover_chat_conversation_scenario_migration(
+        self,
+        *,
+        conn: sqlite3.Connection,
+        mark_complete: bool,
+    ) -> None:
+        if not self._table_exists(conn=conn, table_name="chat_conversations"):
+            return
+
+        conversation_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(chat_conversations)").fetchall()
+        }
+        if "scenario_id" not in conversation_cols:
+            conn.execute(
+                """
+                ALTER TABLE chat_conversations
+                ADD COLUMN scenario_id TEXT NOT NULL DEFAULT 'daily-conversation'
+                """
+            )
+        conn.execute(
+            """
+            UPDATE chat_conversations
+            SET scenario_id = 'daily-conversation'
+            WHERE scenario_id IS NULL OR TRIM(scenario_id) = ''
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_language_scenario
+            ON chat_conversations(user_id, language, scenario_id, created_at DESC)
+            """
+        )
+        if mark_complete:
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)",
+                ("0011_chat_conversation_scenarios.sql",),
+            )
 
     def _existing_trigger_names(self, *, conn: sqlite3.Connection) -> set[str]:
         return {

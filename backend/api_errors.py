@@ -109,6 +109,8 @@ def _default_code_for_status(status_code: int) -> str:
 def _validation_error_code(request: Request, errors: list[dict[str, Any]]) -> str:
     if request.url.path.startswith("/api/chat/") and _extract_invalid_chat_language(errors) is not None:
         return "invalid_chat_language"
+    if request.url.path.startswith("/api/chat/") and _extract_invalid_chat_scenario(errors) is not None:
+        return "invalid_chat_scenario"
     return "validation_error"
 
 
@@ -118,6 +120,21 @@ def _extract_invalid_chat_language(errors: list[dict[str, Any]]) -> str | None:
         if not isinstance(loc, (list, tuple)) or not loc:
             continue
         if loc[-1] != "language":
+            continue
+        if item.get("type") != "literal_error":
+            continue
+        value = item.get("input")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _extract_invalid_chat_scenario(errors: list[dict[str, Any]]) -> str | None:
+    for item in errors:
+        loc = item.get("loc") or ()
+        if not isinstance(loc, (list, tuple)) or not loc:
+            continue
+        if loc[-1] != "scenario_id":
             continue
         if item.get("type") != "literal_error":
             continue

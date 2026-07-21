@@ -650,6 +650,73 @@ export interface DemoResetResponse {
   }
 }
 
+export type ChatScenarioId =
+  | 'daily-conversation'
+  | 'travel'
+  | 'restaurant'
+  | 'workplace'
+
+export interface ChatScenario {
+  scenario_id: ChatScenarioId
+  language: Language
+  label: string
+}
+
+export interface ChatScenarioListResponse {
+  success: boolean
+  scenarios: ChatScenario[]
+}
+
+export interface ChatConversation {
+  conversation_id: string
+  language: Language
+  scenario_id: ChatScenarioId
+  title: string
+  lesson_id?: string | null
+  summary?: string | null
+  summary_through_sequence: number
+  summary_updated_at?: string | null
+  created_at: string
+  updated_at: string
+  last_message_at?: string | null
+}
+
+export interface ChatConversationListResponse {
+  success: boolean
+  count: number
+  conversations: ChatConversation[]
+}
+
+export interface ChatConversationDetailResponse {
+  success: boolean
+  conversation: ChatConversation
+}
+
+export interface ChatConversationDeleteResponse {
+  success: boolean
+  message: string
+  conversation_id: string
+}
+
+export interface ChatMessage {
+  message_id: string
+  conversation_id: string
+  role: 'system' | 'user' | 'assistant'
+  content: string
+  sequence_number: number
+  metadata?: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface ChatMessageListResponse {
+  success: boolean
+  messages: ChatMessage[]
+  limit: number
+  has_more: boolean
+  next_before_sequence?: number | null
+  next_after_sequence?: number | null
+}
+
 export interface DiagnosticQuestion {
   question_id: string
   prompt: string

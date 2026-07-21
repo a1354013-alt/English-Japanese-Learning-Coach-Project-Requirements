@@ -6,13 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added persisted-chat Phase 2A typed REST conversation CRUD/read APIs for the demo user, plus persisted summary checkpoint storage with additive migration `0009`.
-- Added release-scan-safe nested archive regression coverage that still proves hidden secrets are rejected at runtime.
+- Added learner-facing persisted chat integration for conversation selection, history restore, optimistic reconciliation, scenario continuity, and reconnect-safe WebSocket persistence.
+- Added persisted-chat scenario catalog APIs plus additive migrations `0010` and `0011` for canonical summary triggers and conversation scenarios.
+- Added mocked and full-stack persisted-chat browser coverage that does not require a live Ollama runtime.
 
 ### Changed
 
-- Development branch identity is now `1.5.0-dev.1` across backend/frontend/runtime metadata and current release markers so unreleased persisted-chat work cannot be mistaken for `v1.4.3`.
-- Persisted-chat storage now spans additive schemas `0008` and `0009`, while current runtime Chat Tutor WebSocket behavior and frontend conversation UI remain intentionally unchanged.
+- Release candidate identity is now `1.5.0-rc1` across backend/frontend/runtime metadata and current release markers.
+- Chat Tutor now uses canonical persisted conversation/message IDs, isolates EN and JP state, and restores conversation history through the typed REST + WebSocket contract.
 
 ## [1.4.3] - 2026-07-17
 

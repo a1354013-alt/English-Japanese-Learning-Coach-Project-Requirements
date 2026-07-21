@@ -55,6 +55,17 @@ npm run test:e2e:fullstack:smoke -- --project=chromium
 npm run test:e2e:fullstack -- --project=chromium
 ```
 
+The `v1.5.0-rc1` persisted-chat release gate should explicitly verify:
+
+- Conversation list loading and empty state
+- Create, select, rename, and delete conversation flows
+- Reload restoring the selected conversation plus canonical message history
+- Older-history pagination
+- EN/JP conversation-state isolation
+- Retry-safe optimistic user message reconciliation
+- Deterministic mocked browser coverage without live Ollama
+- Full-stack persisted-chat coverage with `CHAT_PROVIDER_MODE=mock`
+
 `npm run e2e:install` runs `playwright install chromium`. On local Windows checkouts, `cd frontend && npx playwright install chromium` is the direct fallback command after `npm ci`.
 
 ## Release Verification

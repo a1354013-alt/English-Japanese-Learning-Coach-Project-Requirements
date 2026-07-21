@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.5.0-dev.1 -->
-Current release: `v1.5.0-dev.1`.
+<!-- release:current=v1.5.0-rc1 -->
+Current release: `v1.5.0-rc1`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -62,13 +62,23 @@ Vocabulary items can now carry part of speech, root, prefix, suffix, word family
 
 Immersion is currently text shadowing only. The TTS endpoint remains provider-ready but disabled by default until a real voice provider is configured.
 
-## v1.5.0-dev.1 Development Baseline
+## v1.5.0-rc1 Release Candidate
 
-Version `1.5.0-dev.1` is the current development branch identity. It keeps the released `v1.4.3` adaptive-learning baseline intact while adding additive persisted-chat storage work that is not yet wired into frontend conversation UI, WebSocket persistence, or AI runtime behavior:
+Version `1.5.0-rc1` is the first persisted-chat release candidate. It keeps the released `v1.4.3` adaptive-learning baseline intact while completing the learner-facing persisted conversation workflow:
 
-- Persisted-chat Phase 1.1 now includes additive conversation/message storage hardening plus typed Phase 2A REST conversation CRUD and read APIs for the local demo user.
-- Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp without changing current WebSocket chat behavior.
+- Persisted chat now includes typed REST scenario/conversation APIs, canonical persisted WebSocket events, scenario-aware conversation storage, and frontend conversation/history restoration across reloads.
+- Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp, with canonical trigger recovery captured by migrations `0009` and `0010`.
+- Scenario continuity now persists through migration `0011` so existing Travel, Restaurant, Workplace, and Daily Conversation chats reconnect without silent scenario replacement.
 - Release packaging and archive verification still enforce the stricter secret, nested-archive, and virtual-environment checks from the `v1.4.3` release line.
+
+Current limitations remain explicit:
+
+- This remains a local single-user demonstration build, not a production multi-user SaaS deployment.
+- Local single-process turn serialization is preserved; there is no distributed locking layer.
+- Automatic rolling-summary generation is still out of scope.
+- TTS is provider-ready but disabled by default unless a real provider is configured.
+- Immersion is currently text shadowing rather than live audio coaching.
+- Real recording and speech comparison are not part of this release.
 
 The adaptive study flow remains:
 

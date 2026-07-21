@@ -1,7 +1,7 @@
 # Demo Guide
 
-<!-- release:current=v1.5.0-dev.1 -->
-Use this guide when you want to present the `v1.5.0-dev.1` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.
+<!-- release:current=v1.5.0-rc1 -->
+Use this guide when you want to present the `v1.5.0-rc1` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.
 
 ## F5 Startup
 
@@ -26,6 +26,7 @@ Use this guide when you want to present the `v1.5.0-dev.1` Adaptive Learning pro
 - [ ] Vocabulary import works with `.xlsx` input.
 - [ ] Vocabulary search works for root/category/tags.
 - [ ] Wrong answers page works.
+- [ ] Chat Tutor persisted conversations work: create, reload restore, rename, language switch isolation, and delete.
 - [ ] PDF export works.
 - [ ] F5 startup instructions above still match the current repo behavior.
 
@@ -47,6 +48,7 @@ Use this guide when you want to present the `v1.5.0-dev.1` Adaptive Learning pro
    - Feynman explanation submission with structured AI feedback or deterministic fallback feedback
    - Vocabulary import plus search by root/category/tags
    - Wrong answers
+   - Chat Tutor persisted conversations
    - PDF export
 
 ## Demo Notes
@@ -56,7 +58,7 @@ Use this guide when you want to present the `v1.5.0-dev.1` Adaptive Learning pro
 - RAG is optional. A demo can succeed with `ENABLE_RAG=false`.
 - TTS is provider-ready but disabled by default unless you wire in a real provider.
 - Immersion is currently text shadowing only.
-- Real recording and speech comparison are not part of the `v1.5.0-dev.1` release.
+- Real recording and speech comparison are not part of the `v1.5.0-rc1` release.
 - Demo reset is intentionally protected and should stay disabled outside local demo environments.
 
 ## Suggested Presenter Script
