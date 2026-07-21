@@ -7,12 +7,16 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added persisted-chat Phase 2A typed REST conversation CRUD/read APIs for the demo user, plus persisted summary checkpoint storage with additive migration `0009`.
+- Added migration `0010` trigger canonicalization coverage for persisted chat summary checkpoint updates.
+- Added persisted WebSocket chat runtime turns with conversation-ready events, user/assistant idempotency, provider failure retry behavior, per-conversation turn serialization, bounded persisted context, and server-owned scenario identifiers.
+- Added regressions for long persisted-chat context windows, concurrent turn ordering, local lock pressure, provider response validation, scenario validation, and WebSocket cleanup.
 - Added release-scan-safe nested archive regression coverage that still proves hidden secrets are rejected at runtime.
 
 ### Changed
 
 - Development branch identity is now `1.5.0-dev.1` across backend/frontend/runtime metadata and current release markers so unreleased persisted-chat work cannot be mistaken for `v1.4.3`.
-- Persisted-chat storage now spans additive schemas `0008` and `0009`, while current runtime Chat Tutor WebSocket behavior and frontend conversation UI remain intentionally unchanged.
+- Persisted-chat storage now spans additive schemas `0008`, `0009`, and trigger canonicalization migration `0010`; runtime Chat Tutor WebSocket turns now persist user and assistant messages while the frontend conversation-management UI remains intentionally unimplemented.
+- Updated the frontend lockfile so `brace-expansion` resolves to `5.0.7` and nested `2.x` copies resolve to `2.1.2`, preserving the full npm audit gate.
 
 ## [1.4.3] - 2026-07-17
 

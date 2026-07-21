@@ -93,5 +93,4 @@ async def websocket_endpoint(
     scenario: str = "Daily Conversation",
     conversation_id: str | None = None,
 ):
-    await chat_manager.connect(websocket)
     await chat_manager.handle_chat(websocket, language, scenario, conversation_id)

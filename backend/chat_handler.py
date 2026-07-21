@@ -1,6 +1,8 @@
 """WebSocket handler for AI role-play chat."""
 import asyncio
 import json
+import logging
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from config import settings
@@ -14,12 +16,45 @@ from repositories.errors import (
 )
 from services.chat_context_builder import ChatContextBuilder
 
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ChatScenario:
+    identifier: str
+    label: str
+    prompt: str
+
+
+SCENARIOS: dict[str, ChatScenario] = {
+    "daily_conversation": ChatScenario(
+        identifier="daily_conversation",
+        label="Daily Conversation",
+        prompt="Practice a natural everyday conversation with practical follow-up questions.",
+    ),
+    "travel": ChatScenario(
+        identifier="travel",
+        label="Travel",
+        prompt="Practice travel situations such as transit, hotels, directions, and polite requests.",
+    ),
+    "restaurant": ChatScenario(
+        identifier="restaurant",
+        label="Restaurant",
+        prompt="Practice ordering food, asking about dishes, and handling restaurant conversations.",
+    ),
+    "workplace": ChatScenario(
+        identifier="workplace",
+        label="Workplace",
+        prompt="Practice professional workplace conversation with clear, respectful phrasing.",
+    ),
+}
+
 
 class ChatManager:
     def __init__(self) -> None:
         self.active_connections: List[WebSocket] = []
         self._turn_locks: dict[str, asyncio.Lock] = {}
-        # Local demo scope: duplicate-turn serialization is single-process only.
+        # Local single-process scope: one retained lock per conversation for this manager lifetime.
 
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -48,45 +83,50 @@ class ChatManager:
         conversation_id: Optional[str] = None,
     ) -> None:
         user_id = settings.default_user_id
+        scenario_result = self._resolve_scenario(scenario)
+        if isinstance(scenario_result, dict):
+            try:
+                await websocket.accept()
+                self.active_connections.append(websocket)
+                await websocket.send_json(scenario_result)
+                await websocket.close(code=1008)
+            finally:
+                self.disconnect(websocket)
+            return
+        scenario_config = scenario_result
         try:
             conversation = self._resolve_conversation(
                 user_id=user_id,
                 language=language,
-                scenario=scenario,
+                scenario=scenario_config,
                 conversation_id=conversation_id,
             )
         except ConversationNotFoundError:
-            await websocket.send_json(
-                {
-                    "type": "chat.error",
-                    "code": "conversation_not_found",
-                    "message": "Conversation not found.",
-                }
+            await self._send_startup_error(
+                websocket,
+                {"type": "chat.error", "code": "conversation_not_found", "message": "Conversation not found."},
             )
-            await websocket.close(code=1008)
-            self.disconnect(websocket)
             return
         except ValueError as exc:
-            await websocket.send_json(
+            await self._send_startup_error(
+                websocket,
                 {
                     "type": "chat.error",
                     "code": "conversation_language_mismatch",
                     "message": str(exc),
-                }
+                },
             )
-            await websocket.close(code=1008)
-            self.disconnect(websocket)
             return
 
-        await websocket.send_json(
-            {
-                "type": "conversation.ready",
-                "conversation_id": conversation.conversation_id,
-                "language": conversation.language,
-            }
-        )
-
         try:
+            await self.connect(websocket)
+            await websocket.send_json(
+                {
+                    "type": "conversation.ready",
+                    "conversation_id": conversation.conversation_id,
+                    "language": conversation.language,
+                }
+            )
             while True:
                 raw = await websocket.receive_text()
                 parsed = self._parse_payload(raw)
@@ -95,40 +135,70 @@ class ChatManager:
                     continue
                 user_text = parsed["text"]
                 client_message_id = parsed.get("client_message_id")
-                lock_key = f"{conversation.conversation_id}:{client_message_id}" if client_message_id else ""
-                lock = self._turn_locks.setdefault(lock_key, asyncio.Lock()) if lock_key else None
-                if lock is None:
+                lock = self._conversation_lock(conversation.conversation_id)
+                async with lock:
                     await self._handle_turn(
                         websocket=websocket,
                         user_id=user_id,
                         conversation_id=conversation.conversation_id,
                         language=language,
-                        scenario=scenario,
+                        scenario=scenario_config.prompt,
                         user_text=user_text,
                         client_message_id=client_message_id,
                     )
-                else:
-                    async with lock:
-                        await self._handle_turn(
-                            websocket=websocket,
-                            user_id=user_id,
-                            conversation_id=conversation.conversation_id,
-                            language=language,
-                            scenario=scenario,
-                            user_text=user_text,
-                            client_message_id=client_message_id,
-                        )
-                    if not lock.locked():
-                        self._turn_locks.pop(lock_key, None)
         except WebSocketDisconnect:
+            pass
+        except Exception:
+            logger.exception("chat_websocket_failed", extra={"conversation_id": conversation.conversation_id})
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "chat.error",
+                        "role": "system",
+                        "code": "internal_error",
+                        "text": "Chat is temporarily unavailable.",
+                        "message": "Chat is temporarily unavailable.",
+                        "conversation_id": conversation.conversation_id,
+                    }
+                )
+                await websocket.close(code=1011)
+            except Exception:
+                logger.exception("chat_websocket_error_delivery_failed", extra={"conversation_id": conversation.conversation_id})
+        finally:
             self.disconnect(websocket)
 
-    def _resolve_conversation(self, *, user_id: str, language: str, scenario: str, conversation_id: Optional[str]):
+    def _conversation_lock(self, conversation_id: str) -> asyncio.Lock:
+        lock = self._turn_locks.get(conversation_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._turn_locks[conversation_id] = lock
+        return lock
+
+    async def _send_startup_error(self, websocket: WebSocket, event: dict[str, Any]) -> None:
+        try:
+            await self.connect(websocket)
+            await websocket.send_json(event)
+            await websocket.close(code=1008)
+        finally:
+            self.disconnect(websocket)
+
+    def _resolve_scenario(self, scenario: str) -> ChatScenario | dict[str, str]:
+        normalized = scenario.strip().lower()
+        if not normalized:
+            normalized = "daily_conversation"
+        if len(normalized) > 40 or "\n" in scenario or "\r" in scenario:
+            return self._validation_error("invalid_scenario", "Unsupported chat scenario.")
+        normalized = normalized.replace("-", "_").replace(" ", "_")
+        if normalized not in SCENARIOS:
+            return self._validation_error("invalid_scenario", "Unsupported chat scenario.")
+        return SCENARIOS[normalized]
+
+    def _resolve_conversation(self, *, user_id: str, language: str, scenario: ChatScenario, conversation_id: Optional[str]):
         if not conversation_id:
             return db.chat_repository.create_conversation(
                 user_id=user_id,
                 language=language,
-                title=f"{language} {scenario}".strip(),
+                title=f"{language} {scenario.label}".strip(),
             )
         conversation = db.chat_repository.get_conversation(conversation_id=conversation_id, user_id=user_id)
         if conversation.language != language:
@@ -255,6 +325,21 @@ class ChatManager:
             return
 
         ai_text = str(response.get("response", "")).strip()
+        if not ai_text:
+            await websocket.send_json(
+                {
+                    "type": "chat.error",
+                    "role": "system",
+                    "code": "empty_provider_response",
+                    "text": "AI chat returned an empty response. Please retry.",
+                    "message": "AI chat returned an empty response. Please retry.",
+                    "conversation_id": conversation_id,
+                    "user_message_id": user_message.message_id,
+                }
+            )
+            return
+        if len(ai_text) > settings.chat_assistant_response_max_chars:
+            ai_text = ai_text[: settings.chat_assistant_response_max_chars].rstrip()
         assistant_message = db.chat_repository.append_message(
             conversation_id=conversation_id,
             user_id=user_id,

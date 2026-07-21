@@ -343,6 +343,7 @@ class ChatRepository:
         idempotency_key: Optional[str] = None,
     ) -> ChatMessageRecord:
         normalized_role = self._normalize_role(role)
+        normalized_content = self._normalize_content(content)
         normalized_idempotency_key = self._normalize_idempotency_key(idempotency_key)
 
         conn = self._database.get_connection()
@@ -376,7 +377,7 @@ class ChatRepository:
                 if existing is not None:
                     if (
                         str(existing["role"]) != normalized_role
-                        or str(existing["content"]) != content
+                        or str(existing["content"]) != normalized_content
                         or existing["metadata_json"] != metadata_json
                     ):
                         raise IdempotencyConflictError(
@@ -406,7 +407,7 @@ class ChatRepository:
                         message_id,
                         conversation_id,
                         normalized_role,
-                        content,
+                        normalized_content,
                         next_sequence,
                         metadata_json,
                         normalized_idempotency_key,
@@ -431,7 +432,7 @@ class ChatRepository:
                     ) from exc
                 if (
                     str(existing["role"]) != normalized_role
-                    or str(existing["content"]) != content
+                    or str(existing["content"]) != normalized_content
                     or existing["metadata_json"] != metadata_json
                 ):
                     raise IdempotencyConflictError(
@@ -513,6 +514,32 @@ class ChatRepository:
             descending=True,
         )
         return list(reversed(page.messages))
+
+    def get_recent_messages_after_sequence(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        after_sequence: int,
+        limit: int = 20,
+    ) -> List[ChatMessageRecord]:
+        if limit <= 0:
+            raise InvalidChatPaginationError("limit must be > 0")
+        if after_sequence < 0:
+            raise InvalidChatPaginationError("after_sequence must be >= 0")
+        self.get_conversation(conversation_id=conversation_id, user_id=user_id)
+        rows = self._database.get_connection().execute(
+            """
+            SELECT message_id, conversation_id, role, content, sequence_number,
+                   metadata_json, idempotency_key, created_at
+            FROM chat_messages
+            WHERE conversation_id = ? AND sequence_number > ?
+            ORDER BY sequence_number DESC, created_at DESC, message_id DESC
+            LIMIT ?
+            """,
+            (conversation_id, after_sequence, limit),
+        ).fetchall()
+        return [self._row_to_message(row) for row in reversed(rows)]
 
     def get_message_by_idempotency_key(
         self,
@@ -618,6 +645,12 @@ class ChatRepository:
         normalized = role.strip().lower()
         if normalized not in VALID_CHAT_ROLES:
             raise InvalidChatRoleError(f"Unsupported chat role: {role}")
+        return normalized
+
+    def _normalize_content(self, content: str) -> str:
+        normalized = str(content).strip()
+        if not normalized:
+            raise ValueError("Message content must not be blank.")
         return normalized
 
     def _normalize_idempotency_key(self, idempotency_key: Optional[str]) -> Optional[str]:

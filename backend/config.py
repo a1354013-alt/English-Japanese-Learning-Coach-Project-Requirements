@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     chat_recent_message_limit: int = 20
     chat_context_max_chars: int = 12000
     chat_message_max_chars: int = 8000
+    chat_assistant_response_max_chars: int = 12000
     chat_client_message_id_max_chars: int = 255
 
     @property

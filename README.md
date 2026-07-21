@@ -64,10 +64,13 @@ Immersion is currently text shadowing only. The TTS endpoint remains provider-re
 
 ## v1.5.0-dev.1 Development Baseline
 
-Version `1.5.0-dev.1` is the current development branch identity. It keeps the released `v1.4.3` adaptive-learning baseline intact while adding additive persisted-chat storage work that is not yet wired into frontend conversation UI, WebSocket persistence, or AI runtime behavior:
+Version `1.5.0-dev.1` is the current development branch identity. It keeps the released `v1.4.3` adaptive-learning baseline intact while adding additive persisted-chat storage and a narrowly scoped persisted WebSocket runtime path:
 
-- Persisted-chat Phase 1.1 now includes additive conversation/message storage hardening plus typed Phase 2A REST conversation CRUD and read APIs for the local demo user.
-- Persisted summaries now track a validated `summary_through_sequence` checkpoint and `summary_updated_at` timestamp without changing current WebSocket chat behavior.
+- Persisted-chat Phase 1.1 and Phase 2A include additive conversation/message storage hardening plus typed REST conversation CRUD and read APIs for the local demo user.
+- Migrations `0008`, `0009`, and `0010` cover conversation/message storage, summary checkpoints, and trigger canonicalization.
+- WebSocket chat now emits `conversation.ready`, persists idempotent user and assistant turns, keeps per-conversation turns ordered in the local single-process runtime, preserves user messages across provider failures, and retries assistant persistence with idempotency.
+- Provider prompts use a bounded persisted summary plus the latest recent messages after the summary checkpoint. The context builder reserves a bounded summary portion, preserves `User:` and `Assistant:` role prefixes, prioritizes the current user message, and treats transcript content as user-level context rather than system instructions.
+- Chat scenarios are server-owned identifiers: `daily_conversation`, `travel`, `restaurant`, and `workplace`. Unsupported scenario text is rejected before it can enter the system prompt.
 - Release packaging and archive verification still enforce the stricter secret, nested-archive, and virtual-environment checks from the `v1.4.3` release line.
 
 The adaptive study flow remains:
@@ -84,6 +87,9 @@ The adaptive study flow remains:
 
 Current limitations remain explicit:
 
+- The frontend conversation-management sidebar/history UI is not implemented yet.
+- Rolling AI summary generation is not implemented yet; existing summaries are only supplied by persisted REST update paths.
+- Per-conversation turn ordering is local to one backend process and is not a distributed lock.
 - TTS is provider-ready but disabled by default unless a real provider is configured.
 - Immersion is currently text shadowing rather than live audio coaching.
 - RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.

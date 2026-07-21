@@ -327,6 +327,42 @@ def test_message_ordering_pagination_and_recent_window(tmp_path):
     assert [message.sequence_number for message in recent] == [3, 4, 5]
 
 
+def test_recent_messages_after_summary_checkpoint_returns_latest_chronological_window(tmp_path):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+
+    for index in range(1, 101):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="user" if index % 2 else "assistant",
+            content=f"message-{index}",
+        )
+
+    recent = db.chat_repository.get_recent_messages_after_sequence(
+        conversation_id=conversation.conversation_id,
+        user_id="default_user",
+        after_sequence=10,
+        limit=5,
+    )
+
+    assert [message.sequence_number for message in recent] == [96, 97, 98, 99, 100]
+
+
+@pytest.mark.parametrize("content", ("", "   ", "\n\t"))
+def test_append_message_rejects_blank_content(tmp_path, content):
+    db = _make_db(tmp_path)
+    conversation = _create_conversation(db)
+
+    with pytest.raises(ValueError, match="Message content must not be blank"):
+        db.chat_repository.append_message(
+            conversation_id=conversation.conversation_id,
+            user_id="default_user",
+            role="assistant",
+            content=content,
+        )
+
+
 def test_message_pagination_walks_history_without_gaps_or_duplicates(tmp_path):
     db = _make_db(tmp_path)
     conversation = _create_conversation(db)
