@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 from uuid import uuid4
 
+from learning_session_contract import LearningSessionContractViolation, validate_event_contract
 from models import (
+    MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH,
     MAX_LEARNING_SESSION_METADATA_BYTES,
     MAX_LEARNING_SESSION_PAGE_SIZE,
     MAX_LEARNING_SESSION_PLANNED_MINUTES,
@@ -88,6 +90,7 @@ class LearningSessionRepository:
 
     def __init__(self, database: "Database"):
         self._database = database
+        self._summary_snapshot_hook: Optional[Callable[[], None]] = None
 
     def start_session(
         self,
@@ -229,12 +232,16 @@ class LearningSessionRepository:
             raise InvalidLearningSessionEventError("entity_type and entity_id must be provided together")
         normalized_key = None if idempotency_key is None else validate_learning_session_idempotency_key(idempotency_key)
         metadata_json = _encode_metadata(metadata)
+        self._validate_event_contract(
+            event_type=normalized_event_type,
+            entity_type=normalized_entity_type,
+            entity_id=normalized_entity_id,
+            metadata=metadata,
+        )
         conn = self._database.get_connection()
         conn.execute("BEGIN IMMEDIATE")
         try:
             session_row = self._get_owned_session_row(conn=conn, session_id=session_id, user_id=user_id)
-            if str(session_row["status"]) != LearningSessionStatus.active.value:
-                raise LearningSessionNotActiveError("Learning session is not active")
             if normalized_key is not None:
                 existing = conn.execute(
                     """
@@ -255,6 +262,8 @@ class LearningSessionRepository:
                     )
                     conn.execute("COMMIT")
                     return self._row_to_event(existing)
+            if str(session_row["status"]) != LearningSessionStatus.active.value:
+                raise LearningSessionNotActiveError("Learning session is not active")
 
             next_sequence = int(
                 conn.execute(
@@ -413,10 +422,7 @@ class LearningSessionRepository:
         *,
         session_id: str,
         user_id: str,
-        idempotency_key: Optional[str] = None,
     ) -> LearningSessionRecord:
-        if idempotency_key is not None:
-            validate_learning_session_idempotency_key(idempotency_key)
         conn = self._database.get_connection()
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -465,17 +471,27 @@ class LearningSessionRepository:
         return self._row_to_session(updated)
 
     def produce_summary(self, *, session_id: str, user_id: str) -> LearningSessionSummary:
-        session = self.get_session(session_id=session_id, user_id=user_id)
         conn = self._database.get_connection()
-        rows = conn.execute(
-            """
-            SELECT event_type, metadata_json, occurred_at
-            FROM learning_session_events
-            WHERE session_id = ?
-            ORDER BY sequence_number ASC
-            """,
-            (session_id,),
-        ).fetchall()
+        conn.execute("BEGIN")
+        try:
+            session_row = self._get_owned_session_row(conn=conn, session_id=session_id, user_id=user_id)
+            if self._summary_snapshot_hook is not None:
+                self._summary_snapshot_hook()
+            rows = conn.execute(
+                """
+                SELECT event_type, metadata_json, occurred_at
+                FROM learning_session_events
+                WHERE session_id = ?
+                ORDER BY sequence_number ASC
+                """,
+                (session_id,),
+            ).fetchall()
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+        session = self._row_to_session(session_row)
         counts = LearningSessionEventTypeCounts()
         first_event_at: Optional[datetime] = None
         last_event_at: Optional[datetime] = None
@@ -604,7 +620,29 @@ class LearningSessionRepository:
         normalized = entity_id.strip()
         if not normalized:
             raise InvalidLearningSessionEventError("entity_id must not be blank")
+        if len(normalized) > MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH:
+            raise InvalidLearningSessionEventError(
+                f"entity_id must be at most {MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH} characters"
+            )
         return normalized
+
+    def _validate_event_contract(
+        self,
+        *,
+        event_type: LearningSessionEventType,
+        entity_type: Optional[LearningSessionEntityType],
+        entity_id: Optional[str],
+        metadata: Optional[LearningSessionEventMetadata],
+    ) -> None:
+        try:
+            validate_event_contract(
+                event_type=event_type.value,
+                entity_type=None if entity_type is None else entity_type.value,
+                entity_id=entity_id,
+                metadata=None if metadata is None else metadata.model_dump(mode="json", exclude_none=True),
+            )
+        except LearningSessionContractViolation as exc:
+            raise InvalidLearningSessionEventError(str(exc), code=exc.code) from exc
 
     def _validate_planned_minutes(self, planned_minutes: Optional[int]) -> None:
         if planned_minutes is None:

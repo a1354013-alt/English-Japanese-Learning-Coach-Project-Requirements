@@ -70,6 +70,10 @@ class InvalidLearningSessionTransitionError(LearningSessionRepositoryError):
 class InvalidLearningSessionEventError(LearningSessionRepositoryError):
     """Raised when an event payload or metadata is invalid."""
 
+    def __init__(self, message: str, *, code: str = "invalid_learning_session_event") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 class InvalidLearningSessionPaginationError(LearningSessionRepositoryError):
     """Raised when learning-session pagination arguments are invalid."""

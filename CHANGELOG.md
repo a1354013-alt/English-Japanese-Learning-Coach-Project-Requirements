@@ -12,7 +12,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - Kept the existing lesson, review, SRS, chat tutor, Feynman, and micro-lesson flows unchanged in Phase 1; they are not automatically linked to learning sessions yet and remain available without requiring an active session.
-- Extended backend regression coverage to include migration `0012`, repository idempotency rules, concurrency races, and OpenAPI/API contract checks for the new learning-session boundary.
+- Hardened the Learning Session Phase 1 contract with a shared semantic validation table, canonical post-finalization event retries, state-idempotent abandonment, snapshot-consistent summaries, and demo-reset cleanup through the repository clear path.
+- Extended backend regression coverage to include migration `0012`, repository idempotency rules, 50-round concurrency races, semantic-contract enforcement, demo-reset cleanup, and OpenAPI/API contract checks for the new learning-session boundary.
+- Updated delivery verification so development versions such as `1.6.0-dev.1` use explicit README development markers while stable release checklist and demo-guide references remain pinned to `v1.5.0`.
 
 ## [1.5.0] - 2026-07-21
 

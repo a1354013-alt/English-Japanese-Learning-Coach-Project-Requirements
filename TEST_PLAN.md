@@ -15,10 +15,12 @@ Expected versions:
 
 - Python `3.11.x`
 - Node.js `22.18.0`
+- npm `10.9.3`
 
 ## Backend
 
 ```bash
+python scripts/python_dependency_locks.py check
 python -m compileall backend scripts tests
 python -m ruff check backend scripts tests
 python -m mypy backend
@@ -28,11 +30,22 @@ python -m pytest backend/tests/test_rag_disabled_startup.py -q
 
 Review contract coverage is included in backend pytest: the frontend must submit one answer for every grammar and reading question, and the API rejects incomplete, duplicate, out-of-range, or lesson-mismatched answers with `422`.
 
+Learning Session hardening coverage is included in backend pytest and should explicitly verify:
+
+- Migration `0012` applies cleanly.
+- The shared event semantic table is enforced in both request validation and repository validation.
+- Event idempotent retry ordering is canonical after completion or abandonment.
+- Abandonment is state-idempotent without an idempotency key.
+- Summary reads stay snapshot-consistent under concurrent append/complete pressure.
+- Demo reset clears all Learning Session sessions and events for the local demo user without seeding fake Session history.
+- The concurrent incompatible-idempotency race remains stable for at least 50 rounds without assuming Future ordering.
+
 ## Frontend
 
 ```bash
 cd frontend
 npm ci
+npm --version
 npm audit --omit=dev
 npm audit
 npm run typecheck
@@ -74,6 +87,8 @@ The `v1.5.0` persisted-chat release gate should explicitly verify:
 python scripts/verify_delivery.py
 python scripts/make_release_zip.py
 ```
+
+For development versions such as `1.6.0-dev.1`, release verification should pass using README development markers while `RELEASE_CHECKLIST.md` and `docs/DEMO_GUIDE.md` remain pinned to the latest stable release documentation (`v1.5.0` as of July 22, 2026).
 
 Optional RAG verification is a separate lane and requires:
 

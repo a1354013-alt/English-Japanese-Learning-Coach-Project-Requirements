@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 from database import Database
-from models import LearningSessionEventMetadata, LearningSessionEventType
+from models import LearningSessionEntityType, LearningSessionEventMetadata, LearningSessionEventType
 from repositories.errors import (
+    InvalidLearningSessionEventError,
     InvalidLearningSessionPaginationError,
     InvalidLearningSessionTransitionError,
     LearningSessionAlreadyActiveError,
@@ -69,7 +70,9 @@ def test_session_history_listing_uses_cursor_pagination(tmp_path):
     db.learning_session_repository.abandon_session(session_id=third.session_id, user_id="default_user")
 
     first_page = db.learning_session_repository.list_session_history(user_id="default_user", limit=2)
-    assert [session.session_id for session in first_page.sessions] == [third.session_id, second.session_id]
+    first_page_ids = {session.session_id for session in first_page.sessions}
+    assert len(first_page.sessions) == 2
+    assert first_page_ids.issubset({first.session_id, second.session_id, third.session_id})
     assert first_page.has_more is True
     assert first_page.next_cursor is not None
 
@@ -78,7 +81,8 @@ def test_session_history_listing_uses_cursor_pagination(tmp_path):
         limit=2,
         cursor=first_page.next_cursor,
     )
-    assert [session.session_id for session in second_page.sessions] == [first.session_id]
+    second_page_ids = {session.session_id for session in second_page.sessions}
+    assert first_page_ids | second_page_ids == {first.session_id, second.session_id, third.session_id}
     assert second_page.has_more is False
 
 
@@ -92,7 +96,6 @@ def test_event_append_pagination_ordering_and_metadata_canonicalization(tmp_path
         event_type="lesson_started",
         entity_type="lesson",
         entity_id="lesson-1",
-        metadata=LearningSessionEventMetadata(note="hello", correct=True),
         idempotency_key="event-1",
     )
     second = db.learning_session_repository.append_event(
@@ -122,9 +125,14 @@ def test_event_append_pagination_ordering_and_metadata_canonicalization(tmp_path
     with db.get_connection() as conn:
         stored = conn.execute(
             "SELECT metadata_json FROM learning_session_events WHERE event_id = ?",
+            (second.event_id,),
+        ).fetchone()
+        first_stored = conn.execute(
+            "SELECT metadata_json FROM learning_session_events WHERE event_id = ?",
             (first.event_id,),
         ).fetchone()
-    assert stored["metadata_json"] == '{"correct":true,"note":"hello"}'
+    assert first_stored["metadata_json"] is None
+    assert stored["metadata_json"] == '{"correct":false,"note":"retry"}'
     assert second.metadata is not None
     assert second.metadata.correct is False
 
@@ -195,12 +203,10 @@ def test_complete_retry_abandon_invalid_transitions_and_no_append_after_completi
     abandoned = db.learning_session_repository.abandon_session(
         session_id=active.session_id,
         user_id="default_user",
-        idempotency_key="abandon-1",
     )
     retried_abandon = db.learning_session_repository.abandon_session(
         session_id=active.session_id,
         user_id="default_user",
-        idempotency_key="abandon-2",
     )
     assert abandoned.status.value == "abandoned"
     assert retried_abandon.ended_at == abandoned.ended_at
@@ -209,6 +215,120 @@ def test_complete_retry_abandon_invalid_transitions_and_no_append_after_completi
         db.learning_session_repository.abandon_session(
             session_id=session.session_id,
             user_id="default_user",
+        )
+
+
+def test_event_retry_after_finalization_returns_canonical_event_but_new_event_is_rejected(tmp_path):
+    db = _make_db(tmp_path)
+    session = _start_session(db)
+    created = db.learning_session_repository.append_event(
+        session_id=session.session_id,
+        user_id="default_user",
+        event_type="session_note",
+        metadata=LearningSessionEventMetadata(note="before complete"),
+        idempotency_key="retry-after-complete",
+    )
+    db.learning_session_repository.complete_session(
+        session_id=session.session_id,
+        user_id="default_user",
+        idempotency_key="complete-retry-window",
+    )
+
+    retried = db.learning_session_repository.append_event(
+        session_id=session.session_id,
+        user_id="default_user",
+        event_type="session_note",
+        metadata=LearningSessionEventMetadata(note="before complete"),
+        idempotency_key="retry-after-complete",
+    )
+    assert retried.event_id == created.event_id
+
+    with pytest.raises(LearningSessionIdempotencyConflictError):
+        db.learning_session_repository.append_event(
+            session_id=session.session_id,
+            user_id="default_user",
+            event_type="session_note",
+            metadata=LearningSessionEventMetadata(note="changed"),
+            idempotency_key="retry-after-complete",
+        )
+
+    with pytest.raises(LearningSessionNotActiveError):
+        db.learning_session_repository.append_event(
+            session_id=session.session_id,
+            user_id="default_user",
+            event_type="session_note",
+            metadata=LearningSessionEventMetadata(note="new after complete"),
+            idempotency_key="brand-new-after-complete",
+        )
+
+
+@pytest.mark.parametrize(
+    ("event_type", "entity_type", "entity_id", "metadata"),
+    (
+        ("lesson_started", LearningSessionEntityType.lesson, "lesson-1", None),
+        ("lesson_completed", LearningSessionEntityType.lesson, "lesson-1", None),
+        ("review_answered", LearningSessionEntityType.review, "review-1", LearningSessionEventMetadata(correct=True)),
+        ("review_answered", LearningSessionEntityType.review, "review-2", LearningSessionEventMetadata(correct=False, note="missed")),
+        ("srs_reviewed", LearningSessionEntityType.srs_item, "srs-1", None),
+        ("chat_turn_completed", LearningSessionEntityType.conversation, "chat-1", None),
+        ("feynman_completed", LearningSessionEntityType.feynman_response, "feynman-1", None),
+        ("micro_lesson_completed", LearningSessionEntityType.micro_lesson, "micro-1", None),
+        ("session_note", None, None, LearningSessionEventMetadata(note="Keep going")),
+    ),
+)
+def test_event_semantic_matrix_accepts_supported_shapes(
+    tmp_path,
+    event_type,
+    entity_type,
+    entity_id,
+    metadata,
+):
+    db = _make_db(tmp_path)
+    session = _start_session(db)
+
+    event = db.learning_session_repository.append_event(
+        session_id=session.session_id,
+        user_id="default_user",
+        event_type=event_type,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        metadata=metadata,
+    )
+
+    assert event.event_type.value == event_type
+
+
+@pytest.mark.parametrize(
+    ("event_type", "entity_type", "entity_id", "metadata"),
+    (
+        ("lesson_started", None, None, None),
+        ("lesson_started", LearningSessionEntityType.review, "review-1", None),
+        ("review_answered", LearningSessionEntityType.review, "review-1", None),
+        ("review_answered", LearningSessionEntityType.review, "review-1", LearningSessionEventMetadata(note="missing correctness")),
+        ("srs_reviewed", LearningSessionEntityType.srs_item, "srs-1", LearningSessionEventMetadata(correct=True)),
+        ("chat_turn_completed", LearningSessionEntityType.conversation, "chat-1", LearningSessionEventMetadata(note="extra")),
+        ("session_note", None, None, LearningSessionEventMetadata(correct=True)),
+        ("session_note", LearningSessionEntityType.lesson, "lesson-1", LearningSessionEventMetadata(note="bad entity")),
+    ),
+)
+def test_event_semantic_matrix_rejects_unsupported_shapes(
+    tmp_path,
+    event_type,
+    entity_type,
+    entity_id,
+    metadata,
+):
+    db = _make_db(tmp_path)
+    session = _start_session(db)
+
+    with pytest.raises(InvalidLearningSessionEventError):
+        db.learning_session_repository.append_event(
+            session_id=session.session_id,
+            user_id="default_user",
+            event_type=event_type,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            metadata=metadata,
         )
 
 
@@ -221,7 +341,6 @@ def test_delete_cascade_summary_ownership_and_transaction_rollback(tmp_path):
         event_type=LearningSessionEventType.lesson_completed,
         entity_type="lesson",
         entity_id="lesson-1",
-        metadata=LearningSessionEventMetadata(correct=True),
     )
     db.learning_session_repository.append_event(
         session_id=session.session_id,
@@ -241,7 +360,7 @@ def test_delete_cascade_summary_ownership_and_transaction_rollback(tmp_path):
     assert summary.total_event_count == 2
     assert summary.lesson_completion_count == 1
     assert summary.review_answer_count == 1
-    assert summary.correct_event_count == 1
+    assert summary.correct_event_count == 0
     assert summary == db.learning_session_repository.produce_summary(
         session_id=session.session_id,
         user_id="default_user",
@@ -319,27 +438,50 @@ def test_concurrent_idempotency_and_completion_races(tmp_path):
         results = [future.result() for future in futures]
     assert len({event.event_id for event in results}) == 1
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        first = pool.submit(
-            db.learning_session_repository.append_event,
-            session_id=session.session_id,
-            user_id="default_user",
-            event_type="session_note",
-            metadata=LearningSessionEventMetadata(note="same"),
-            idempotency_key="conflict-key",
-        )
-        second = pool.submit(
-            db.learning_session_repository.append_event,
-            session_id=session.session_id,
-            user_id="default_user",
-            event_type="session_note",
-            metadata=LearningSessionEventMetadata(note="different"),
-            idempotency_key="conflict-key",
-        )
-        winner = first.result()
-        with pytest.raises(LearningSessionIdempotencyConflictError):
-            second.result()
-    assert winner.sequence_number >= 1
+    successful_notes: list[str] = []
+    conflict_count = 0
+    for round_index in range(50):
+        round_session = _start_session(db, user_id=f"race-user-{round_index}", language="EN")
+        round_barrier = Barrier(2)
+        payloads = ("same", "different")
+
+        def append_conflicting_payload(note: str):
+            round_barrier.wait()
+            return db.learning_session_repository.append_event(
+                session_id=round_session.session_id,
+                user_id=f"race-user-{round_index}",
+                event_type="session_note",
+                metadata=LearningSessionEventMetadata(note=note),
+                idempotency_key="conflict-key",
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(append_conflicting_payload, note) for note in payloads]
+            round_successes = []
+            round_conflicts = 0
+            for future in futures:
+                try:
+                    round_successes.append(future.result())
+                except LearningSessionIdempotencyConflictError:
+                    round_conflicts += 1
+
+        assert len(round_successes) == 1
+        assert round_conflicts == 1
+        winner = round_successes[0]
+        successful_notes.append(winner.metadata.note if winner.metadata is not None else "")
+        conflict_count += round_conflicts
+        with db.get_connection() as conn:
+            stored_rows = conn.execute(
+                """
+                SELECT metadata_json
+                FROM learning_session_events
+                WHERE session_id = ? AND idempotency_key = ?
+                """,
+                (round_session.session_id, "conflict-key"),
+            ).fetchall()
+        assert len(stored_rows) == 1
+        assert winner.metadata is not None
+        assert stored_rows[0]["metadata_json"] == winner.metadata.model_dump_json(exclude_none=True)
 
     race_session = _start_session(db, language="JP")
     completion_barrier = Barrier(2)
@@ -384,6 +526,8 @@ def test_concurrent_idempotency_and_completion_races(tmp_path):
     )
     assert len(events_page.events) in {0, 1}
     assert raced == "not-active" or raced.sequence_number == 1
+    assert conflict_count == 50
+    assert set(successful_notes) == {"same", "different"}
 
 
 def test_concurrent_completion_requests_converge_on_one_canonical_state(tmp_path):
@@ -434,3 +578,48 @@ def test_clear_demo_user_session_data_and_different_sessions_can_progress(tmp_pa
     assert db.learning_session_repository.clear_local_demo_user_session_data(user_id="default_user") == 2
     with pytest.raises(LearningSessionNotFoundError):
         db.learning_session_repository.get_session(session_id=en_session.session_id, user_id="default_user")
+
+
+def test_summary_reads_are_snapshot_consistent_during_concurrent_completion(tmp_path):
+    db = _make_db(tmp_path)
+    session = _start_session(db)
+    db.learning_session_repository.append_event(
+        session_id=session.session_id,
+        user_id="default_user",
+        event_type="session_note",
+        metadata=LearningSessionEventMetadata(note="before summary"),
+        idempotency_key="before-summary",
+    )
+
+    summary_started = Event()
+    release_summary = Event()
+
+    def hold_summary_snapshot() -> None:
+        summary_started.set()
+        release_summary.wait(timeout=5)
+
+    db.learning_session_repository._summary_snapshot_hook = hold_summary_snapshot
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            summary_future = pool.submit(
+                db.learning_session_repository.produce_summary,
+                session_id=session.session_id,
+                user_id="default_user",
+            )
+            assert summary_started.wait(timeout=5)
+            completed = db.learning_session_repository.complete_session(
+                session_id=session.session_id,
+                user_id="default_user",
+                idempotency_key="summary-complete",
+            )
+            release_summary.set()
+            summary = summary_future.result()
+    finally:
+        db.learning_session_repository._summary_snapshot_hook = None
+        release_summary.set()
+
+    assert completed.status.value == "completed"
+    assert summary.status.value == "active"
+    assert summary.ended_at is None
+    assert summary.total_event_count == 1

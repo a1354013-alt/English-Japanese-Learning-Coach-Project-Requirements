@@ -118,6 +118,8 @@ def _validation_error_code(request: Request, errors: list[dict[str, Any]]) -> st
 
 
 def _learning_session_validation_error_code(errors: list[dict[str, Any]]) -> str:
+    if any("learning_session_semantics:" in str(item.get("msg", "")) for item in errors):
+        return "invalid_learning_session_semantics"
     field_names = {str(loc[-1]) for item in errors if (loc := item.get("loc")) and isinstance(loc, (list, tuple))}
     if "user_id" in field_names:
         return "user_id_not_allowed"

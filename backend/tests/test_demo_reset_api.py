@@ -6,6 +6,7 @@ from config import settings
 from database import Database
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from models import LearningSessionEventMetadata
 from routers import micro_lessons as micro_lessons_router
 from routers import review as review_router
 from routers import system as system_router
@@ -213,3 +214,76 @@ def test_demo_reset_clears_stale_micro_lesson_state(tmp_path, monkeypatch):
     assert diagnostic_state["estimated_total_days"] == 90
     assert diagnostic_state["correct_count"] == 4
     assert test_db.get_micro_lesson_by_day("default_user", 7) is None
+
+
+def test_demo_reset_clears_learning_sessions_and_rebuilds_seeded_demo_data(tmp_path, monkeypatch):
+    test_db = Database(str(tmp_path / "t.db"))
+    monkeypatch.setattr(settings, "allow_demo_reset", True, raising=False)
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path / "data"), raising=False)
+    monkeypatch.setattr(database_module, "db", test_db, raising=False)
+    monkeypatch.setattr(system_router, "db", test_db, raising=False)
+    monkeypatch.setattr(review_router, "db", test_db, raising=False)
+    monkeypatch.setattr(micro_lessons_router, "db", test_db, raising=False)
+    monkeypatch.setattr(learning_intelligence_module, "db", test_db, raising=False)
+
+    active = test_db.learning_session_repository.start_session(
+        user_id="default_user",
+        language="EN",
+        planned_minutes=20,
+    )
+    finalized = test_db.learning_session_repository.start_session(
+        user_id="default_user",
+        language="JP",
+        planned_minutes=25,
+    )
+    test_db.learning_session_repository.append_event(
+        session_id=active.session_id,
+        user_id="default_user",
+        event_type="session_note",
+        metadata=LearningSessionEventMetadata(note="active note"),
+        idempotency_key="active-note",
+    )
+    test_db.learning_session_repository.append_event(
+        session_id=finalized.session_id,
+        user_id="default_user",
+        event_type="session_note",
+        metadata=LearningSessionEventMetadata(note="finalized note"),
+        idempotency_key="final-note",
+    )
+    test_db.learning_session_repository.complete_session(
+        session_id=finalized.session_id,
+        user_id="default_user",
+        idempotency_key="jp-complete",
+    )
+
+    app = FastAPI()
+    app.include_router(system_router.api_router)
+    app.include_router(review_router.router)
+    app.include_router(micro_lessons_router.router)
+    client = TestClient(app)
+
+    response = client.post("/api/demo/reset")
+    assert response.status_code == 200
+    assert response.json()["summary"]["today_lesson_id"] == "demo-en-today"
+
+    with test_db.get_connection() as conn:
+        session_count = conn.execute(
+            "SELECT COUNT(1) AS count FROM learning_sessions WHERE user_id = ?",
+            ("default_user",),
+        ).fetchone()["count"]
+        event_count = conn.execute(
+            """
+            SELECT COUNT(1) AS count
+            FROM learning_session_events
+            WHERE session_id IN (
+                SELECT session_id FROM learning_sessions WHERE user_id = ?
+            )
+            """,
+            ("default_user",),
+        ).fetchone()["count"]
+    assert session_count == 0
+    assert event_count == 0
+
+    lessons, total_lessons = test_db.query_lessons("default_user", limit=10, offset=0)
+    assert total_lessons >= 2
+    assert any(lesson["lesson_id"] == "demo-en-today" for lesson in lessons)

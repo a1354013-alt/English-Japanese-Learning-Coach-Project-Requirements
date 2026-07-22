@@ -622,24 +622,13 @@ def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path
         encoding="utf-8",
     )
 
-    readme_path = root / "README.md"
-    readme_path.write_text(
-        "\n".join(
-            (
-                f"<!-- release:current=v{version} -->",
-                f"Current release: `v{version}`.",
-                "Maintenance wording can change without breaking release verification.",
-            )
-        ),
-        encoding="utf-8",
-    )
-
+    stable_reference_version = "1.5.0" if "-dev." in version else version
     checklist_path = root / "RELEASE_CHECKLIST.md"
     checklist_path.write_text(
         "\n".join(
             (
-                f"<!-- release:current=v{version} -->",
-                f"- Review `CHANGELOG.md` and confirm the release-facing notes for `v{version}`.",
+                f"<!-- release:current=v{stable_reference_version} -->",
+                f"- Review `CHANGELOG.md` and confirm the release-facing notes for `v{stable_reference_version}`.",
                 f"- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `{version}`; `scripts/verify_delivery.py` checks this.",
             )
         ),
@@ -651,13 +640,36 @@ def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path
     demo_guide_path.write_text(
         "\n".join(
             (
-                f"<!-- release:current=v{version} -->",
-                f"Use this guide when you want to present the `v{version}` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
-                f"- Real recording and speech comparison are not part of the `v{version}` release.",
+                f"<!-- release:current=v{stable_reference_version} -->",
+                f"Use this guide when you want to present the `v{stable_reference_version}` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
+                f"- Real recording and speech comparison are not part of the `v{stable_reference_version}` release.",
             )
         ),
         encoding="utf-8",
     )
+    readme_path = root / "README.md"
+    if "-dev." in version:
+        readme_path.write_text(
+            "\n".join(
+                (
+                    f"<!-- release:current={version} -->",
+                    f"Current development version: `{version}`.",
+                    "Development wording can change without breaking release verification.",
+                )
+            ),
+            encoding="utf-8",
+        )
+    else:
+        readme_path.write_text(
+            "\n".join(
+                (
+                    f"<!-- release:current=v{version} -->",
+                    f"Current release: `v{version}`.",
+                    "Maintenance wording can change without breaking release verification.",
+                )
+            ),
+            encoding="utf-8",
+        )
     return package_json_path, package_lock_path, readme_path, checklist_path, demo_guide_path
 
 
@@ -780,3 +792,99 @@ def test_verify_version_consistency_rejects_stale_package_lock_version(tmp_path,
         verify_delivery.verify_version_consistency()
     assert "9.9.8" in str(exc_info.value)
     assert "9.9.9" in str(exc_info.value)
+
+
+def test_verify_version_consistency_accepts_development_version_mode(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_accepts_release_candidate_mode(tmp_path, monkeypatch):
+    version = "1.6.0-rc1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_development_readme_using_release_wording(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+    readme_path.write_text(
+        "\n".join(
+            (
+                f"<!-- release:current=v{version} -->",
+                f"Current release: `v{version}`.",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="README current development marker"):
+        verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_development_mode_with_stable_reference_drift(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+    checklist_path.write_text(
+        checklist_path.read_text(encoding="utf-8").replace("v1.5.0", "v1.4.3"),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="expected v1.5.0"):
+        verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_malformed_version_string(tmp_path, monkeypatch):
+    version = "1.6-dev"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="Unsupported project version format"):
+        verify_delivery.verify_version_consistency()

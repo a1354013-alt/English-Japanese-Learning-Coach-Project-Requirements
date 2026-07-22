@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, TypeAlias
 from uuid import uuid4
 
+from learning_session_contract import LearningSessionContractViolation, validate_event_contract
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -996,6 +997,16 @@ class LearningSessionEventMetadata(BaseModel):
     note: Optional[StrictStr] = Field(default=None, max_length=MAX_LEARNING_SESSION_NOTE_LENGTH)
     correct: Optional[bool] = None
 
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("metadata.note must not be blank")
+        return trimmed
+
     @model_validator(mode="after")
     def validate_metadata(self) -> "LearningSessionEventMetadata":
         payload = self.model_dump(mode="json", exclude_none=True)
@@ -1132,6 +1143,15 @@ class AppendLearningSessionEventRequest(BaseModel):
     def validate_entity_shape(self) -> "AppendLearningSessionEventRequest":
         if (self.entity_type is None) != (self.entity_id is None):
             raise ValueError("entity_type and entity_id must be provided together")
+        try:
+            validate_event_contract(
+                event_type=self.event_type.value,
+                entity_type=None if self.entity_type is None else self.entity_type.value,
+                entity_id=self.entity_id,
+                metadata=None if self.metadata is None else self.metadata.model_dump(mode="json", exclude_none=True),
+            )
+        except LearningSessionContractViolation as exc:
+            raise ValueError(f"learning_session_semantics: {exc}") from exc
         return self
 
 
@@ -1148,15 +1168,6 @@ class CompleteLearningSessionRequest(BaseModel):
 
 class AbandonLearningSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-    idempotency_key: Optional[StrictStr] = None
-
-    @field_validator("idempotency_key")
-    @classmethod
-    def validate_idempotency_key(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return None
-        return validate_learning_session_idempotency_key(value)
 
 
 # ============ API Response Models ============

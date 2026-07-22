@@ -48,6 +48,7 @@ REQUIRED_RELEASE_FILES = (
 )
 PYTHON_VERSION = (3, 11)
 NODE_VERSION = "22.18.0"
+STABLE_RELEASE_VERSION = "1.5.0"
 CORE_LOCK = BACKEND_DIR / "requirements-core.lock.txt"
 DEV_LOCK = BACKEND_DIR / "requirements-dev.lock.txt"
 RAG_LOCK = BACKEND_DIR / "requirements-rag.lock.txt"
@@ -101,10 +102,23 @@ SECRET_SCAN_PATTERNS = (
     re.compile(r"AWS_SECRET_ACCESS_KEY\s*="),
     re.compile(r"SUPABASE_SERVICE_ROLE_KEY\s*="),
 )
+DEV_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-dev\.\d+$")
+RC_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-rc\d+$")
+FINAL_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 class StepFailed(RuntimeError):
     """Raised when a verification step exits unsuccessfully."""
+
+
+def classify_version(version: str) -> str:
+    if DEV_VERSION_RE.fullmatch(version):
+        return "development"
+    if RC_VERSION_RE.fullmatch(version):
+        return "release_candidate"
+    if FINAL_VERSION_RE.fullmatch(version):
+        return "final"
+    raise ValueError(f"Unsupported project version format: {version}")
 
 
 def configure_stdio() -> None:
@@ -334,7 +348,53 @@ def _current_release_reference_checks() -> tuple[tuple[str, Path, str, str], ...
     )
 
 
+def _development_reference_checks() -> tuple[tuple[str, Path, str, str], ...]:
+    return (
+        (
+            "README current development marker",
+            README_PATH,
+            r"release:current=(?P<version>\d+\.\d+\.\d+-dev\.\d+)",
+            VERSION,
+        ),
+        (
+            "README current development line",
+            README_PATH,
+            r"Current development version: `(?P<version>\d+\.\d+\.\d+-dev\.\d+)`\.",
+            VERSION,
+        ),
+        (
+            "Release checklist current stable marker",
+            RELEASE_CHECKLIST_PATH,
+            r"release:current=(?P<version>v[^\s>]+)",
+            f"v{STABLE_RELEASE_VERSION}",
+        ),
+        (
+            "Release checklist changelog reference",
+            RELEASE_CHECKLIST_PATH,
+            r"Review `CHANGELOG\.md` and confirm the release-facing notes for `(?P<version>v[^`]+)`\.",
+            f"v{STABLE_RELEASE_VERSION}",
+        ),
+        (
+            "Demo guide current stable marker",
+            DEMO_GUIDE_PATH,
+            r"release:current=(?P<version>v[^\s>]+)",
+            f"v{STABLE_RELEASE_VERSION}",
+        ),
+        (
+            "Demo guide release limitation",
+            DEMO_GUIDE_PATH,
+            r"not part of the `(?P<version>v[^`]+)` release\.",
+            f"v{STABLE_RELEASE_VERSION}",
+        ),
+    )
+
+
 def verify_version_consistency() -> None:
+    try:
+        version_kind = classify_version(VERSION)
+    except ValueError as exc:
+        raise StepFailed(str(exc)) from exc
+
     package_json = json.loads((FRONTEND_DIR / "package.json").read_text(encoding="utf-8"))
     frontend_version = str(package_json.get("version", "")).strip()
     if frontend_version != VERSION:
@@ -356,7 +416,12 @@ def verify_version_consistency() -> None:
             f"does not match root VERSION ({VERSION})"
         )
 
-    for label, path, pattern, expected_version in _current_release_reference_checks():
+    reference_checks = (
+        _development_reference_checks()
+        if version_kind == "development"
+        else _current_release_reference_checks()
+    )
+    for label, path, pattern, expected_version in reference_checks:
         content = path.read_text(encoding="utf-8")
         match = re.search(pattern, content)
         if match is None:

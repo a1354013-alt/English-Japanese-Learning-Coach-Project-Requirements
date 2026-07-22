@@ -49,7 +49,7 @@ def _map_learning_session_error(exc: Exception) -> Exception:
     if isinstance(exc, InvalidLearningSessionTransitionError):
         return api_error(409, str(exc), "invalid_learning_session_transition")
     if isinstance(exc, InvalidLearningSessionEventError):
-        return api_error(422, str(exc), "invalid_learning_session_event")
+        return api_error(422, str(exc), getattr(exc, "code", "invalid_learning_session_event"))
     if isinstance(exc, InvalidLearningSessionPaginationError):
         return api_error(422, str(exc), "invalid_learning_session_pagination")
     if isinstance(exc, LearningSessionIdempotencyConflictError):
@@ -228,7 +228,6 @@ async def abandon_learning_session(
         session = db.learning_session_repository.abandon_session(
             session_id=session_id,
             user_id=user_id,
-            idempotency_key=request.idempotency_key,
         )
     except Exception as exc:  # pragma: no cover
         raise _map_learning_session_error(exc) from exc

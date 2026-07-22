@@ -1,6 +1,6 @@
 # Development Guide
 
-This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `1.6.0-dev.1`.
+This project pins the supported release-verification toolchain to Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3` for `1.6.0-dev.1`.
 
 ## Backend Setup
 
@@ -26,16 +26,40 @@ Chat runtime limits are validated at backend startup. Keep `CHAT_CLIENT_MESSAGE_
 
 ## Learning-Session Phase 1 Boundary
 
-Phase 1 adds a dedicated learning-session router plus a feature-focused repository behind the `Database` compatibility facade. It introduces additive schema `0012`, strict `active -> completed|abandoned` transitions, append-only event sequencing, and deterministic summaries derived only from stored session/event data.
+Phase 1 adds a dedicated learning-session router plus a feature-focused repository behind the `Database` compatibility facade. It introduces additive schema `0012`, strict `active -> completed|abandoned` transitions, append-only event sequencing, canonical retry-safe idempotency, and deterministic summaries derived only from stored session/event data.
 
 Phase 1 does not automatically wire lesson completion, review submission, SRS scheduling, chat tutor turns, Feynman submissions, or micro-lesson completion into the new event log yet. That integration belongs to the planned Phase 2 service layer.
 
 Current backend boundary:
 
 - `backend/routers/learning_sessions.py` owns the typed REST contract and error mapping.
-- `backend/repositories/learning_session_repository.py` owns SQL, lifecycle rules, pagination, idempotency, and deterministic summary generation.
+- `backend/repositories/learning_session_repository.py` owns SQL, lifecycle rules, pagination, idempotency, event semantics, and deterministic summary generation.
+- `backend/learning_session_contract.py` is the single semantic contract table shared by request validation and repository validation.
 - `backend/database.py` remains the compatibility facade and exposes one learning-session repository instance per `Database`.
+- `backend/repositories/protocols.py` and `backend/repositories/protocol_assertions.py` define and statically verify the real Phase 1 repository protocol.
 - A future Phase 2 integration service will be responsible for recording events from lesson, review, SRS, chat tutor, Feynman, and micro-lesson flows without changing the Phase 1 storage contract.
+
+Learning Session event rules in Phase 1:
+
+- `lesson_started` and `lesson_completed` require `entity_type=lesson` and an `entity_id`.
+- `review_answered` requires `entity_type=review`, an `entity_id`, and `metadata.correct`; `metadata.note` is optional.
+- `srs_reviewed`, `chat_turn_completed`, `feynman_completed`, and `micro_lesson_completed` each require their canonical entity type plus `entity_id` and reject metadata.
+- `session_note` requires `metadata.note`, rejects blank notes, and does not allow entity fields or `metadata.correct`.
+
+Lifecycle and idempotency rules:
+
+- Event append looks up an existing event by `(session_id, idempotency_key)` before enforcing the active-session requirement.
+- Canonical retries after completion or abandonment return the stored event instead of creating a duplicate.
+- New events after finalization are still rejected.
+- Abandonment is state-idempotent and no longer accepts an idempotency key in the request contract.
+- Demo reset now clears all Learning Session rows for the local demo user through the repository clear operation before rebuilding the seeded `v1.5.0` demo dataset.
+
+Version verification note:
+
+- `scripts/verify_delivery.py` now has an explicit development-version mode for versions like `1.6.0-dev.1`.
+- Development mode requires root/frontend/package-lock version parity plus the canonical README development marker and line.
+- Development mode intentionally keeps `RELEASE_CHECKLIST.md` and `docs/DEMO_GUIDE.md` pinned to the latest stable release, currently `v1.5.0`.
+- RC and final versions still use the strict release-facing wording checks.
 
 ## Frontend Setup
 

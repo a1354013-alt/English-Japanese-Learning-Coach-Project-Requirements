@@ -88,7 +88,7 @@ def test_learning_sessions_api_crud_and_summary(monkeypatch, tmp_path):
 
     abandoned = client.post(
         f"/api/learning-sessions/{jp_session['session_id']}/abandon",
-        json={"idempotency_key": "abandon-1"},
+        json={},
     )
     assert abandoned.status_code == 200
     assert abandoned.json()["session"]["status"] == "abandoned"
@@ -172,10 +172,17 @@ def test_learning_sessions_api_conflicts_and_validation(monkeypatch, tmp_path):
 
     invalid_transition = client.post(
         f"/api/learning-sessions/{session_id}/abandon",
-        json={"idempotency_key": "late"},
+        json={},
     )
     assert invalid_transition.status_code == 409
     assert invalid_transition.json()["code"] == "invalid_learning_session_transition"
+
+    ignored_key = client.post(
+        f"/api/learning-sessions/{session_id}/abandon",
+        json={"idempotency_key": "late"},
+    )
+    assert ignored_key.status_code == 422
+    assert ignored_key.json()["code"] == "validation_error"
 
     append_after_completion = client.post(
         f"/api/learning-sessions/{session_id}/events",
@@ -190,6 +197,60 @@ def test_learning_sessions_api_conflicts_and_validation(monkeypatch, tmp_path):
     )
     assert completion_conflict.status_code == 409
     assert completion_conflict.json()["code"] == "learning_session_idempotency_conflict"
+
+
+def test_learning_sessions_api_supports_retry_after_completion_and_semantic_error_codes(monkeypatch, tmp_path):
+    _patch_learning_session_db(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    created = client.post("/api/learning-sessions", json={"language": "EN"})
+    session_id = created.json()["session"]["session_id"]
+
+    first_event = client.post(
+        f"/api/learning-sessions/{session_id}/events",
+        json={
+            "event_type": "session_note",
+            "metadata": {"note": "persist me"},
+            "idempotency_key": "lost-response",
+        },
+    )
+    assert first_event.status_code == 200
+
+    completed = client.post(f"/api/learning-sessions/{session_id}/complete", json={"idempotency_key": "done"})
+    assert completed.status_code == 200
+
+    retried = client.post(
+        f"/api/learning-sessions/{session_id}/events",
+        json={
+            "event_type": "session_note",
+            "metadata": {"note": "persist me"},
+            "idempotency_key": "lost-response",
+        },
+    )
+    assert retried.status_code == 200
+    assert retried.json()["event"]["event_id"] == first_event.json()["event"]["event_id"]
+
+    late_new_event = client.post(
+        f"/api/learning-sessions/{session_id}/events",
+        json={
+            "event_type": "session_note",
+            "metadata": {"note": "too late"},
+            "idempotency_key": "brand-new",
+        },
+    )
+    assert late_new_event.status_code == 409
+    assert late_new_event.json()["code"] == "learning_session_not_active"
+
+    semantic_error = client.post(
+        f"/api/learning-sessions/{session_id}/events",
+        json={
+            "event_type": "lesson_started",
+            "entity_type": "review",
+            "entity_id": "review-1",
+        },
+    )
+    assert semantic_error.status_code == 422
+    assert semantic_error.json()["code"] == "invalid_learning_session_semantics"
 
 
 def test_learning_sessions_openapi_exposes_typed_schemas(monkeypatch, tmp_path):
