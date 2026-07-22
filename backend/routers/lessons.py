@@ -21,6 +21,7 @@ from models import (
 )
 from services.learning_intelligence import generate_feynman_feedback
 from services.lesson_ops import load_lesson_payload
+from services.learning_session_recorder import build_learning_session_recorder
 
 from routers.deps import require_demo_user_id
 
@@ -50,6 +51,15 @@ async def generate_lesson(request: GenerateLessonRequest, user_id: str = Depends
         "leveled_up": xp_result.get("leveled_up"),
         "new_cards": [card.model_dump(mode="json") for card in new_cards],
     }
+
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=request.language,
+        event_type="lesson_started",
+        entity_type="lesson",
+        entity_id=str(lesson.metadata.lesson_id),
+        idempotency_key=f"lesson-started:{lesson.metadata.lesson_id}",
+    )
 
     return {"success": True, "lesson": lesson_dict}
 
@@ -94,12 +104,20 @@ async def create_feynman_feedback(
         from api_errors import api_error
 
         raise api_error(422, "Lesson language does not match request language", "lesson_language_mismatch")
-    feedback = await generate_feynman_feedback(
+    feedback, feedback_id = await generate_feynman_feedback(
         user_id=user_id,
         lesson_id=lesson_id,
         language=request.language,
         explanation=request.explanation,
         lesson_data=lesson_data,
+    )
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=request.language,
+        event_type="feynman_completed",
+        entity_type="feynman_response",
+        entity_id=feedback_id,
+        idempotency_key=f"feynman-completed:{feedback_id}",
     )
     return {"success": True, "feedback": feedback.model_dump(mode="json")}
 

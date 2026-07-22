@@ -159,7 +159,7 @@ async def generate_feynman_feedback(
     language: str,
     explanation: str,
     lesson_data: Dict[str, Any],
-) -> FeynmanFeedback:
+) -> tuple[FeynmanFeedback, str]:
     sync_lesson_items(user_id=user_id, lesson_data=lesson_data)
 
     feedback = await _generate_feynman_feedback_with_model(
@@ -174,7 +174,7 @@ async def generate_feynman_feedback(
             lesson_data=lesson_data,
         )
 
-    db.save_feynman_feedback_history(
+    feedback_id = db.save_feynman_feedback_history(
         user_id=user_id,
         lesson_id=lesson_id,
         explanation=explanation,
@@ -185,7 +185,7 @@ async def generate_feynman_feedback(
         language=language,
         feedback=feedback,
     )
-    return feedback
+    return feedback, feedback_id
 
 
 async def _generate_feynman_feedback_with_model(

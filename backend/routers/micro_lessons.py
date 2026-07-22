@@ -11,12 +11,14 @@ from models import (
     DiagnosticQuestionsResponse,
     DiagnosticSubmitRequest,
     DiagnosticSubmitResponse,
+    LearningSessionEventMetadata,
     MicroLessonAnswerRequest,
     MicroLessonAnswerResponse,
     MicroLessonResponse,
     MicroLessonTodayResponse,
 )
 from services.micro_lesson_service import build_micro_lesson, learning_plan_from_state
+from services.learning_session_recorder import build_learning_session_recorder
 from services.streak_service import get_streak_snapshot
 
 from routers.deps import require_demo_user_id
@@ -182,6 +184,16 @@ async def answer_micro_lesson(
     if correct:
         completed_lesson, _newly_completed = db.complete_micro_lesson_with_reward_once(user_id, lesson_id)
         lesson = completed_lesson or lesson
+        if lesson.get("completed"):
+            build_learning_session_recorder(db).record_event(
+                user_id=user_id,
+                language="EN",
+                event_type="micro_lesson_completed",
+                entity_type="micro_lesson",
+                entity_id=lesson_id,
+                idempotency_key=f"micro-lesson-completed:{lesson_id}",
+                metadata=LearningSessionEventMetadata(completion_outcome="correct_answer"),
+            )
 
     streak = get_streak_snapshot(user_id)
     return {"success": True, "correct": correct, "completed": bool(lesson.get("completed")), "lesson": lesson, "streak": streak}

@@ -28,6 +28,14 @@ class LearningSessionEventRule:
     requires_correct: bool = False
     requires_note: bool = False
     allows_note: bool = False
+    allows_correct: bool = False
+    allows_rating: bool = False
+    allows_interval_days: bool = False
+    allows_response_time_ms: bool = False
+    allows_result_category: bool = False
+    allows_lesson_category: bool = False
+    allows_completion_outcome: bool = False
+    allows_duration_seconds: bool = False
 
 
 EVENT_RULES: dict[str, LearningSessionEventRule] = {
@@ -35,11 +43,15 @@ EVENT_RULES: dict[str, LearningSessionEventRule] = {
         event_type="lesson_started",
         entity_type="lesson",
         entity_id_required=True,
+        allows_lesson_category=True,
     ),
     "lesson_completed": LearningSessionEventRule(
         event_type="lesson_completed",
         entity_type="lesson",
         entity_id_required=True,
+        allows_lesson_category=True,
+        allows_completion_outcome=True,
+        allows_duration_seconds=True,
     ),
     "review_answered": LearningSessionEventRule(
         event_type="review_answered",
@@ -47,11 +59,18 @@ EVENT_RULES: dict[str, LearningSessionEventRule] = {
         entity_id_required=True,
         requires_correct=True,
         allows_note=True,
+        allows_correct=True,
+        allows_response_time_ms=True,
+        allows_result_category=True,
     ),
     "srs_reviewed": LearningSessionEventRule(
         event_type="srs_reviewed",
         entity_type="srs_item",
         entity_id_required=True,
+        allows_correct=True,
+        allows_rating=True,
+        allows_interval_days=True,
+        allows_result_category=True,
     ),
     "chat_turn_completed": LearningSessionEventRule(
         event_type="chat_turn_completed",
@@ -62,11 +81,13 @@ EVENT_RULES: dict[str, LearningSessionEventRule] = {
         event_type="feynman_completed",
         entity_type="feynman_response",
         entity_id_required=True,
+        allows_result_category=True,
     ),
     "micro_lesson_completed": LearningSessionEventRule(
         event_type="micro_lesson_completed",
         entity_type="micro_lesson",
         entity_id_required=True,
+        allows_completion_outcome=True,
     ),
     "session_note": LearningSessionEventRule(
         event_type="session_note",
@@ -124,6 +145,17 @@ def validate_event_contract(
     note = payload.get("note")
     has_note = note is not None
     has_correct = payload.get("correct") is not None
+    allowed_fields = {
+        "note": rule.allows_note or rule.requires_note,
+        "correct": rule.allows_correct or rule.requires_correct,
+        "rating": rule.allows_rating,
+        "interval_days": rule.allows_interval_days,
+        "response_time_ms": rule.allows_response_time_ms,
+        "result_category": rule.allows_result_category,
+        "lesson_category": rule.allows_lesson_category,
+        "completion_outcome": rule.allows_completion_outcome,
+        "duration_seconds": rule.allows_duration_seconds,
+    }
 
     if rule.requires_note and not has_note:
         raise LearningSessionContractViolation(
@@ -140,8 +172,16 @@ def validate_event_contract(
             f"{event_type} does not allow metadata.note",
             code="invalid_learning_session_semantics",
         )
-    if has_correct and not rule.requires_correct:
+    if has_correct and not (rule.allows_correct or rule.requires_correct):
         raise LearningSessionContractViolation(
             f"{event_type} does not allow metadata.correct",
+            code="invalid_learning_session_semantics",
+        )
+    unsupported_fields = sorted(
+        key for key, value in payload.items() if value is not None and not allowed_fields.get(key, False)
+    )
+    if unsupported_fields:
+        raise LearningSessionContractViolation(
+            f"{event_type} does not allow metadata fields: {', '.join(unsupported_fields)}",
             code="invalid_learning_session_semantics",
         )

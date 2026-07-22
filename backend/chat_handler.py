@@ -23,6 +23,7 @@ from repositories.errors import (
     InvalidIdempotencyKeyError,
 )
 from services.chat_context_builder import ChatContextBuilder
+from services.learning_session_recorder import build_learning_session_recorder
 
 logger = logging.getLogger(__name__)
 
@@ -497,6 +498,14 @@ class ChatManager:
             content=assistant_text,
             metadata={"source": "ollama", "user_message_id": user_message.message_id},
             idempotency_key=assistant_key,
+        )
+        build_learning_session_recorder(db).record_event(
+            user_id=user_id,
+            language=language,
+            event_type="chat_turn_completed",
+            entity_type="conversation",
+            entity_id=conversation_id,
+            idempotency_key=f"chat-turn:{assistant_message.message_id}",
         )
         await self._send_assistant(
             websocket=websocket,

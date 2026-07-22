@@ -1656,6 +1656,7 @@ class Database:
         else:
             mastery_state = "learning"
 
+        review_event_id = str(uuid4())
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -1682,7 +1683,7 @@ class Database:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid4()),
+                    review_event_id,
                     item_id,
                     rating,
                     1 if derived_correct else 0,
@@ -1700,6 +1701,8 @@ class Database:
             language=str(updated.get("language") or ""),
             mastery_state=str(updated.get("mastery_state") or "new"),
         )
+        updated["review_event_id"] = review_event_id
+        updated["review_correct"] = derived_correct
         return updated
 
     def _sync_imported_vocabulary_mastery(
@@ -1991,7 +1994,8 @@ class Database:
         lesson_id: str,
         explanation: str,
         feedback: Dict[str, Any],
-    ) -> None:
+    ) -> str:
+        feedback_id = str(uuid4())
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -2000,7 +2004,7 @@ class Database:
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid4()),
+                    feedback_id,
                     user_id,
                     lesson_id,
                     explanation,
@@ -2008,6 +2012,7 @@ class Database:
                     _local_now().isoformat(),
                 ),
             )
+        return feedback_id
 
     def save_imported_vocabulary(self, user_id: str, language: str, item: Dict[str, Any]) -> None:
         word_family = item.get("word_family")

@@ -996,6 +996,13 @@ class LearningSessionEventMetadata(BaseModel):
 
     note: Optional[StrictStr] = Field(default=None, max_length=MAX_LEARNING_SESSION_NOTE_LENGTH)
     correct: Optional[bool] = None
+    rating: Optional[int] = Field(default=None, ge=0, le=5)
+    interval_days: Optional[int] = Field(default=None, ge=0, le=36500)
+    response_time_ms: Optional[int] = Field(default=None, ge=0, le=3_600_000)
+    result_category: Optional[StrictStr] = Field(default=None, max_length=64)
+    lesson_category: Optional[StrictStr] = Field(default=None, max_length=64)
+    completion_outcome: Optional[StrictStr] = Field(default=None, max_length=64)
+    duration_seconds: Optional[int] = Field(default=None, ge=0, le=604_800)
 
     @field_validator("note")
     @classmethod
@@ -1005,6 +1012,16 @@ class LearningSessionEventMetadata(BaseModel):
         trimmed = value.strip()
         if not trimmed:
             raise ValueError("metadata.note must not be blank")
+        return trimmed
+
+    @field_validator("result_category", "lesson_category", "completion_outcome")
+    @classmethod
+    def validate_short_label(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("metadata string fields must not be blank")
         return trimmed
 
     @model_validator(mode="after")

@@ -305,7 +305,7 @@ def test_event_semantic_matrix_accepts_supported_shapes(
         ("lesson_started", LearningSessionEntityType.review, "review-1", None),
         ("review_answered", LearningSessionEntityType.review, "review-1", None),
         ("review_answered", LearningSessionEntityType.review, "review-1", LearningSessionEventMetadata(note="missing correctness")),
-        ("srs_reviewed", LearningSessionEntityType.srs_item, "srs-1", LearningSessionEventMetadata(correct=True)),
+        ("srs_reviewed", LearningSessionEntityType.srs_item, "srs-1", LearningSessionEventMetadata(note="extra")),
         ("chat_turn_completed", LearningSessionEntityType.conversation, "chat-1", LearningSessionEventMetadata(note="extra")),
         ("session_note", None, None, LearningSessionEventMetadata(correct=True)),
         ("session_note", LearningSessionEntityType.lesson, "lesson-1", LearningSessionEventMetadata(note="bad entity")),

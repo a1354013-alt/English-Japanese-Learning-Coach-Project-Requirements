@@ -13,6 +13,7 @@ from models import (
     LearningItemGroupResponse,
     LearningItemReviewRequest,
     LearningItemReviewState,
+    LearningSessionEventMetadata,
     ReviewAnswer,
     ReviewSubmitResponse,
     SrsDueResponse,
@@ -29,6 +30,7 @@ from services.lesson_ops import (
     update_progress_after_review,
     update_srs_after_review,
 )
+from services.learning_session_recorder import build_learning_session_recorder
 from srs import srs_engine
 
 from routers.deps import require_demo_user_id
@@ -191,6 +193,42 @@ async def submit_review(
             source_lesson_id=lesson_id,
         )
 
+    recorder = build_learning_session_recorder(db)
+    for answer in answers:
+        event_id = f"{lesson_id}:{answer.exercise_type}:{answer.question_index}"
+        recorder.record_event(
+            user_id=user_id,
+            language=language,
+            event_type="review_answered",
+            entity_type="review",
+            entity_id=event_id,
+            idempotency_key=f"review-answered:{event_id}",
+            metadata=LearningSessionEventMetadata(
+                correct=is_answer_correct(
+                    answer.user_answer,
+                    (
+                        lesson_data.get("grammar", {}).get("exercises", [])[answer.question_index]
+                        if answer.exercise_type == "grammar"
+                        else lesson_data.get("reading", {}).get("questions", [])[answer.question_index]
+                    ),
+                ),
+                result_category=answer.exercise_type,
+            ),
+        )
+
+    if not was_completed:
+        recorder.record_event(
+            user_id=user_id,
+            language=language,
+            event_type="lesson_completed",
+            entity_type="lesson",
+            entity_id=lesson_id,
+            idempotency_key=f"lesson-completed:{lesson_id}",
+            metadata=LearningSessionEventMetadata(
+                completion_outcome="review_submitted",
+            ),
+        )
+
     return {
         "success": True,
         **review_data,
@@ -299,6 +337,21 @@ async def submit_learning_item_review(
         )
     except ValueError:
         raise api_error(404, "Learning item not found", "learning_item_not_found") from None
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=str(updated.get("language") or ""),
+        event_type="srs_reviewed",
+        entity_type="srs_item",
+        entity_id=str(updated.get("item_id") or request.item_id),
+        idempotency_key=f"srs-reviewed:{updated.get('review_event_id')}",
+        metadata=LearningSessionEventMetadata(
+            correct=bool(updated.get("review_correct")),
+            rating=request.rating,
+            interval_days=int(updated.get("interval_days") or 0),
+            result_category=str(updated.get("mastery_state") or ""),
+            response_time_ms=request.response_time_ms,
+        ),
+    )
     return {
         "success": True,
         "item_id": updated.get("id"),
