@@ -24,6 +24,7 @@ from routers import (
     ai_tools,
     chat,
     imports,
+    learning_sessions,
     lessons,
     micro_lessons,
     review,
@@ -117,5 +118,6 @@ app.include_router(wrong_answers.router)
 app.include_router(streak.router)
 app.include_router(imports.router)
 app.include_router(chat.router)
+app.include_router(learning_sessions.router)
 app.include_router(ai_tools.router)
 app.include_router(ai_tools.chat_ws_router)

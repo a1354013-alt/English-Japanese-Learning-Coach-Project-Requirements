@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added structured learning-session storage with additive schema `0012`, including typed session lifecycle state, append-only event logs, partial unique active-session enforcement, and deterministic server-side summaries that do not call an AI provider in Phase 1.
+- Added a dedicated learning-session repository and typed REST API surface for session creation, event append/list, completion, abandonment, active-session lookup, summary generation, and cursor-based history pagination.
+
+### Changed
+
+- Kept the existing lesson, review, SRS, chat tutor, Feynman, and micro-lesson flows unchanged in Phase 1; they are not automatically linked to learning sessions yet and remain available without requiring an active session.
+- Extended backend regression coverage to include migration `0012`, repository idempotency rules, concurrency races, and OpenAPI/API contract checks for the new learning-session boundary.
+
 ## [1.5.0] - 2026-07-21
 
 ### Added

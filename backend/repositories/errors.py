@@ -45,3 +45,35 @@ class InvalidIdempotencyKeyError(ChatRepositoryError):
 
 class InvalidChatSummaryCheckpointError(ChatRepositoryError):
     """Raised when a persisted-chat summary checkpoint is outside valid bounds."""
+
+
+class LearningSessionRepositoryError(Exception):
+    """Base class for learning-session repository failures."""
+
+
+class LearningSessionNotFoundError(LearningSessionRepositoryError):
+    """Raised when a learning session cannot be found for the requested user."""
+
+
+class LearningSessionAlreadyActiveError(LearningSessionRepositoryError):
+    """Raised when a user already has an active session for the same language."""
+
+
+class LearningSessionNotActiveError(LearningSessionRepositoryError):
+    """Raised when an event append requires an active session but none is available."""
+
+
+class InvalidLearningSessionTransitionError(LearningSessionRepositoryError):
+    """Raised when a lifecycle transition is not permitted."""
+
+
+class InvalidLearningSessionEventError(LearningSessionRepositoryError):
+    """Raised when an event payload or metadata is invalid."""
+
+
+class InvalidLearningSessionPaginationError(LearningSessionRepositoryError):
+    """Raised when learning-session pagination arguments are invalid."""
+
+
+class LearningSessionIdempotencyConflictError(LearningSessionRepositoryError):
+    """Raised when an idempotency key is retried with incompatible content."""

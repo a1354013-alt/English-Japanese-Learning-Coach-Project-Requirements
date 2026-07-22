@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 COMMON_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiErrorPayload, "description": "Bad request"},
+    409: {"model": ApiErrorPayload, "description": "Conflict"},
     404: {"model": ApiErrorPayload, "description": "Not found"},
     413: {"model": ApiErrorPayload, "description": "Payload too large"},
     422: {"model": ApiErrorPayload, "description": "Validation error"},
@@ -111,6 +112,25 @@ def _validation_error_code(request: Request, errors: list[dict[str, Any]]) -> st
         return "invalid_chat_language"
     if request.url.path.startswith("/api/chat/") and _extract_invalid_chat_scenario(errors) is not None:
         return "invalid_chat_scenario"
+    if request.url.path.startswith("/api/learning-sessions"):
+        return _learning_session_validation_error_code(errors)
+    return "validation_error"
+
+
+def _learning_session_validation_error_code(errors: list[dict[str, Any]]) -> str:
+    field_names = {str(loc[-1]) for item in errors if (loc := item.get("loc")) and isinstance(loc, (list, tuple))}
+    if "user_id" in field_names:
+        return "user_id_not_allowed"
+    if "language" in field_names:
+        return "invalid_learning_session_language"
+    if "event_type" in field_names:
+        return "invalid_learning_session_event_type"
+    if "entity_type" in field_names:
+        return "invalid_learning_session_entity_type"
+    if "cursor" in field_names or "limit" in field_names:
+        return "invalid_learning_session_pagination"
+    if "metadata" in field_names:
+        return "invalid_learning_session_metadata"
     return "validation_error"
 
 

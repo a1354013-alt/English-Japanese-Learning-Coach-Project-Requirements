@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from config import settings
 from models import UserRPGStats, review_rating_is_correct
 from repositories.chat_repository import ChatRepository
+from repositories.learning_session_repository import LearningSessionRepository
 from time_utils import local_now
 
 
@@ -115,6 +116,7 @@ class Database:
         self._connection_lock = threading.Lock()
         self._thread_connections: dict[int, sqlite3.Connection] = {}
         self.chat_repository = ChatRepository(self)
+        self.learning_session_repository = LearningSessionRepository(self)
         self._register_instance()
         self.init_database()
 
@@ -177,6 +179,40 @@ class Database:
     def get_connection(self) -> sqlite3.Connection:
         """Compatibility wrapper for code paths using context-managed connections."""
         return self._connection
+
+    def start_learning_session(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        planned_minutes: Optional[int] = None,
+    ):
+        return self.learning_session_repository.start_session(
+            user_id=user_id,
+            language=language,
+            planned_minutes=planned_minutes,
+        )
+
+    def get_learning_session(self, *, session_id: str, user_id: str):
+        return self.learning_session_repository.get_session(session_id=session_id, user_id=user_id)
+
+    def find_active_learning_session(self, *, user_id: str, language: str):
+        return self.learning_session_repository.find_active_session(user_id=user_id, language=language)
+
+    def list_learning_sessions(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        limit: int = 20,
+        cursor: Optional[str] = None,
+    ):
+        return self.learning_session_repository.list_session_history(
+            user_id=user_id,
+            language=language,
+            limit=limit,
+            cursor=cursor,
+        )
 
     def close(self) -> None:
         """Close the thread-local SQLite connection if one exists."""

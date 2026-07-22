@@ -1,6 +1,6 @@
 # Development Guide
 
-This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `v1.5.0`.
+This project pins the local release-verification toolchain to Python 3.11 and Node.js 22.18.0 for `1.6.0-dev.1`.
 
 ## Backend Setup
 
@@ -23,6 +23,19 @@ python scripts/python_dependency_locks.py refresh
 Ordinary CI and release verification should use `python scripts/python_dependency_locks.py check`, which validates lock metadata fingerprints plus portability/secret-redaction rules without re-resolving the package index.
 
 Chat runtime limits are validated at backend startup. Keep `CHAT_CLIENT_MESSAGE_ID_MAX_CHARS` at or below 250 so the stored `user:` idempotency-key prefix still fits the repository's 255-character limit.
+
+## Learning-Session Phase 1 Boundary
+
+Phase 1 adds a dedicated learning-session router plus a feature-focused repository behind the `Database` compatibility facade. It introduces additive schema `0012`, strict `active -> completed|abandoned` transitions, append-only event sequencing, and deterministic summaries derived only from stored session/event data.
+
+Phase 1 does not automatically wire lesson completion, review submission, SRS scheduling, chat tutor turns, Feynman submissions, or micro-lesson completion into the new event log yet. That integration belongs to the planned Phase 2 service layer.
+
+Current backend boundary:
+
+- `backend/routers/learning_sessions.py` owns the typed REST contract and error mapping.
+- `backend/repositories/learning_session_repository.py` owns SQL, lifecycle rules, pagination, idempotency, and deterministic summary generation.
+- `backend/database.py` remains the compatibility facade and exposes one learning-session repository instance per `Database`.
+- A future Phase 2 integration service will be responsible for recording events from lesson, review, SRS, chat tutor, Feynman, and micro-lesson flows without changing the Phase 1 storage contract.
 
 ## Frontend Setup
 

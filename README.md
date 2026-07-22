@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.5.0 -->
-Current release: `v1.5.0`.
+<!-- release:current=1.6.0-dev.1 -->
+Current development version: `1.6.0-dev.1`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
