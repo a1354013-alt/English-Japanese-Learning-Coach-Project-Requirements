@@ -24,11 +24,16 @@ Ordinary CI and release verification should use `python scripts/python_dependenc
 
 Chat runtime limits are validated at backend startup. Keep `CHAT_CLIENT_MESSAGE_ID_MAX_CHARS` at or below 250 so the stored `user:` idempotency-key prefix still fits the repository's 255-character limit.
 
-## Learning-Session Phase 1 Boundary
+## Learning-Session Phase 2.1 Boundary
 
 Phase 1 adds a dedicated learning-session router plus a feature-focused repository behind the `Database` compatibility facade. It introduces additive schema `0012`, strict `active -> completed|abandoned` transitions, append-only event sequencing, canonical retry-safe idempotency, and deterministic summaries derived only from stored session/event data.
 
-Phase 1 does not automatically wire lesson completion, review submission, SRS scheduling, chat tutor turns, Feynman submissions, or micro-lesson completion into the new event log yet. That integration belongs to the planned Phase 2 service layer.
+Phase 2.1 wires existing learning workflows into the event log as optional telemetry only. Lesson, Review, SRS, Chat Tutor, Feynman, and Micro Lesson must still succeed when no same-language active Session exists or when tolerant recorder lookup/append fails after the primary workflow has committed.
+
+Migration `0013_review_and_srs_operation_ids.sql` adds:
+
+- `review_submissions`: canonical persisted Review submission IDs, optional client retry IDs, request hashes, and submitted score snapshots.
+- `legacy_srs_review_operations`: canonical persisted operation IDs for `/api/srs/review`, optional client retry IDs, request hashes, quality, and created time.
 
 Current backend boundary:
 
@@ -37,14 +42,33 @@ Current backend boundary:
 - `backend/learning_session_contract.py` is the single semantic contract table shared by request validation and repository validation.
 - `backend/database.py` remains the compatibility facade and exposes one learning-session repository instance per `Database`.
 - `backend/repositories/protocols.py` and `backend/repositories/protocol_assertions.py` define and statically verify the real Phase 1 repository protocol.
-- A future Phase 2 integration service will be responsible for recording events from lesson, review, SRS, chat tutor, Feynman, and micro-lesson flows without changing the Phase 1 storage contract.
+- `backend/services/learning_session_recorder.py` owns the strict/tolerant optional telemetry failure boundary.
+- Integrated primary flows call the recorder only after their primary persistence succeeds.
 
-Learning Session event rules in Phase 1:
+Integration contracts:
+
+- Generating, scheduling, opening, or reloading a Lesson does not record `lesson_started`.
+- `POST /api/lessons/{lesson_id}/start` is the explicit learner-start operation and records one idempotent `lesson_started` event per default lesson start key.
+- Review answer events use `review_submissions.submission_id` plus answer coordinates as their source operation identity. Existing Review payloads remain valid; clients can send `client_submission_id` on each answer to dedupe a network retry.
+- `/api/srs/items/review` records `srs_reviewed` using the persisted learning item review event ID.
+- `/api/srs/review` records `srs_reviewed` using `legacy_srs_review_operations.operation_id`; clients can send `client_operation_id` to dedupe a retry.
+- Chat assistant completion, Feynman completion, and Micro Lesson completion record their existing persisted source IDs.
+
+Learning Session event rules:
 
 - `lesson_started` and `lesson_completed` require `entity_type=lesson` and an `entity_id`.
 - `review_answered` requires `entity_type=review`, an `entity_id`, and `metadata.correct`; `metadata.note` is optional.
-- `srs_reviewed`, `chat_turn_completed`, `feynman_completed`, and `micro_lesson_completed` each require their canonical entity type plus `entity_id` and reject metadata.
+- `srs_reviewed` requires `entity_type=srs_item` and may include correctness, rating, interval, and result-category metadata.
+- `chat_turn_completed` requires `entity_type=conversation` and rejects metadata.
+- `feynman_completed` requires `entity_type=feynman_response` and may include result-category metadata.
+- `micro_lesson_completed` requires `entity_type=micro_lesson` and may include completion-outcome metadata.
 - `session_note` requires `metadata.note`, rejects blank notes, and does not allow entity fields or `metadata.correct`.
+
+Recorder failure policy:
+
+- Set `LEARNING_SESSION_RECORDER_MODE=tolerant` for production-style optional telemetry. Lookup, append, idempotency, semantic, and SQLite failures are logged with structured context and return `None`.
+- Set `LEARNING_SESSION_RECORDER_MODE=strict`, or call `build_learning_session_recorder(..., mode="strict")`, for focused integration tests that must fail on malformed mappings, ownership bugs, source-ID mistakes, and programmer errors.
+- If the environment variable is unset, pytest defaults to strict mode and normal runtime defaults to tolerant mode.
 
 Lifecycle and idempotency rules:
 
@@ -60,6 +84,12 @@ Version verification note:
 - Development mode requires root/frontend/package-lock version parity plus the canonical README development marker and line.
 - Development mode intentionally keeps `RELEASE_CHECKLIST.md` and `docs/DEMO_GUIDE.md` pinned to the latest stable release, currently `v1.5.0`.
 - RC and final versions still use the strict release-facing wording checks.
+
+Phase 2.1 gate status:
+
+- Static checks and focused Learning Session integrations are green locally.
+- Full backend pytest is blocked by the optional RAG-enabled smoke test because the installed `chromadb` package imports `np.float_`, which NumPy 2.0 removed.
+- Do not start Phase 3 frontend Session workflow, Phase 4 Goals/Weekly Insights, or `1.6.0-rc1` promotion until that dependency gate is green.
 
 ## Frontend Setup
 

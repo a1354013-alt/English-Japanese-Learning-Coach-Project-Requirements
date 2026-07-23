@@ -33,12 +33,22 @@ Review contract coverage is included in backend pytest: the frontend must submit
 Learning Session hardening coverage is included in backend pytest and should explicitly verify:
 
 - Migration `0012` applies cleanly.
+- Migration `0013` adds persisted Review submission IDs and legacy SRS review operation IDs.
 - The shared event semantic table is enforced in both request validation and repository validation.
 - Event idempotent retry ordering is canonical after completion or abandonment.
 - Abandonment is state-idempotent without an idempotency key.
 - Summary reads stay snapshot-consistent under concurrent append/complete pressure.
 - Demo reset clears all Learning Session sessions and events for the local demo user without seeding fake Session history.
 - The concurrent incompatible-idempotency race remains stable for at least 50 rounds without assuming Future ordering.
+- Optional recorder telemetry failures are tolerant in production mode and strict in focused integration tests.
+- Lesson generation does not record `lesson_started`; explicit lesson start records one idempotent event.
+- Repeated Review attempts use distinct canonical submission IDs, while a network retry with the same client submission ID creates no duplicate events.
+- Both `/api/srs/review` and `/api/srs/items/review` are visible to Learning Session statistics.
+- Chat assistant completion, Chat provider failure, Feynman completion, Micro Lesson completion, no active Session, wrong-language active Session, and backend restart persistence stay covered by focused regressions.
+
+Current `1.6.0-dev.1` blocker:
+
+- The full backend command currently fails in this local environment at `backend/tests/test_rag_enabled_smoke.py::test_rag_enabled_smoke` because installed `chromadb` imports `np.float_`, which NumPy 2.0 removed. Treat this as blocking Phase 3/4 and RC preparation until the dependency lane is fixed.
 
 ## Frontend
 

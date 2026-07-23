@@ -1315,6 +1315,69 @@ class Database:
                 ),
             )
 
+    def get_or_create_review_submission(
+        self,
+        *,
+        user_id: str,
+        lesson_id: str,
+        client_submission_id: Optional[str],
+        request_hash: str,
+        total_questions: int,
+        correct_count: int,
+        accuracy_rate: float,
+    ) -> Dict[str, Any]:
+        normalized_client_id = client_submission_id.strip() if client_submission_id else None
+        if normalized_client_id == "":
+            normalized_client_id = None
+        now = _local_now().isoformat()
+        submission_id = str(uuid4())
+        with self.get_connection() as conn:
+            if normalized_client_id is not None:
+                existing = conn.execute(
+                    """
+                    SELECT submission_id, request_hash, total_questions, correct_count, accuracy_rate, created_at
+                    FROM review_submissions
+                    WHERE user_id = ? AND client_submission_id = ?
+                    """,
+                    (user_id, normalized_client_id),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["request_hash"]) != request_hash:
+                        raise ValueError("review submission idempotency conflict")
+                    result = dict(existing)
+                    result["client_submission_id"] = normalized_client_id
+                    result["is_retry"] = True
+                    return result
+            conn.execute(
+                """
+                INSERT INTO review_submissions (
+                    submission_id, user_id, lesson_id, client_submission_id, request_hash,
+                    total_questions, correct_count, accuracy_rate, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    submission_id,
+                    user_id,
+                    lesson_id,
+                    normalized_client_id,
+                    request_hash,
+                    total_questions,
+                    correct_count,
+                    accuracy_rate,
+                    now,
+                ),
+            )
+        return {
+            "submission_id": submission_id,
+            "client_submission_id": normalized_client_id,
+            "request_hash": request_hash,
+            "total_questions": total_questions,
+            "correct_count": correct_count,
+            "accuracy_rate": accuracy_rate,
+            "created_at": now,
+            "is_retry": False,
+        }
+
     def get_exercise_result(
         self,
         *,
@@ -1704,6 +1767,65 @@ class Database:
         updated["review_event_id"] = review_event_id
         updated["review_correct"] = derived_correct
         return updated
+
+    def get_or_create_legacy_srs_review_operation(
+        self,
+        *,
+        user_id: str,
+        word: str,
+        language: str,
+        quality: int,
+        client_operation_id: Optional[str],
+        request_hash: str,
+    ) -> Dict[str, Any]:
+        normalized_client_id = client_operation_id.strip() if client_operation_id else None
+        if normalized_client_id == "":
+            normalized_client_id = None
+        operation_id = str(uuid4())
+        now = _local_now().isoformat()
+        with self.get_connection() as conn:
+            if normalized_client_id is not None:
+                existing = conn.execute(
+                    """
+                    SELECT operation_id, request_hash, quality, created_at
+                    FROM legacy_srs_review_operations
+                    WHERE user_id = ? AND client_operation_id = ?
+                    """,
+                    (user_id, normalized_client_id),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["request_hash"]) != request_hash:
+                        raise ValueError("legacy SRS review idempotency conflict")
+                    result = dict(existing)
+                    result["client_operation_id"] = normalized_client_id
+                    result["is_retry"] = True
+                    return result
+            conn.execute(
+                """
+                INSERT INTO legacy_srs_review_operations (
+                    operation_id, user_id, word, language, client_operation_id,
+                    request_hash, quality, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    operation_id,
+                    user_id,
+                    word,
+                    language,
+                    normalized_client_id,
+                    request_hash,
+                    quality,
+                    now,
+                ),
+            )
+        return {
+            "operation_id": operation_id,
+            "client_operation_id": normalized_client_id,
+            "request_hash": request_hash,
+            "quality": quality,
+            "created_at": now,
+            "is_retry": False,
+        }
 
     def _sync_imported_vocabulary_mastery(
         self,

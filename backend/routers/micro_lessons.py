@@ -17,8 +17,8 @@ from models import (
     MicroLessonResponse,
     MicroLessonTodayResponse,
 )
-from services.micro_lesson_service import build_micro_lesson, learning_plan_from_state
 from services.learning_session_recorder import build_learning_session_recorder
+from services.micro_lesson_service import build_micro_lesson, learning_plan_from_state
 from services.streak_service import get_streak_snapshot
 
 from routers.deps import require_demo_user_id

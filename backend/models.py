@@ -400,6 +400,10 @@ class ReviewAnswer(BaseModel):
     question_index: StrictInt
     user_answer: StrictStr
     correct_answer: StrictStr
+    client_submission_id: Optional[StrictStr] = Field(
+        default=None,
+        description="Optional client retry key shared by every answer in one review submission.",
+    )
 
 
 class IncorrectItem(BaseModel):
@@ -939,6 +943,21 @@ class SrsReviewRequest(BaseModel):
     word: str
     language: LanguageCode
     quality: int = Field(ge=0, le=5)
+    client_operation_id: Optional[StrictStr] = Field(
+        default=None,
+        description="Optional client retry key for one legacy SRS review operation.",
+    )
+
+
+class LessonStartRequest(BaseModel):
+    idempotency_key: Optional[StrictStr] = None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return validate_learning_session_idempotency_key(value)
 
 
 class LessonQueryParams(BaseModel):
