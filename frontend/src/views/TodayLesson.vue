@@ -219,6 +219,7 @@ const ttsAvailability = reactive<{
   available: false,
   message: null,
 })
+const pendingReviewSubmissionId = ref<string | null>(null)
 
 const answers = reactive<{
   grammar: Record<number, string>
@@ -262,6 +263,40 @@ const resetAnswers = () => {
   answers.grammar = {}
   answers.reading = {}
   reviewResult.value = null
+  pendingReviewSubmissionId.value = null
+}
+
+const createClientOperationId = (prefix: string) => {
+  const random =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}:${random}`
+}
+
+const stableLessonStartKey = (lessonId: string) => {
+  const storageKey = `learning-session:lesson-start:${lessonId}`
+  try {
+    const existing = window.localStorage.getItem(storageKey)
+    if (existing) return existing
+    const created = createClientOperationId(`lesson-start:${lessonId}`)
+    window.localStorage.setItem(storageKey, created)
+    return created
+  } catch {
+    return `lesson-start:${lessonId}`
+  }
+}
+
+const recordLessonStart = async (currentLesson: Lesson | null) => {
+  if (!currentLesson) return
+  try {
+    await lessonApi.startLesson(
+      currentLesson.metadata.lesson_id,
+      stableLessonStartKey(currentLesson.metadata.lesson_id),
+    )
+  } catch (err) {
+    console.error(err)
+  }
 }
 
 const firstTtsProbeText = (currentLesson: Lesson) =>
@@ -305,6 +340,7 @@ const loadTodayLesson = async () => {
     const res = await lessonApi.getTodayLesson(request.language)
     lesson.value = res.lesson
     resetAnswers()
+    await recordLessonStart(lesson.value)
     await refreshTtsAvailability(lesson.value)
   } catch (err) {
     console.error(err)
@@ -388,8 +424,8 @@ const generateLesson = async () => {
 const submitReview = async () => {
   if (!lesson.value) return
 
-  const payload = buildReviewPayload(lesson.value, answers)
-  if (payload.length === 0) {
+  const draftPayload = buildReviewPayload(lesson.value, answers)
+  if (draftPayload.length === 0) {
     showNotice(t('today.answerAtLeastOne'), 'warning')
     return
   }
@@ -405,9 +441,19 @@ const submitReview = async () => {
     return
   }
 
+  const submissionId =
+    pendingReviewSubmissionId.value ??
+    createClientOperationId(`review:${lesson.value.metadata.lesson_id}`)
+  pendingReviewSubmissionId.value = submissionId
+  const payload = draftPayload.map((answer) => ({
+    ...answer,
+    client_submission_id: submissionId,
+  }))
+
   submitting.value = true
   try {
     reviewResult.value = await reviewApi.submitReview(payload)
+    pendingReviewSubmissionId.value = null
     await Promise.all([loadStreak(), loadStudyMission()])
   } catch (err) {
     console.error(err)

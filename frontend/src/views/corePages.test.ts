@@ -40,6 +40,7 @@ const apiMocks = vi.hoisted(() => ({
   retryWrongAnswer: vi.fn(),
   getTodayLesson: vi.fn(),
   generateLesson: vi.fn(),
+  startLesson: vi.fn(),
   getTts: vi.fn(),
   submitReview: vi.fn(),
   getStreak: vi.fn(),
@@ -97,6 +98,7 @@ vi.mock('@/services/api', () => ({
   lessonApi: {
     getTodayLesson: apiMocks.getTodayLesson,
     generateLesson: apiMocks.generateLesson,
+    startLesson: apiMocks.startLesson,
     exportPdf: apiMocks.exportPdf,
     getTts: apiMocks.getTts,
   },
@@ -1114,20 +1116,22 @@ describe('TodayLesson.vue', () => {
     await flushPromises()
 
     expect(apiMocks.submitReview).toHaveBeenCalledWith([
-      {
+      expect.objectContaining({
         lesson_id: 'lesson-1',
         exercise_type: 'grammar',
         question_index: 0,
         user_answer: 'am',
         correct_answer: 'am',
-      },
-      {
+        client_submission_id: expect.stringMatching(/^review:lesson-1:/),
+      }),
+      expect.objectContaining({
         lesson_id: 'lesson-1',
         exercise_type: 'reading',
         question_index: 0,
         user_answer: 'Cafe',
         correct_answer: 'Cafe',
-      },
+        client_submission_id: expect.stringMatching(/^review:lesson-1:/),
+      }),
     ])
     expect(wrapper.text()).toContain('today.reviewResult')
   })

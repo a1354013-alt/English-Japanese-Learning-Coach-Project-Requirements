@@ -11,10 +11,12 @@ All notable changes to this project will be documented in this file.
 - Added Phase 2.1 canonical operation identity with migration `0013_review_and_srs_operation_ids.sql`, including persisted Review submission IDs and legacy SRS review operation IDs for retry-safe Learning Session event keys.
 - Added an explicit `POST /api/lessons/{lesson_id}/start` learner-start contract so generated or preloaded Lessons are not counted as started until the learner begins them.
 - Added focused Learning Session recorder integration regressions for no active Session, wrong-language Session isolation, tolerant lookup/append/idempotency/SQLite failures, strict semantic failures, repeated Review attempts, Review network retries, legacy and item-level SRS, Chat, Feynman, Micro Lesson, and 50 Review retry/resubmission rounds.
+- Added migration `0014_learning_goals.sql`, typed Learning Goal APIs, deterministic weekly insight APIs, and a compact Progress-page Learning Session/Weekly Review panel.
 
 ### Changed
 
 - Lesson, Review, SRS, Chat Tutor, Feynman, and Micro Lesson flows now record optional Learning Session telemetry when a same-language active Session exists, while remaining usable with no Session or a wrong-language Session.
+- RAG-enabled local storage now uses the app's SQLite-backed RAG manager instead of the vulnerable Chroma/Transformers dependency stack.
 - Hardened the Learning Session Phase 1 contract with a shared semantic validation table, canonical post-finalization event retries, state-idempotent abandonment, snapshot-consistent summaries, and demo-reset cleanup through the repository clear path.
 - Extended backend regression coverage to include migration `0012`, repository idempotency rules, 50-round concurrency races, semantic-contract enforcement, demo-reset cleanup, and OpenAPI/API contract checks for the new learning-session boundary.
 - Updated delivery verification so development versions such as `1.6.0-dev.1` use explicit README development markers while stable release checklist and demo-guide references remain pinned to `v1.5.0`.
@@ -25,10 +27,11 @@ All notable changes to this project will be documented in this file.
 - Fixed optional recorder failure isolation so Session lookup and append failures are logged with structured context and do not turn committed primary learning workflows into HTTP 500 responses in tolerant mode.
 - Fixed Lesson start semantics by removing automatic `lesson_started` telemetry from Lesson generation.
 - Fixed legacy `/api/srs/review` visibility in Session statistics; both supported SRS review paths now record `srs_reviewed` telemetry when possible.
+- Fixed Review retry side effects so a canonical retry with the same `client_submission_id` does not reapply XP, completion rewards, wrong-answer writes, SRS updates, or Session Events.
 
 ### Known blockers
 
-- Phase 2.1 is not fully green in this local environment because the full backend suite fails at `backend/tests/test_rag_enabled_smoke.py::test_rag_enabled_smoke`: installed `chromadb` imports `np.float_`, which is removed by NumPy 2.0. The version remains `1.6.0-dev.1`; Phase 3/4 and RC promotion are intentionally blocked.
+- RC promotion is blocked in this local environment because Node.js `22.18.0` and npm `10.9.3` are not available; detected Node/npm are `24.11.1`/`11.6.2`. Full frontend reinstall, E2E, Docker, and delivery verification still need to run on the mandated toolchain.
 
 ## [1.5.0] - 2026-07-21
 

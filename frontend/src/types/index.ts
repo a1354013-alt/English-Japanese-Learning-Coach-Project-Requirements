@@ -254,6 +254,7 @@ export interface ReviewAnswer {
   question_index: number
   user_answer: string
   correct_answer: string
+  client_submission_id?: string
 }
 
 export interface ReviewResult {
@@ -637,6 +638,7 @@ export interface SrsReviewRequest {
   word: string
   language: Language
   quality: number
+  client_operation_id?: string
 }
 
 export interface DemoResetResponse {
@@ -793,4 +795,134 @@ export interface MicroLessonAnswerResponse {
   completed: boolean
   lesson: MicroLesson
   streak: StreakInfo
+}
+
+export type LearningSessionStatus = 'active' | 'completed' | 'abandoned'
+export type LearningSessionEventType =
+  | 'lesson_started'
+  | 'lesson_completed'
+  | 'review_answered'
+  | 'srs_reviewed'
+  | 'chat_turn_completed'
+  | 'feynman_completed'
+  | 'micro_lesson_completed'
+  | 'session_note'
+export type LearningSessionEntityType =
+  | 'lesson'
+  | 'review'
+  | 'srs_item'
+  | 'conversation'
+  | 'feynman_response'
+  | 'micro_lesson'
+
+export interface LearningSessionRecord {
+  session_id: string
+  language: Language
+  status: LearningSessionStatus
+  planned_minutes?: number | null
+  started_at: string
+  ended_at?: string | null
+  duration_seconds?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface LearningSessionEventMetadata {
+  note?: string
+  correct?: boolean
+  rating?: number
+  interval_days?: number
+  response_time_ms?: number
+  result_category?: string
+  lesson_category?: string
+  completion_outcome?: string
+  duration_seconds?: number
+}
+
+export interface LearningSessionEventRecord {
+  event_id: string
+  session_id: string
+  event_type: LearningSessionEventType
+  entity_type?: LearningSessionEntityType | null
+  entity_id?: string | null
+  sequence_number: number
+  metadata?: LearningSessionEventMetadata | null
+  occurred_at: string
+  created_at: string
+}
+
+export interface LearningSessionEventCounts {
+  lesson_started: number
+  lesson_completed: number
+  review_answered: number
+  srs_reviewed: number
+  chat_turn_completed: number
+  feynman_completed: number
+  micro_lesson_completed: number
+  session_note: number
+}
+
+export interface LearningSessionSummary {
+  session_id: string
+  language: Language
+  status: LearningSessionStatus
+  started_at: string
+  ended_at?: string | null
+  duration_seconds?: number | null
+  planned_minutes?: number | null
+  total_event_count: number
+  counts_by_event_type: LearningSessionEventCounts
+  lesson_completion_count: number
+  review_answer_count: number
+  srs_review_count: number
+  chat_turn_count: number
+  feynman_completion_count: number
+  micro_lesson_completion_count: number
+  first_event_at?: string | null
+  last_event_at?: string | null
+  planned_duration_goal_reached?: boolean | null
+  correct_event_count?: number | null
+}
+
+export interface LearningGoal {
+  language: Language
+  daily_minutes: number
+  weekly_sessions: number
+  weekly_minutes?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WeeklyLearningInsight {
+  week_start: string
+  week_end: string
+  language: Language
+  completed_session_count: number
+  abandoned_session_count: number
+  total_completed_duration_seconds: number
+  active_learning_days: number
+  average_completed_session_duration_seconds?: number | null
+  daily_minute_goal_progress: number
+  weekly_session_goal_progress: number
+  weekly_minute_goal_progress?: number | null
+  event_counts_by_type: LearningSessionEventCounts
+  lesson_completion_count: number
+  review_answer_count: number
+  correct_review_answer_count: number
+  review_correctness_rate?: number | null
+  srs_review_count: number
+  chat_turn_count: number
+  feynman_completion_count: number
+  micro_lesson_completion_count: number
+  most_active_day?: string | null
+  recent_completed_sessions: Array<{
+    session_id: string
+    status: LearningSessionStatus
+    started_at: string
+    ended_at?: string | null
+    duration_seconds?: number | null
+    planned_minutes?: number | null
+    total_event_count: number
+  }>
+  goal: LearningGoal
 }

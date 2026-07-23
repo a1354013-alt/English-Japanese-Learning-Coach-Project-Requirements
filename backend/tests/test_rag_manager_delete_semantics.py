@@ -1,7 +1,7 @@
-"""RAGManager delete semantics against a real Chroma collection.
+"""RAGManager delete semantics against the local RAG collection.
 
-This specifically guards against "fake success" deletes where Chroma's idempotent
-delete(where=...) does not raise even when nothing matches.
+This specifically guards against "fake success" deletes where a storage layer
+reports success even when nothing matches.
 """
 
 from __future__ import annotations
@@ -13,13 +13,11 @@ from config import settings
 from rag_manager import RAGManager
 
 pytestmark = pytest.mark.rag
-pytest.importorskip("chromadb", exc_type=(ImportError, AttributeError))
 
 
 def test_delete_material_distinguishes_missing_doc_id(tmp_path, monkeypatch):
-    # Use an isolated Chroma store so this test is hermetic.
-    chroma_dir = Path(tmp_path) / "chroma_db"
-    monkeypatch.setattr(settings, "chroma_db_path", str(chroma_dir), raising=False)
+    rag_dir = Path(tmp_path) / "rag_store"
+    monkeypatch.setattr(settings, "chroma_db_path", str(rag_dir), raising=False)
     monkeypatch.setattr(settings, "enable_rag", True, raising=False)
 
     mgr = RAGManager()
@@ -37,8 +35,8 @@ def test_delete_material_distinguishes_missing_doc_id(tmp_path, monkeypatch):
 
 
 def test_delete_material_respects_user_isolation(tmp_path, monkeypatch):
-    chroma_dir = Path(tmp_path) / "chroma_db"
-    monkeypatch.setattr(settings, "chroma_db_path", str(chroma_dir), raising=False)
+    rag_dir = Path(tmp_path) / "rag_store"
+    monkeypatch.setattr(settings, "chroma_db_path", str(rag_dir), raising=False)
     monkeypatch.setattr(settings, "enable_rag", True, raising=False)
 
     mgr = RAGManager()

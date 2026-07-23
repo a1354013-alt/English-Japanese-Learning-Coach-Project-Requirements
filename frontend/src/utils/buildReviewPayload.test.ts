@@ -72,4 +72,60 @@ describe('buildReviewPayload', () => {
       },
     ])
   })
+
+  it('adds the stable client submission id to every answer when provided', () => {
+    const lesson = {
+      metadata: {
+        lesson_id: 'l1',
+        language: 'EN',
+        level: 'A1',
+        topic: 'T',
+        generated_at: '2026-04-22T00:00:00Z',
+        estimated_duration_minutes: 5,
+        key_points: [],
+      },
+      vocabulary: [],
+      grammar: {
+        title: 'G',
+        explanation: 'E',
+        examples: [],
+        exercises: [
+          {
+            question: 'q1',
+            options: ['A', 'B'],
+            correct_answer: 'A',
+            explanation: 'x',
+          },
+        ],
+      },
+      reading: {
+        title: 'R',
+        content: 'C',
+        word_count: 1,
+        questions: [
+          {
+            question: 'rq1',
+            options: ['X', 'Y'],
+            correct_answer: 'Y',
+            explanation: 'z',
+          },
+        ],
+      },
+      dialogue: { scenario: 'S', context: 'C', dialogue: [], alternatives: [] },
+    } as unknown as Lesson
+
+    const payload = buildReviewPayload(
+      lesson,
+      {
+        grammar: { 0: 'A' },
+        reading: { 0: 'Y' },
+      },
+      'review-client-1',
+    )
+
+    expect(payload.map((item) => item.client_submission_id)).toEqual([
+      'review-client-1',
+      'review-client-1',
+    ])
+  })
 })

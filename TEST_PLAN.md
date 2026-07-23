@@ -34,6 +34,7 @@ Learning Session hardening coverage is included in backend pytest and should exp
 
 - Migration `0012` applies cleanly.
 - Migration `0013` adds persisted Review submission IDs and legacy SRS review operation IDs.
+- Migration `0014` adds per-language Learning Goals.
 - The shared event semantic table is enforced in both request validation and repository validation.
 - Event idempotent retry ordering is canonical after completion or abandonment.
 - Abandonment is state-idempotent without an idempotency key.
@@ -45,10 +46,12 @@ Learning Session hardening coverage is included in backend pytest and should exp
 - Repeated Review attempts use distinct canonical submission IDs, while a network retry with the same client submission ID creates no duplicate events.
 - Both `/api/srs/review` and `/api/srs/items/review` are visible to Learning Session statistics.
 - Chat assistant completion, Chat provider failure, Feynman completion, Micro Lesson completion, no active Session, wrong-language active Session, and backend restart persistence stay covered by focused regressions.
+- Weekly Insights use Monday 00:00 inclusive through next Monday 00:00 exclusive in the configured timezone.
+- RAG-enabled smoke uses the local SQLite RAG store and must pass without Chroma.
 
 Current `1.6.0-dev.1` blocker:
 
-- The full backend command currently fails in this local environment at `backend/tests/test_rag_enabled_smoke.py::test_rag_enabled_smoke` because installed `chromadb` imports `np.float_`, which NumPy 2.0 removed. Treat this as blocking Phase 3/4 and RC preparation until the dependency lane is fixed.
+- RC validation requires Node.js `22.18.0` and npm `10.9.3`. This local environment currently exposes Node `24.11.1` and npm `11.6.2`, so full frontend reinstall, E2E, Docker, and delivery verification must be rerun on the mandated toolchain before RC promotion.
 
 ## Frontend
 

@@ -1,75 +1,20 @@
-"""Contract tests for chunked RAG storage without requiring a real Chroma install."""
+"""Contract tests for chunked local RAG storage."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from pathlib import Path
 
-from rag_manager import _ChromaRAGManager, split_into_chunks
-
-
-class _FakeCollection:
-    def __init__(self) -> None:
-        self.records: Dict[str, Dict[str, Any]] = {}
-
-    def add(self, *, ids: List[str], documents: List[str], metadatas: List[dict]) -> None:
-        for item_id, document, metadata in zip(ids, documents, metadatas, strict=True):
-            self.records[item_id] = {
-                "id": item_id,
-                "document": document,
-                "metadata": metadata,
-            }
-
-    def _matches(self, metadata: dict, where: Optional[dict]) -> bool:
-        if not where:
-            return True
-        if "$and" in where:
-            return all(self._matches(metadata, clause) for clause in where["$and"])
-        return all(metadata.get(key) == value for key, value in where.items())
-
-    def get(self, ids: Optional[List[str]] = None, where: Optional[dict] = None, include: Optional[List[str]] = None) -> dict:
-        include = include or []
-        selected = []
-        for item_id, record in self.records.items():
-            if ids is not None and item_id not in ids:
-                continue
-            if not self._matches(record["metadata"], where):
-                continue
-            selected.append(record)
-        return {
-            "ids": [record["id"] for record in selected],
-            "documents": [record["document"] for record in selected] if "documents" in include else [],
-            "metadatas": [record["metadata"] for record in selected] if "metadatas" in include else [],
-        }
-
-    def delete(self, ids: List[str]) -> None:
-        for item_id in ids:
-            self.records.pop(item_id, None)
-
-    def query(self, *, query_texts: List[str], n_results: int, where: Optional[dict], include: List[str]) -> dict:
-        del query_texts
-        selected = [
-            record
-            for record in self.records.values()
-            if self._matches(record["metadata"], where)
-        ][:n_results]
-        return {
-            "ids": [[record["id"] for record in selected]],
-            "documents": [[record["document"] for record in selected]] if "documents" in include else [[]],
-            "metadatas": [[record["metadata"] for record in selected]] if "metadatas" in include else [[]],
-        }
+from config import settings
+from rag_manager import _LocalRAGManager, split_into_chunks
 
 
-def _make_manager() -> _ChromaRAGManager:
-    manager = object.__new__(_ChromaRAGManager)
-    manager.enabled = True
-    manager.init_error = None
-    manager.disabled_by_config = False
-    manager._collection = _FakeCollection()
-    return manager
+def _make_manager(tmp_path: Path, monkeypatch) -> _LocalRAGManager:
+    monkeypatch.setattr(settings, "chroma_db_path", str(tmp_path / "rag_store"), raising=False)
+    return _LocalRAGManager()
 
 
-def test_add_material_splits_long_text_and_stores_required_metadata():
-    manager = _make_manager()
+def test_add_material_splits_long_text_and_stores_required_metadata(tmp_path, monkeypatch):
+    manager = _make_manager(tmp_path, monkeypatch)
     long_text = " ".join(f"token-{idx}" for idx in range(200))
 
     material_id = manager.add_material(
@@ -84,17 +29,20 @@ def test_add_material_splits_long_text_and_stores_required_metadata():
         user_id="u1",
     )
 
-    stored = list(manager._collection.records.values())
+    with manager._connect() as conn:
+        stored = conn.execute(
+            "SELECT * FROM rag_chunks WHERE material_id = ? ORDER BY chunk_index",
+            (material_id,),
+        ).fetchall()
     assert len(stored) > 1
     for expected_index, record in enumerate(stored):
-        metadata = record["metadata"]
-        assert metadata["material_id"] == material_id
-        assert metadata["title"] == "notes.txt"
-        assert metadata["language"] == "EN"
-        assert metadata["source_type"] == "text"
-        assert metadata["chunk_index"] == expected_index
-        assert metadata["total_chunks"] == len(stored)
-        assert metadata["uploaded_at"] == "2026-05-10T10:00:00"
+        assert record["material_id"] == material_id
+        assert record["title"] == "notes.txt"
+        assert record["language"] == "EN"
+        assert record["source_type"] == "text"
+        assert record["chunk_index"] == expected_index
+        assert record["total_chunks"] == len(stored)
+        assert record["uploaded_at"] == "2026-05-10T10:00:00"
 
     materials = manager.list_materials(user_id="u1", language="EN")
     assert materials == [
@@ -112,8 +60,8 @@ def test_add_material_splits_long_text_and_stores_required_metadata():
     ]
 
 
-def test_query_returns_evidence_fields_needed_by_frontend():
-    manager = _make_manager()
+def test_query_returns_evidence_fields_needed_by_frontend(tmp_path, monkeypatch):
+    manager = _make_manager(tmp_path, monkeypatch)
     material_id = manager.add_material(
         "alpha beta gamma " * 80,
         metadata={
@@ -139,8 +87,8 @@ def test_query_returns_evidence_fields_needed_by_frontend():
     assert evidence[0]["text"]
 
 
-def test_delete_material_removes_all_chunks_for_same_material():
-    manager = _make_manager()
+def test_delete_material_removes_all_chunks_for_same_material(tmp_path, monkeypatch):
+    manager = _make_manager(tmp_path, monkeypatch)
     material_id = manager.add_material(
         "delta epsilon zeta " * 90,
         metadata={
@@ -153,9 +101,13 @@ def test_delete_material_removes_all_chunks_for_same_material():
         user_id="u1",
     )
 
-    assert len(manager._collection.records) > 1
+    with manager._connect() as conn:
+        count = conn.execute("SELECT COUNT(1) AS count FROM rag_chunks").fetchone()["count"]
+    assert count > 1
     assert manager.delete_material(user_id="u1", doc_id=material_id) is True
-    assert manager._collection.records == {}
+    with manager._connect() as conn:
+        count = conn.execute("SELECT COUNT(1) AS count FROM rag_chunks").fetchone()["count"]
+    assert count == 0
     assert manager.delete_material(user_id="u1", doc_id=material_id) is False
 
 

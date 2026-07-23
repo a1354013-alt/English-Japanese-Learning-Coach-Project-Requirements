@@ -35,6 +35,8 @@ Migration `0013_review_and_srs_operation_ids.sql` adds:
 - `review_submissions`: canonical persisted Review submission IDs, optional client retry IDs, request hashes, and submitted score snapshots.
 - `legacy_srs_review_operations`: canonical persisted operation IDs for `/api/srs/review`, optional client retry IDs, request hashes, quality, and created time.
 
+Migration `0014_learning_goals.sql` adds per-user/per-language Learning Goals with bounded daily minutes, weekly Sessions, and optional weekly minutes. Demo defaults are EN 20 daily minutes / 4 weekly Sessions / 120 weekly minutes and JP 15 / 3 / 90.
+
 Current backend boundary:
 
 - `backend/routers/learning_sessions.py` owns the typed REST contract and error mapping.
@@ -50,9 +52,13 @@ Integration contracts:
 - Generating, scheduling, opening, or reloading a Lesson does not record `lesson_started`.
 - `POST /api/lessons/{lesson_id}/start` is the explicit learner-start operation and records one idempotent `lesson_started` event per default lesson start key.
 - Review answer events use `review_submissions.submission_id` plus answer coordinates as their source operation identity. Existing Review payloads remain valid; clients can send `client_submission_id` on each answer to dedupe a network retry.
+- A frontend Review action creates one stable `client_submission_id`, reuses it on retry after failure/timeout, and clears it after canonical success.
 - `/api/srs/items/review` records `srs_reviewed` using the persisted learning item review event ID.
 - `/api/srs/review` records `srs_reviewed` using `legacy_srs_review_operations.operation_id`; clients can send `client_operation_id` to dedupe a retry.
 - Chat assistant completion, Feynman completion, and Micro Lesson completion record their existing persisted source IDs.
+- `GET/PUT /api/learning-goals?language=EN|JP` owns typed Learning Goal state.
+- `GET /api/learning-insights/weekly?language=EN|JP` returns deterministic Monday-based weekly metrics from stored Sessions and Events only.
+- RAG-enabled local development uses the SQLite RAG store under `CHROMA_DB_PATH`; Chroma is no longer a runtime dependency.
 
 Learning Session event rules:
 
@@ -87,9 +93,9 @@ Version verification note:
 
 Phase 2.1 gate status:
 
-- Static checks and focused Learning Session integrations are green locally.
-- Full backend pytest is blocked by the optional RAG-enabled smoke test because the installed `chromadb` package imports `np.float_`, which NumPy 2.0 removed.
-- Do not start Phase 3 frontend Session workflow, Phase 4 Goals/Weekly Insights, or `1.6.0-rc1` promotion until that dependency gate is green.
+- Backend pytest, RAG-enabled tests, RAG-disabled startup tests, Python lock checks, and Python lock audit are green locally.
+- A compact frontend Session/Weekly Review workflow is present on the Progress overview tab.
+- `1.6.0-rc1` promotion remains blocked until validation runs with Node.js `22.18.0` and npm `10.9.3`, plus full frontend reinstall, E2E, Docker, and delivery verification.
 
 ## Frontend Setup
 

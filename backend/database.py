@@ -1827,6 +1827,198 @@ class Database:
             "is_retry": False,
         }
 
+    def get_learning_goal(self, *, user_id: str, language: str) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                FROM learning_goals
+                WHERE user_id = ? AND language = ?
+                """,
+                (user_id, normalized_language),
+            ).fetchone()
+            if row:
+                return dict(row)
+        defaults = self._default_learning_goal(normalized_language)
+        return self.upsert_learning_goal(user_id=user_id, language=normalized_language, **defaults)
+
+    def upsert_learning_goal(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        daily_minutes: int,
+        weekly_sessions: int,
+        weekly_minutes: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        now = _local_now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO learning_goals (
+                    user_id, language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, language) DO UPDATE SET
+                    daily_minutes = excluded.daily_minutes,
+                    weekly_sessions = excluded.weekly_sessions,
+                    weekly_minutes = excluded.weekly_minutes,
+                    updated_at = excluded.updated_at
+                """,
+                (user_id, normalized_language, daily_minutes, weekly_sessions, weekly_minutes, now, now),
+            )
+            row = conn.execute(
+                """
+                SELECT language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                FROM learning_goals
+                WHERE user_id = ? AND language = ?
+                """,
+                (user_id, normalized_language),
+            ).fetchone()
+        return dict(row) if row else {}
+
+    def reset_learning_goals_for_demo_user(self, *, user_id: str) -> None:
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM learning_goals WHERE user_id = ?", (user_id,))
+        for language in ("EN", "JP"):
+            defaults = self._default_learning_goal(language)
+            self.upsert_learning_goal(user_id=user_id, language=language, **defaults)
+
+    @staticmethod
+    def _default_learning_goal(language: str) -> Dict[str, Any]:
+        return {
+            "daily_minutes": 20 if language == "EN" else 15,
+            "weekly_sessions": 4 if language == "EN" else 3,
+            "weekly_minutes": 120 if language == "EN" else 90,
+        }
+
+    def get_weekly_learning_insight(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        week_start: datetime,
+        week_end: datetime,
+    ) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        goal = self.get_learning_goal(user_id=user_id, language=normalized_language)
+        with self.get_connection() as conn:
+            sessions = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT session_id, status, planned_minutes, started_at, ended_at, duration_seconds
+                    FROM learning_sessions
+                    WHERE user_id = ? AND language = ? AND started_at >= ? AND started_at < ?
+                    ORDER BY started_at DESC, session_id DESC
+                    """,
+                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
+                ).fetchall()
+            ]
+            events = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT e.event_type, e.metadata_json, e.occurred_at, e.session_id
+                    FROM learning_session_events AS e
+                    JOIN learning_sessions AS s ON s.session_id = e.session_id
+                    WHERE s.user_id = ? AND s.language = ? AND e.occurred_at >= ? AND e.occurred_at < ?
+                    ORDER BY e.occurred_at ASC, e.sequence_number ASC
+                    """,
+                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
+                ).fetchall()
+            ]
+            event_counts = {
+                str(row["session_id"]): int(row["count"])
+                for row in conn.execute(
+                    """
+                    SELECT e.session_id, COUNT(1) AS count
+                    FROM learning_session_events AS e
+                    JOIN learning_sessions AS s ON s.session_id = e.session_id
+                    WHERE s.user_id = ? AND s.language = ? AND s.started_at >= ? AND s.started_at < ?
+                    GROUP BY e.session_id
+                    """,
+                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
+                ).fetchall()
+            }
+
+        completed_sessions = [session for session in sessions if session["status"] == "completed"]
+        abandoned_sessions = [session for session in sessions if session["status"] == "abandoned"]
+        total_duration = sum(int(session.get("duration_seconds") or 0) for session in completed_sessions)
+        event_type_counts = {
+            "lesson_started": 0,
+            "lesson_completed": 0,
+            "review_answered": 0,
+            "srs_reviewed": 0,
+            "chat_turn_completed": 0,
+            "feynman_completed": 0,
+            "micro_lesson_completed": 0,
+            "session_note": 0,
+        }
+        correct_review_answers = 0
+        active_days: set[str] = set()
+        day_scores: Dict[str, int] = {}
+        for event in events:
+            event_type = str(event["event_type"])
+            if event_type in event_type_counts:
+                event_type_counts[event_type] += 1
+            occurred = datetime.fromisoformat(str(event["occurred_at"]))
+            day_key = occurred.date().isoformat()
+            active_days.add(day_key)
+            day_scores[day_key] = day_scores.get(day_key, 0) + 1
+            if event_type == "review_answered":
+                metadata = _json_loads_dict(event.get("metadata_json"))
+                if metadata.get("correct") is True:
+                    correct_review_answers += 1
+
+        review_count = event_type_counts["review_answered"]
+        avg_duration = int(total_duration / len(completed_sessions)) if completed_sessions else None
+        daily_goal_seconds = int(goal["daily_minutes"]) * 60 * 7
+        weekly_minutes = goal.get("weekly_minutes")
+        most_active_day = None
+        if day_scores:
+            most_active_day = sorted(day_scores.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+        return {
+            "week_start": week_start,
+            "week_end": week_end,
+            "language": normalized_language,
+            "completed_session_count": len(completed_sessions),
+            "abandoned_session_count": len(abandoned_sessions),
+            "total_completed_duration_seconds": total_duration,
+            "active_learning_days": len(active_days),
+            "average_completed_session_duration_seconds": avg_duration,
+            "daily_minute_goal_progress": min(1.0, total_duration / daily_goal_seconds) if daily_goal_seconds else 0.0,
+            "weekly_session_goal_progress": min(1.0, len(completed_sessions) / int(goal["weekly_sessions"])),
+            "weekly_minute_goal_progress": (
+                min(1.0, total_duration / (int(weekly_minutes) * 60)) if weekly_minutes else None
+            ),
+            "event_counts_by_type": event_type_counts,
+            "lesson_completion_count": event_type_counts["lesson_completed"],
+            "review_answer_count": review_count,
+            "correct_review_answer_count": correct_review_answers,
+            "review_correctness_rate": (correct_review_answers / review_count * 100.0) if review_count else None,
+            "srs_review_count": event_type_counts["srs_reviewed"],
+            "chat_turn_count": event_type_counts["chat_turn_completed"],
+            "feynman_completion_count": event_type_counts["feynman_completed"],
+            "micro_lesson_completion_count": event_type_counts["micro_lesson_completed"],
+            "most_active_day": most_active_day,
+            "recent_completed_sessions": [
+                {
+                    "session_id": session["session_id"],
+                    "status": session["status"],
+                    "started_at": session["started_at"],
+                    "ended_at": session["ended_at"],
+                    "duration_seconds": session["duration_seconds"],
+                    "planned_minutes": session["planned_minutes"],
+                    "total_event_count": event_counts.get(str(session["session_id"]), 0),
+                }
+                for session in completed_sessions[:5]
+            ],
+            "goal": goal,
+        }
+
     def _sync_imported_vocabulary_mastery(
         self,
         *,

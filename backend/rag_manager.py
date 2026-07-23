@@ -1,10 +1,11 @@
-"""RAG manager abstraction with a safe disabled mode and optional Chroma backend."""
+"""RAG manager abstraction with a safe disabled mode and local SQLite backend."""
 
 from __future__ import annotations
 
-import importlib
 import re
+import sqlite3
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import settings
@@ -82,62 +83,54 @@ class DisabledRAGManager:
         return []
 
 
-class _ChromaRAGManager:
+class _LocalRAGManager:
     COLLECTION_NAME = "rag_materials"
 
-    def __init__(self, chromadb_module: Any, chroma_settings_cls: Any, embedding_function_cls: Any) -> None:
+    def __init__(self, *_: Any) -> None:
         self.enabled = True
         self.init_error: Optional[str] = None
         self.disabled_by_config = False
-        self._client = chromadb_module.PersistentClient(
-            path=str(settings.chroma_db_path),
-            settings=chroma_settings_cls(),
-        )
-        self._collection = self._client.get_or_create_collection(
-            name=self.COLLECTION_NAME,
-            embedding_function=embedding_function_cls(),
-        )
+        storage_path = Path(settings.chroma_db_path)
+        storage_path.mkdir(parents=True, exist_ok=True)
+        self._db_path = storage_path / "rag_materials.sqlite3"
+        self._initialize()
 
-    def _user_filter(self, user_id: str, language: Optional[str] = None) -> Dict[str, Any]:
-        filters: List[Dict[str, str]] = [{"user_id": user_id}]
-        if language:
-            filters.append({"language": language})
-        if len(filters) == 1:
-            return filters[0]
-        return {"$and": filters}
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self._db_path))
+        conn.row_factory = sqlite3.Row
+        return conn
 
-    def _normalize_get_result(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
-        ids = result.get("ids") or []
-        documents = result.get("documents") or []
-        metadatas = result.get("metadatas") or []
-
-        materials: Dict[str, Dict[str, Any]] = {}
-        for idx, item_id in enumerate(ids):
-            metadata = dict(metadatas[idx] if idx < len(metadatas) else {})
-            document = documents[idx] if idx < len(documents) else ""
-            material_id = str(metadata.get("material_id") or item_id)
-            current = materials.get(material_id)
-            if current is None:
-                current = {
-                    "material_id": material_id,
-                    "doc_id": material_id,
-                    "source": metadata.get("source", "unknown"),
-                    "title": metadata.get("title") or metadata.get("source", "unknown"),
-                    "language": metadata.get("language", "unknown"),
-                    "source_type": metadata.get("source_type", "text"),
-                    "uploaded_at": metadata.get("uploaded_at", ""),
-                    "total_chunks": int(metadata.get("total_chunks", 1) or 1),
-                    "text": document or None,
-                }
-                materials[material_id] = current
-            else:
-                current["total_chunks"] = max(
-                    int(current.get("total_chunks", 1) or 1),
-                    int(metadata.get("total_chunks", 1) or 1),
+    def _initialize(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS rag_chunks (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    material_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    language TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    total_chunks INTEGER NOT NULL,
+                    uploaded_at TEXT NOT NULL,
+                    document TEXT NOT NULL
                 )
-                if not current.get("text") and document:
-                    current["text"] = document
-        return sorted(materials.values(), key=lambda item: str(item.get("uploaded_at") or ""), reverse=True)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_rag_chunks_user_language_material
+                ON rag_chunks(user_id, language, material_id, chunk_index)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_rag_chunks_user_uploaded
+                ON rag_chunks(user_id, uploaded_at DESC, material_id)
+                """
+            )
 
     @staticmethod
     def _chunk_id(material_id: str, chunk_index: int) -> str:
@@ -178,35 +171,88 @@ class _ChromaRAGManager:
             raise ValueError("Cannot add empty material")
 
         total_chunks = len(chunks)
-        self._collection.add(
-            ids=[self._chunk_id(material_id, idx) for idx in range(total_chunks)],
-            documents=chunks,
-            metadatas=[
-                self._material_metadata(
+        rows = [
+            {
+                **self._material_metadata(
                     dict(metadata),
                     user_id=user_id,
                     material_id=material_id,
                     chunk_index=idx,
                     total_chunks=total_chunks,
+                ),
+                "id": self._chunk_id(material_id, idx),
+                "document": chunk,
+            }
+            for idx, chunk in enumerate(chunks)
+        ]
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM rag_chunks WHERE user_id = ? AND material_id = ?",
+                (user_id, material_id),
+            )
+            conn.executemany(
+                """
+                INSERT INTO rag_chunks (
+                    id, user_id, material_id, title, source, language, source_type,
+                    chunk_index, total_chunks, uploaded_at, document
+                ) VALUES (
+                    :id, :user_id, :material_id, :title, :source, :language, :source_type,
+                    :chunk_index, :total_chunks, :uploaded_at, :document
                 )
-                for idx in range(total_chunks)
-            ],
-        )
+                """,
+                rows,
+            )
         return material_id
 
     def list_materials(self, *, user_id: str, language: Optional[str] = None) -> List[dict]:
-        where = self._user_filter(user_id, language)
-        result = self._collection.get(where=where, include=["documents", "metadatas"])
-        return self._normalize_get_result(result)
+        query = """
+            SELECT material_id, source, title, language, source_type, uploaded_at,
+                   MAX(total_chunks) AS total_chunks,
+                   MIN(chunk_index) AS first_chunk_index
+            FROM rag_chunks
+            WHERE user_id = ?
+        """
+        params: list[Any] = [user_id]
+        if language:
+            query += " AND language = ?"
+            params.append(language)
+        query += " GROUP BY material_id, source, title, language, source_type, uploaded_at"
+        query += " ORDER BY uploaded_at DESC, material_id ASC"
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+            materials: list[dict[str, Any]] = []
+            for row in rows:
+                text_row = conn.execute(
+                    """
+                    SELECT document
+                    FROM rag_chunks
+                    WHERE user_id = ? AND material_id = ? AND chunk_index = ?
+                    """,
+                    (user_id, row["material_id"], row["first_chunk_index"]),
+                ).fetchone()
+                materials.append(
+                    {
+                        "material_id": row["material_id"],
+                        "doc_id": row["material_id"],
+                        "source": row["source"],
+                        "title": row["title"],
+                        "language": row["language"],
+                        "source_type": row["source_type"],
+                        "uploaded_at": row["uploaded_at"],
+                        "total_chunks": int(row["total_chunks"] or 1),
+                        "text": text_row["document"] if text_row else None,
+                    }
+                )
+        return materials
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        where = {"$and": [self._user_filter(user_id), {"material_id": doc_id}]}
-        result = self._collection.get(where=where, include=["metadatas"])
-        ids = result.get("ids") or []
-        if not ids:
-            return False
-        self._collection.delete(ids=ids)
-        return True
+        with self._connect() as conn:
+            result = conn.execute(
+                "DELETE FROM rag_chunks WHERE user_id = ? AND material_id = ?",
+                (user_id, doc_id),
+            )
+            return int(result.rowcount or 0) > 0
 
     def query_materials(
         self,
@@ -216,42 +262,47 @@ class _ChromaRAGManager:
         language: Optional[str] = None,
         n_results: int = 3,
     ) -> List[dict]:
-        where = self._user_filter(user_id, language)
-        result = self._collection.query(
-            query_texts=[query],
-            n_results=n_results,
-            where=where,
-            include=["metadatas", "documents"],
-        )
+        delimited_terms = [term for term in re.findall(r"[\w\u3040-\u30ff\u3400-\u9fff]+", query.lower()) if term]
+        sql = "SELECT * FROM rag_chunks WHERE user_id = ?"
+        params: list[Any] = [user_id]
+        if language:
+            sql += " AND language = ?"
+            params.append(language)
+        with self._connect() as conn:
+            rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
 
-        ids = result.get("ids") or [[]]
-        documents = result.get("documents") or [[]]
-        metadatas = result.get("metadatas") or [[]]
-
-        row_ids = ids[0] if ids and isinstance(ids[0], list) else ids
-        row_documents = documents[0] if documents and isinstance(documents[0], list) else documents
-        row_metadatas = metadatas[0] if metadatas and isinstance(metadatas[0], list) else metadatas
-
-        items: List[Dict[str, Any]] = []
-        for idx, item_id in enumerate(row_ids):
-            metadata = dict(row_metadatas[idx] if idx < len(row_metadatas) else {})
-            document = row_documents[idx] if idx < len(row_documents) else ""
-            material_id = str(metadata.get("material_id") or item_id)
-            items.append(
-                {
-                    "material_id": material_id,
-                    "doc_id": material_id,
-                    "text": document,
-                    "source": metadata.get("source", "unknown"),
-                    "title": metadata.get("title") or metadata.get("source", "unknown"),
-                    "language": metadata.get("language", "unknown"),
-                    "source_type": metadata.get("source_type", "text"),
-                    "uploaded_at": metadata.get("uploaded_at", ""),
-                    "total_chunks": int(metadata.get("total_chunks", 1) or 1),
-                    "chunk_index": int(metadata.get("chunk_index", 0) or 0),
-                }
+        def score(row: dict[str, Any]) -> tuple[int, str, int, str]:
+            haystack = " ".join(
+                str(row.get(field) or "").lower()
+                for field in ("document", "title", "source")
             )
-        return items
+            lexical_score = sum(haystack.count(term) for term in delimited_terms)
+            return (
+                -lexical_score,
+                str(row.get("uploaded_at") or ""),
+                int(row.get("chunk_index") or 0),
+                str(row.get("id") or ""),
+            )
+
+        ranked = sorted(rows, key=score)[: max(0, n_results)]
+        return [
+            {
+                "material_id": str(row["material_id"]),
+                "doc_id": str(row["material_id"]),
+                "text": str(row["document"]),
+                "source": str(row["source"]),
+                "title": str(row["title"]),
+                "language": str(row["language"]),
+                "source_type": str(row["source_type"]),
+                "uploaded_at": str(row["uploaded_at"]),
+                "total_chunks": int(row["total_chunks"] or 1),
+                "chunk_index": int(row["chunk_index"] or 0),
+            }
+            for row in ranked
+        ]
+
+
+_ChromaRAGManager = _LocalRAGManager
 
 
 class RAGManager:
@@ -259,53 +310,15 @@ class RAGManager:
         self._backend = self._build_backend()
 
     @staticmethod
-    def _build_backend() -> DisabledRAGManager | _ChromaRAGManager:
+    def _build_backend() -> DisabledRAGManager | _LocalRAGManager:
         if not settings.enable_rag:
             return DisabledRAGManager("RAG is disabled by configuration", disabled_by_config=True)
 
         try:
-            chromadb_module = importlib.import_module("chromadb")
-            chroma_settings_cls = importlib.import_module("chromadb.config").Settings
-            embedding_function_cls = importlib.import_module(
-                "chromadb.utils.embedding_functions"
-            ).DefaultEmbeddingFunction
-        except ModuleNotFoundError as err:
-            message = RAGManager._optional_dependency_error_message(err)
-            if message:
-                return DisabledRAGManager(message, disabled_by_config=False)
-            raise
-
-        try:
-            return _ChromaRAGManager(chromadb_module, chroma_settings_cls, embedding_function_cls)
-        except ModuleNotFoundError as err:
-            message = RAGManager._optional_dependency_error_message(err)
-            if message:
-                return DisabledRAGManager(message, disabled_by_config=False)
-            raise
+            return _LocalRAGManager()
         except Exception as err:
             message = f"RAG could not be initialized: {err}"
             return DisabledRAGManager(message, disabled_by_config=False)
-
-    @staticmethod
-    def _optional_dependency_error_message(err: ModuleNotFoundError) -> Optional[str]:
-        missing_name = (err.name or "").lower()
-        error_text = str(err).lower()
-        if missing_name == "chromadb" or missing_name.startswith("chromadb.") or "chromadb" in error_text:
-            return (
-                "RAG is enabled but chromadb is not installed. "
-                "Install backend/requirements-rag.txt and set ENABLE_RAG=true only when those dependencies are available."
-            )
-        if (
-            missing_name == "sentence_transformers"
-            or missing_name.startswith("sentence_transformers.")
-            or "sentence-transformers" in error_text
-            or "sentence_transformers" in error_text
-        ):
-            return (
-                "RAG is enabled but sentence-transformers is not installed. "
-                "Install backend/requirements-rag.txt and set ENABLE_RAG=true only when those dependencies are available."
-            )
-        return None
 
     @property
     def enabled(self) -> bool:

@@ -237,8 +237,10 @@ def test_learning_session_migration_applies_on_fresh_database(tmp_path):
     assert "learning_session_events" in tables
     assert "review_submissions" in tables
     assert "legacy_srs_review_operations" in tables
+    assert "learning_goals" in tables
     assert "0012_learning_sessions_and_events.sql" in versions
     assert "0013_review_and_srs_operation_ids.sql" in versions
+    assert "0014_learning_goals.sql" in versions
     assert "completion_idempotency_key" in session_columns
     assert "metadata_json" in event_columns
 
@@ -260,6 +262,7 @@ def test_learning_session_migration_upgrades_v150_without_data_loss(tmp_path):
 
     assert "0012_learning_sessions_and_events.sql" in versions
     assert "0013_review_and_srs_operation_ids.sql" in versions
+    assert "0014_learning_goals.sql" in versions
     assert lesson["topic"] == "legacy"
     assert progress["user_id"] == "default_user"
     assert review["id"] == "review-1"
@@ -286,4 +289,5 @@ def test_learning_session_migration_is_safe_on_repeated_startup(tmp_path):
 
     assert versions.count("0012_learning_sessions_and_events.sql") == 1
     assert versions.count("0013_review_and_srs_operation_ids.sql") == 1
+    assert versions.count("0014_learning_goals.sql") == 1
     assert "idx_learning_sessions_active_user_language" in session_indexes

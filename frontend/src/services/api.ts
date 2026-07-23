@@ -47,6 +47,11 @@ import type {
   MicroLessonAnswerResponse,
   MicroLessonTodayResponse,
   DailyStudyMissionResponse,
+  LearningGoal,
+  LearningSessionEventRecord,
+  LearningSessionRecord,
+  LearningSessionSummary,
+  WeeklyLearningInsight,
 } from '@/types'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').trim()
@@ -114,6 +119,14 @@ export const lessonApi = {
   async getLesson(lessonId: string) {
     const response = await api.get<{ success: boolean; lesson: Lesson }>(
       `/lessons/${lessonId}`,
+    )
+    return response.data
+  },
+
+  async startLesson(lessonId: string, idempotencyKey: string) {
+    const response = await api.post<{ success: boolean }>(
+      `/lessons/${encodeURIComponent(lessonId)}/start`,
+      { idempotency_key: idempotencyKey },
     )
     return response.data
   },
@@ -282,8 +295,14 @@ export const reviewApi = {
     return response.data
   },
 
-  async submitSrsReview(word: string, language: Language, quality: number) {
+  async submitSrsReview(
+    word: string,
+    language: Language,
+    quality: number,
+    clientOperationId?: string,
+  ) {
     const payload: SrsReviewRequest = { word, language, quality }
+    if (clientOperationId) payload.client_operation_id = clientOperationId
     const response = await api.post<{ success: boolean }>(
       '/srs/review',
       payload,
@@ -482,6 +501,123 @@ export const streakApi = {
 export const analyticsApi = {
   async getAnalytics() {
     const response = await api.get<AnalyticsResponse>('/analytics')
+    return response.data
+  },
+}
+
+export const learningSessionApi = {
+  async getActive(language: Language) {
+    const response = await api.get<{
+      success: boolean
+      session: LearningSessionRecord | null
+    }>('/learning-sessions/active', { params: { language } })
+    return response.data
+  },
+
+  async start(language: Language, plannedMinutes?: number) {
+    const response = await api.post<{
+      success: boolean
+      session: LearningSessionRecord
+    }>('/learning-sessions', {
+      language,
+      planned_minutes: plannedMinutes,
+    })
+    return response.data
+  },
+
+  async list(language?: Language, limit = 10, cursor?: string | null) {
+    const response = await api.get<{
+      success: boolean
+      sessions: LearningSessionRecord[]
+      limit: number
+      has_more: boolean
+      next_cursor?: string | null
+    }>('/learning-sessions', { params: { language, limit, cursor } })
+    return response.data
+  },
+
+  async listEvents(sessionId: string, limit = 50, cursor?: string | null) {
+    const response = await api.get<{
+      success: boolean
+      events: LearningSessionEventRecord[]
+      limit: number
+      has_more: boolean
+      next_cursor?: string | null
+    }>(`/learning-sessions/${encodeURIComponent(sessionId)}/events`, {
+      params: { limit, cursor },
+    })
+    return response.data
+  },
+
+  async addNote(sessionId: string, note: string, idempotencyKey: string) {
+    const response = await api.post<{
+      success: boolean
+      event: LearningSessionEventRecord
+    }>(`/learning-sessions/${encodeURIComponent(sessionId)}/events`, {
+      event_type: 'session_note',
+      metadata: { note },
+      idempotency_key: idempotencyKey,
+    })
+    return response.data
+  },
+
+  async complete(sessionId: string, idempotencyKey: string) {
+    const response = await api.post<{
+      success: boolean
+      session: LearningSessionRecord
+    }>(`/learning-sessions/${encodeURIComponent(sessionId)}/complete`, {
+      idempotency_key: idempotencyKey,
+    })
+    return response.data
+  },
+
+  async abandon(sessionId: string) {
+    const response = await api.post<{
+      success: boolean
+      session: LearningSessionRecord
+    }>(`/learning-sessions/${encodeURIComponent(sessionId)}/abandon`, {})
+    return response.data
+  },
+
+  async summary(sessionId: string) {
+    const response = await api.get<{
+      success: boolean
+      summary: LearningSessionSummary
+    }>(`/learning-sessions/${encodeURIComponent(sessionId)}/summary`)
+    return response.data
+  },
+}
+
+export const learningGoalApi = {
+  async get(language: Language) {
+    const response = await api.get<{ success: boolean; goal: LearningGoal }>(
+      '/learning-goals',
+      { params: { language } },
+    )
+    return response.data
+  },
+
+  async update(
+    language: Language,
+    payload: {
+      daily_minutes: number
+      weekly_sessions: number
+      weekly_minutes?: number | null
+    },
+  ) {
+    const response = await api.put<{ success: boolean; goal: LearningGoal }>(
+      '/learning-goals',
+      payload,
+      { params: { language } },
+    )
+    return response.data
+  },
+
+  async weeklyInsight(language: Language) {
+    const response = await api.get<{
+      success: boolean
+      insight: WeeklyLearningInsight
+    }>('/learning-insights/weekly', { params: { language } })
     return response.data
   },
 }

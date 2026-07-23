@@ -150,6 +150,12 @@ async def submit_review(
             "Review submission idempotency conflict",
             "review_submission_idempotency_conflict",
         ) from None
+    if submission["is_retry"]:
+        return {
+            "success": True,
+            **review_data,
+            "gamification": {"xp_added": 0, "leveled_up": False},
+        }
     review_submission_id = str(submission["submission_id"])
     previous_result = db.get_exercise_result(user_id=user_id, lesson_id=lesson_id, exercise_type="mixed")
     was_completed = previous_result is not None

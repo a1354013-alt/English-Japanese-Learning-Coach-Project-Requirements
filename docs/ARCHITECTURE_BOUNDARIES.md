@@ -19,6 +19,7 @@ This document describes the current storage, API, and integration boundaries for
 - Migration `0013_review_and_srs_operation_ids.sql` adds `review_submissions` and `legacy_srs_review_operations`.
 - `review_submissions.submission_id` is the canonical Review attempt operation ID; optional `client_submission_id` dedupes client retries.
 - `legacy_srs_review_operations.operation_id` is the canonical operation ID for `/api/srs/review`; optional `client_operation_id` dedupes client retries.
+- Migration `0014_learning_goals.sql` adds `learning_goals` with `(user_id, language)` uniqueness, bounded daily minutes, weekly Sessions, optional weekly minutes, and timestamps.
 
 ## Repository Protocol
 
@@ -77,9 +78,24 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 - Lesson completion: the first successful Review completion for a Lesson records `lesson_completed` and preserves the existing one-time XP/completed-lesson reward rule.
 - Review: each persisted `review_submissions.submission_id` scopes answer events as `{submission_id}:{exercise_type}:{question_index}`.
 - Review retry: a repeated `client_submission_id` with the same request hash reuses the canonical submission and event keys.
+- Review retry side effects are isolated: canonical retries do not reapply XP, completion rewards, wrong-answer tracking, SRS updates, or Session Events.
 - SRS item path: `/api/srs/items/review` records from the persisted learning item review event ID.
 - Legacy SRS path: `/api/srs/review` records from `legacy_srs_review_operations.operation_id`.
 - Chat, Feynman, and Micro Lesson use their existing persisted conversation, feedback, and micro-lesson IDs.
+
+## Goals and Weekly Insights
+
+- `GET/PUT /api/learning-goals?language=EN|JP` returns and updates the demo user's per-language goals.
+- `GET /api/learning-insights/weekly?language=EN|JP` computes deterministic weekly metrics from stored Sessions and Events.
+- Weeks start Monday 00:00 in `settings.timezone` and end at the next Monday 00:00.
+- Insights include completed/abandoned Sessions, duration, active days, goal progress, event counts, review correctness only when review-answer metadata exists, most-active-day tie-breaking by earliest date, and recent completed Sessions.
+- Insights do not call AI and do not infer CEFR movement, weakness analysis, mastery, recommendations, or curriculum changes.
+
+## RAG Boundary
+
+- RAG-enabled local storage is backed by SQLite under `CHROMA_DB_PATH`.
+- Chroma, Transformers, and sentence-transformers are no longer runtime dependencies for the local RAG lane.
+- RAG-disabled startup remains deterministic and does not import optional vector-store packages.
 
 ## Summary Boundary
 
@@ -102,4 +118,4 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 
 ## Current Gate Status
 
-Phase 2.1 is not complete in this local checkout because the full backend suite currently fails at `backend/tests/test_rag_enabled_smoke.py::test_rag_enabled_smoke`: installed `chromadb` imports `np.float_`, which NumPy 2.0 removed. Keep `1.6.0-dev.1`; do not promote to `1.6.0-rc1` until that gate is green.
+Backend and RAG gates are green locally. Keep `1.6.0-dev.1`; do not promote to `1.6.0-rc1` until the mandatory Node.js `22.18.0` / npm `10.9.3` frontend, E2E, Docker, and delivery gates are run and green.

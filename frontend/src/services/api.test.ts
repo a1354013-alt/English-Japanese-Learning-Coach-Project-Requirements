@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   postMock: vi.fn(),
   deleteMock: vi.fn(),
   patchMock: vi.fn(),
+  putMock: vi.fn(),
   createMock: vi.fn(),
 }))
 
@@ -16,6 +17,7 @@ vi.mock('axios', async () => {
     post: mocks.postMock,
     delete: mocks.deleteMock,
     patch: mocks.patchMock,
+    put: mocks.putMock,
     interceptors: { response: { use: vi.fn() } },
   }))
   return {
@@ -32,6 +34,8 @@ import {
   aiTutorApi,
   chatApi,
   importApi,
+  learningGoalApi,
+  learningSessionApi,
   lessonApi,
   progressApi,
   reviewApi,
@@ -60,6 +64,23 @@ describe('api client', () => {
       word: 'hello',
       language: 'EN',
       quality: 5,
+    })
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
+    await reviewApi.submitSrsReview('hello', 'EN', 5, 'srs-client-1')
+    expect(mocks.postMock).toHaveBeenCalledWith('/srs/review', {
+      word: 'hello',
+      language: 'EN',
+      quality: 5,
+      client_operation_id: 'srs-client-1',
+    })
+  })
+
+  it('calls the explicit lesson start endpoint with a stable idempotency key', async () => {
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true } })
+    await lessonApi.startLesson('lesson 1', 'lesson-start:client-1')
+    expect(mocks.postMock).toHaveBeenCalledWith('/lessons/lesson%201/start', {
+      idempotency_key: 'lesson-start:client-1',
     })
   })
 
@@ -145,5 +166,47 @@ describe('api client', () => {
     expect(mocks.patchMock).toHaveBeenCalledWith('/chat/conversations/conv-1', {
       title: 'Renamed',
     })
+  })
+
+  it('calls typed learning session and goal endpoints', async () => {
+    mocks.getMock.mockResolvedValueOnce({
+      data: { success: true, session: null },
+    })
+    await learningSessionApi.getActive('EN')
+    expect(mocks.getMock).toHaveBeenCalledWith('/learning-sessions/active', {
+      params: { language: 'EN' },
+    })
+
+    mocks.postMock.mockResolvedValueOnce({
+      data: { success: true, session: {} },
+    })
+    await learningSessionApi.start('EN', 20)
+    expect(mocks.postMock).toHaveBeenCalledWith('/learning-sessions', {
+      language: 'EN',
+      planned_minutes: 20,
+    })
+
+    mocks.postMock.mockResolvedValueOnce({ data: { success: true, event: {} } })
+    await learningSessionApi.addNote('session-1', 'note', 'note-key')
+    expect(mocks.postMock).toHaveBeenCalledWith(
+      '/learning-sessions/session-1/events',
+      {
+        event_type: 'session_note',
+        metadata: { note: 'note' },
+        idempotency_key: 'note-key',
+      },
+    )
+
+    mocks.putMock.mockResolvedValueOnce({ data: { success: true, goal: {} } })
+    await learningGoalApi.update('JP', {
+      daily_minutes: 15,
+      weekly_sessions: 3,
+      weekly_minutes: 90,
+    })
+    expect(mocks.putMock).toHaveBeenCalledWith(
+      '/learning-goals',
+      { daily_minutes: 15, weekly_sessions: 3, weekly_minutes: 90 },
+      { params: { language: 'JP' } },
+    )
   })
 })

@@ -24,6 +24,9 @@ JapaneseLevel: TypeAlias = Literal["N5", "N4", "N3", "N2", "N1"]
 LearningLevel: TypeAlias = EnglishLevel | JapaneseLevel
 DifficultyMode: TypeAlias = Literal["easy", "normal", "hardcore"]
 MAX_LEARNING_SESSION_PLANNED_MINUTES = 480
+MAX_LEARNING_GOAL_DAILY_MINUTES = 480
+MAX_LEARNING_GOAL_WEEKLY_SESSIONS = 28
+MAX_LEARNING_GOAL_WEEKLY_MINUTES = 3360
 MAX_LEARNING_SESSION_IDEMPOTENCY_KEY_LENGTH = 128
 MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH = 120
 MAX_LEARNING_SESSION_NOTE_LENGTH = 500
@@ -1250,6 +1253,90 @@ class LearningSessionEventListResponse(SuccessResponse):
 
 class LearningSessionSummaryResponse(SuccessResponse):
     summary: LearningSessionSummary
+
+
+class LearningGoalRecord(BaseModel):
+    language: LanguageCode
+    daily_minutes: int
+    weekly_sessions: int
+    weekly_minutes: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpdateLearningGoalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    daily_minutes: StrictInt
+    weekly_sessions: StrictInt
+    weekly_minutes: Optional[StrictInt] = None
+
+    @field_validator("daily_minutes")
+    @classmethod
+    def validate_daily_minutes(cls, value: int) -> int:
+        if value <= 0 or value > MAX_LEARNING_GOAL_DAILY_MINUTES:
+            raise ValueError(f"daily_minutes must be between 1 and {MAX_LEARNING_GOAL_DAILY_MINUTES}")
+        return value
+
+    @field_validator("weekly_sessions")
+    @classmethod
+    def validate_weekly_sessions(cls, value: int) -> int:
+        if value <= 0 or value > MAX_LEARNING_GOAL_WEEKLY_SESSIONS:
+            raise ValueError(f"weekly_sessions must be between 1 and {MAX_LEARNING_GOAL_WEEKLY_SESSIONS}")
+        return value
+
+    @field_validator("weekly_minutes")
+    @classmethod
+    def validate_weekly_minutes(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if value <= 0 or value > MAX_LEARNING_GOAL_WEEKLY_MINUTES:
+            raise ValueError(f"weekly_minutes must be between 1 and {MAX_LEARNING_GOAL_WEEKLY_MINUTES}")
+        return value
+
+
+class LearningGoalResponse(SuccessResponse):
+    goal: LearningGoalRecord
+
+
+class LearningSessionRecentSummary(BaseModel):
+    session_id: str
+    status: LearningSessionStatus
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    planned_minutes: Optional[int] = None
+    total_event_count: int
+
+
+class WeeklyLearningInsight(BaseModel):
+    week_start: datetime
+    week_end: datetime
+    language: LanguageCode
+    completed_session_count: int
+    abandoned_session_count: int
+    total_completed_duration_seconds: int
+    active_learning_days: int
+    average_completed_session_duration_seconds: Optional[int] = None
+    daily_minute_goal_progress: float
+    weekly_session_goal_progress: float
+    weekly_minute_goal_progress: Optional[float] = None
+    event_counts_by_type: LearningSessionEventTypeCounts
+    lesson_completion_count: int
+    review_answer_count: int
+    correct_review_answer_count: int
+    review_correctness_rate: Optional[float] = None
+    srs_review_count: int
+    chat_turn_count: int
+    feynman_completion_count: int
+    micro_lesson_completion_count: int
+    most_active_day: Optional[str] = None
+    recent_completed_sessions: List[LearningSessionRecentSummary] = Field(default_factory=list)
+    goal: LearningGoalRecord
+
+
+class WeeklyLearningInsightResponse(SuccessResponse):
+    insight: WeeklyLearningInsight
 
 
 class LessonGamification(BaseModel):
