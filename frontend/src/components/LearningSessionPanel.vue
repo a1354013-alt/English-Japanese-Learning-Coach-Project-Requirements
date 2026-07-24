@@ -45,7 +45,7 @@
 
     <div v-if="activeSession" class="note-row">
       <input v-model="noteText" maxlength="500" placeholder="Session note" />
-      <button type="button" :disabled="!noteText.trim()" @click="addNote">
+      <button type="button" :disabled="!canAddNote" @click="addNote">
         Add note
       </button>
     </div>
@@ -79,7 +79,7 @@
 
     <div class="history">
       <h3>History</h3>
-      <button type="button" class="secondary" @click="loadHistory">
+      <button type="button" class="secondary" @click="refreshHistory">
         Refresh
       </button>
       <div v-if="history.length" class="history-list">
@@ -191,11 +191,13 @@ const summary = ref<LearningSessionSummary | null>(null)
 const goal = ref<LearningGoal | null>(null)
 const weeklyInsight = ref<WeeklyLearningInsight | null>(null)
 const noteText = ref('')
+const pendingNoteOperationId = ref<string | null>(null)
 const nowMs = ref(Date.now())
 const loading = ref(false)
 const error = ref<string | null>(null)
 
 let timer: number | undefined
+let reloadSequence = 0
 
 const elapsedSeconds = computed(() => {
   if (!activeSession.value) return 0
@@ -206,6 +208,10 @@ const elapsedSeconds = computed(() => {
     ),
   )
 })
+
+const canAddNote = computed(
+  () => activeSession.value?.status === 'active' && !!noteText.value.trim(),
+)
 
 const clientKey = (prefix: string, id: string) => {
   const storageKey = `learning-session:${prefix}:${id}`
@@ -220,42 +226,75 @@ const clientKey = (prefix: string, id: string) => {
   return created
 }
 
+const randomOperationId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 18)}`
+}
+
+const mergeCanonicalEvent = (event: LearningSessionEventRecord) => {
+  const byEventId = events.value.filter(
+    (existing) => existing.event_id !== event.event_id,
+  )
+  events.value = [...byEventId, event].sort(
+    (a, b) => a.sequence_number - b.sequence_number,
+  )
+}
+
 const formatDuration = (seconds: number) => {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
   return `${minutes}:${rest.toString().padStart(2, '0')}`
 }
 
-const loadEvents = async () => {
-  if (!activeSession.value) {
-    events.value = []
-    return
+const loadEvents = async (sessionId = activeSession.value?.session_id) => {
+  if (!sessionId) return []
+  return (await learningSessionApi.listEvents(sessionId)).events
+}
+
+const loadHistory = async (selectedLanguage = language.value) => {
+  return (await learningSessionApi.list(selectedLanguage, 10)).sessions
+}
+
+const refreshHistory = async () => {
+  history.value = await loadHistory()
+}
+
+const loadGoalAndInsight = async (selectedLanguage = language.value) => {
+  const [goalResponse, insightResponse] = await Promise.all([
+    learningGoalApi.get(selectedLanguage),
+    learningGoalApi.weeklyInsight(selectedLanguage),
+  ])
+  return {
+    goal: goalResponse.goal,
+    insight: insightResponse.insight,
   }
-  events.value = (
-    await learningSessionApi.listEvents(activeSession.value.session_id)
-  ).events
-}
-
-const loadHistory = async () => {
-  history.value = (await learningSessionApi.list(language.value, 10)).sessions
-}
-
-const loadGoalAndInsight = async () => {
-  goal.value = (await learningGoalApi.get(language.value)).goal
-  weeklyInsight.value = (
-    await learningGoalApi.weeklyInsight(language.value)
-  ).insight
 }
 
 const reload = async () => {
+  const requestId = ++reloadSequence
+  const selectedLanguage = language.value
   loading.value = true
   error.value = null
   summary.value = null
   try {
-    activeSession.value = (
-      await learningSessionApi.getActive(language.value)
-    ).session
-    await Promise.all([loadEvents(), loadHistory(), loadGoalAndInsight()])
+    const active = await learningSessionApi.getActive(selectedLanguage)
+    if (requestId !== reloadSequence || selectedLanguage !== language.value)
+      return
+    const [loadedEvents, loadedHistory, loadedGoalAndInsight] =
+      await Promise.all([
+        loadEvents(active.session?.session_id),
+        loadHistory(selectedLanguage),
+        loadGoalAndInsight(selectedLanguage),
+      ])
+    if (requestId !== reloadSequence || selectedLanguage !== language.value)
+      return
+    activeSession.value = active.session
+    events.value = loadedEvents
+    history.value = loadedHistory
+    goal.value = loadedGoalAndInsight.goal
+    weeklyInsight.value = loadedGoalAndInsight.insight
   } catch (err) {
     console.error(err)
     error.value = 'Unable to load session state.'
@@ -275,7 +314,12 @@ const startOrResume = async () => {
     activeSession.value = (
       await learningSessionApi.start(language.value, plannedMinutes.value)
     ).session
-    await Promise.all([loadEvents(), loadHistory()])
+    const [loadedEvents, loadedHistory] = await Promise.all([
+      loadEvents(),
+      loadHistory(),
+    ])
+    events.value = loadedEvents
+    history.value = loadedHistory
   } catch (err) {
     console.error(err)
     error.value = 'Unable to start session.'
@@ -286,18 +330,26 @@ const startOrResume = async () => {
 }
 
 const addNote = async () => {
-  if (!activeSession.value || !noteText.value.trim()) return
+  if (!activeSession.value || activeSession.value.status !== 'active') return
+  if (!noteText.value.trim()) return
   const note = noteText.value.trim()
-  const key = clientKey('note', `${activeSession.value.session_id}:${note}`)
-  const created = await learningSessionApi.addNote(
-    activeSession.value.session_id,
-    note,
-    key,
-  )
-  noteText.value = ''
-  events.value = [...events.value, created.event].sort(
-    (a, b) => a.sequence_number - b.sequence_number,
-  )
+  const operationId =
+    pendingNoteOperationId.value ?? `note-${randomOperationId()}`
+  pendingNoteOperationId.value = operationId
+  const key = `session-note:${operationId}`
+  try {
+    const created = await learningSessionApi.addNote(
+      activeSession.value.session_id,
+      note,
+      key,
+    )
+    pendingNoteOperationId.value = null
+    noteText.value = ''
+    mergeCanonicalEvent(created.event)
+  } catch (err) {
+    console.error(err)
+    error.value = 'Unable to add note.'
+  }
 }
 
 const completeSession = async () => {
@@ -309,7 +361,13 @@ const completeSession = async () => {
   ).session
   summary.value = (await learningSessionApi.summary(sessionId)).summary
   activeSession.value = null
-  await Promise.all([loadHistory(), loadGoalAndInsight()])
+  const [loadedHistory, loadedGoalAndInsight] = await Promise.all([
+    loadHistory(),
+    loadGoalAndInsight(),
+  ])
+  history.value = loadedHistory
+  goal.value = loadedGoalAndInsight.goal
+  weeklyInsight.value = loadedGoalAndInsight.insight
 }
 
 const abandonSession = async () => {
@@ -318,12 +376,18 @@ const abandonSession = async () => {
   await learningSessionApi.abandon(sessionId)
   activeSession.value = null
   events.value = []
-  await Promise.all([loadHistory(), loadGoalAndInsight()])
+  const [loadedHistory, loadedGoalAndInsight] = await Promise.all([
+    loadHistory(),
+    loadGoalAndInsight(),
+  ])
+  history.value = loadedHistory
+  goal.value = loadedGoalAndInsight.goal
+  weeklyInsight.value = loadedGoalAndInsight.insight
 }
 
 const selectHistory = async (sessionId: string) => {
   summary.value = (await learningSessionApi.summary(sessionId)).summary
-  events.value = (await learningSessionApi.listEvents(sessionId)).events
+  events.value = await loadEvents(sessionId)
 }
 
 const saveGoal = async () => {

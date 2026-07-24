@@ -1910,8 +1910,9 @@ class Database:
                     """
                     SELECT session_id, status, planned_minutes, started_at, ended_at, duration_seconds
                     FROM learning_sessions
-                    WHERE user_id = ? AND language = ? AND started_at >= ? AND started_at < ?
-                    ORDER BY started_at DESC, session_id DESC
+                    WHERE user_id = ? AND language = ? AND ended_at >= ? AND ended_at < ?
+                      AND status IN ('completed', 'abandoned')
+                    ORDER BY ended_at DESC, session_id DESC
                     """,
                     (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
                 ).fetchall()
@@ -1936,7 +1937,8 @@ class Database:
                     SELECT e.session_id, COUNT(1) AS count
                     FROM learning_session_events AS e
                     JOIN learning_sessions AS s ON s.session_id = e.session_id
-                    WHERE s.user_id = ? AND s.language = ? AND s.started_at >= ? AND s.started_at < ?
+                    WHERE s.user_id = ? AND s.language = ? AND s.ended_at >= ? AND s.ended_at < ?
+                      AND s.status IN ('completed', 'abandoned')
                     GROUP BY e.session_id
                     """,
                     (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),

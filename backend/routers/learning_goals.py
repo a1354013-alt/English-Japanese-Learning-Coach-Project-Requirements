@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from api_errors import COMMON_ERROR_RESPONSES
@@ -21,13 +21,9 @@ from routers.deps import require_demo_user_id
 router = APIRouter(prefix="/api", tags=["learning-goals"], responses=COMMON_ERROR_RESPONSES)
 
 
-def _monday_week_start(value: str | None) -> datetime:
+def _monday_week_start(value: date | None) -> datetime:
     tz = ZoneInfo(settings.timezone)
-    if value:
-        parsed = datetime.fromisoformat(value)
-        local_date = parsed.date()
-    else:
-        local_date = datetime.now(tz).date()
+    local_date = value if value is not None else datetime.now(tz).date()
     monday = local_date - timedelta(days=local_date.weekday())
     return datetime.combine(monday, time.min, tzinfo=tz)
 
@@ -60,7 +56,10 @@ async def update_learning_goal(
 @router.get("/learning-insights/weekly", response_model=WeeklyLearningInsightResponse)
 async def get_weekly_learning_insight(
     language: LanguageCode = Query(...),
-    week_start: str | None = Query(None),
+    week_start: date | None = Query(
+        None,
+        description="Optional local date. Any supplied date is normalized to the Monday of that week.",
+    ),
     user_id: str = Depends(require_demo_user_id),
 ):
     start = _monday_week_start(week_start)
