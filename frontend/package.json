@@ -19,7 +19,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run src/utils src/services --config vitest.config.ts",
-    "test:component": "vitest run src/views --config vitest.config.ts",
+    "test:component": "vitest run src/views src/components --config vitest.config.ts",
     "test:ci": "npm run test:unit && npm run test:component",
     "e2e:install": "playwright install chromium",
     "test:e2e": "playwright test",
