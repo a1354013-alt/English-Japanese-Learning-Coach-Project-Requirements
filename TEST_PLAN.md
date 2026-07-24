@@ -47,11 +47,16 @@ Learning Session hardening coverage is included in backend pytest and should exp
 - Both `/api/srs/review` and `/api/srs/items/review` are visible to Learning Session statistics.
 - Chat assistant completion, Chat provider failure, Feynman completion, Micro Lesson completion, no active Session, wrong-language active Session, and backend restart persistence stay covered by focused regressions.
 - Weekly Insights use Monday 00:00 inclusive through next Monday 00:00 exclusive in the configured timezone.
+- `week_start` accepts an optional date, normalizes valid dates to that week’s Monday, and returns structured `422` for invalid text or impossible calendar dates.
+- Weekly Session lifecycle metrics use finalized `ended_at`; Event activity metrics use Event `occurred_at`, including cross-week Session and Event boundary regressions.
+- Manual Session notes use `session-note:<operation-id>` idempotency keys that exclude note text, stay below the backend length limit for 1/49/500-character notes, reuse the pending operation after timeout, allow later intentional identical notes, reconcile canonical Events, avoid duplicate timeline rows, and reject finalized Sessions.
 - RAG-enabled smoke uses the local SQLite RAG store and must pass without Chroma.
+- SQLite RAG lifecycle coverage must prove successful reads/writes, rollback on failure, repeated query cycles, garbage collection, and `ResourceWarning` warning-as-error cleanliness without global warning suppression.
 
-Current `1.6.0-dev.1` blocker:
+Current `1.6.0-dev.1` blockers:
 
-- RC validation requires Node.js `22.18.0` and npm `10.9.3`. This local environment currently exposes Node `24.11.1` and npm `11.6.2`, so full frontend reinstall, E2E, Docker, and delivery verification must be rerun on the mandated toolchain before RC promotion.
+- RC validation requires Python `3.11.x`. This local shell exposes only the Windows Store Python shim on `python` and Miniconda Python `3.13.9`; the official Python `3.11.x` backend lane must be rerun before RC promotion.
+- RC validation requires Node.js `22.18.0` and npm `10.9.3`. Full frontend reinstall, audits, E2E, Docker, and delivery verification must be rerun on the mandated toolchain before RC promotion.
 
 ## Frontend
 

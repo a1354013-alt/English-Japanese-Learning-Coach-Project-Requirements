@@ -21,7 +21,7 @@ This repository is intentionally scoped as a local-first demo and portfolio proj
 - Vue 3 + TypeScript frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
 - Textbook-style AI lesson units with objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, text shadowing, Feynman prompts, and review plans
 - Imported vocabulary categories, tags, roots, affixes, word families, and memory tips for stronger word-book review
-- Optional RAG integration via ChromaDB, with chunked material storage plus safe disabled mode for CI and lightweight demos
+- Optional SQLite-backed RAG integration, with chunked material storage plus safe disabled mode for CI and lightweight demos
 - SRS and gamification flows that avoid duplicate XP on repeated submissions
 - TTS provider-ready placeholder with a stable unavailable response shape; this is not shipped as full voice synthesis
 - SQLite persistence with migration smoke tests and index coverage
@@ -45,14 +45,30 @@ flowchart LR
     API --> DEMO["Demo Reset Seeder"]
     LESSON --> OLLAMA["Ollama / Local LLM"]
     LESSON --> RAG["RAG Manager"]
-    RAG --> CHROMA["ChromaDB (Optional)"]
+    RAG --> RAGDB["SQLite RAG Store (Optional)"]
     REVIEW --> DB["SQLite"]
     IMPORTS --> DB
     DEMO --> DB
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
 
-Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, and analytics in SQLite. Core mode works without RAG dependencies. RAG mode requires `backend/requirements-rag.txt`, `ENABLE_RAG=true`, and separate verification; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, analytics, Learning Sessions, Learning Goals, Weekly Insights, and optional RAG material chunks in SQLite. Core mode works without RAG dependencies. RAG mode requires `ENABLE_RAG=true` and separate verification; when enabled it stores chunked material metadata in the local SQLite-backed RAG store. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+
+## v1.6.0 Development Candidate
+
+Version `1.6.0-dev.1` adds the release-candidate foundation for learner-facing Learning Sessions while preserving the verified v1.5 persisted-chat baseline:
+
+- Migration `0012_learning_sessions_and_events.sql` adds explicit Session lifecycle storage and append-only Events.
+- Migration `0013_review_and_srs_operation_ids.sql` adds canonical Review/SRS operation identities for retry-safe Session telemetry.
+- Migration `0014_learning_goals.sql` adds per-language Learning Goals.
+- The Progress page includes a compact Learning Session workflow with explicit start/resume, planned minutes, server-derived timer restore, notes, completion, abandonment, history, deterministic summary, goals, and Weekly Review metrics.
+- Lesson, Review, SRS, Chat, Feynman, and Micro Lesson flows record optional same-language Session Events without requiring a live AI provider.
+- Manual notes use bounded `session-note:<operation-id>` idempotency keys. Note text is never part of the key, timeout retries reuse the pending operation ID, and later intentional identical notes receive new operation IDs.
+- Weekly Insights accept an optional `week_start` date, normalize valid supplied dates to Monday, and return structured `422` validation for invalid date text or impossible calendar dates.
+- Weekly Session lifecycle metrics are attributed by finalized `ended_at`; Event activity metrics are attributed by `occurred_at`.
+- Optional RAG storage is SQLite-backed and uses managed connection boundaries that commit, roll back, and close deterministically.
+
+Do not treat `1.6.0-dev.1` as `1.6.0-rc1` until the mandatory Python `3.11.x`, Node.js `22.18.0` / npm `10.9.3`, full frontend, E2E, Docker, and delivery gates have all passed.
 
 ## Textbook-Style Lessons
 
@@ -162,7 +178,7 @@ Backend environment variables:
 
 - `DATA_DIR` runtime data directory
 - `DB_PATH` SQLite database path
-- `CHROMA_DB_PATH` Chroma persistence directory
+- `CHROMA_DB_PATH` SQLite RAG persistence directory retained for compatibility with existing environment files
 - `ENABLE_RAG` defaults to `false`; set `true` only after installing `backend/requirements-rag.txt`
 - `ALLOW_DEMO_RESET` defaults to `false`; set `true` only for local demo or seeded full-stack test runs
 - `MAX_UPLOAD_SIZE_MB` maximum upload size for import and RAG material endpoints, defaults to `10`
@@ -411,7 +427,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 - `GET /api/health` is intentionally lightweight and does not depend on Ollama or RAG. Use `GET /api/ready` when you need optional dependency status.
 - Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit with chunked reads and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
 - Excel import is intentionally `.xlsx` only. The backend uses `openpyxl`, and the frontend/file validation/docs now match that contract.
-- RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored vectors are CJK-aware chunked per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
+- RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored chunks are CJK-aware per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
 - Re-submitted lesson reviews do not duplicate XP or completed lesson count; progress keeps the best per-lesson score while SRS reflects the latest attempt.
 - Review submission requires a complete answer set for every grammar and reading question; incomplete, duplicate, or out-of-range answers now return a clear `422` error instead of silently counting missing answers as wrong.
 - When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.

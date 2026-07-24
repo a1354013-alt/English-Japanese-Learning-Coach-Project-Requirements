@@ -28,10 +28,14 @@ All notable changes to this project will be documented in this file.
 - Fixed Lesson start semantics by removing automatic `lesson_started` telemetry from Lesson generation.
 - Fixed legacy `/api/srs/review` visibility in Session statistics; both supported SRS review paths now record `srs_reviewed` telemetry when possible.
 - Fixed Review retry side effects so a canonical retry with the same `client_submission_id` does not reapply XP, completion rewards, wrong-answer writes, SRS updates, or Session Events.
+- Fixed manual Session-note idempotency by replacing note-text-derived keys with bounded `session-note:<operation-id>` keys, preserving retry identity while allowing later intentional identical notes and preventing duplicate canonical timeline rows.
+- Fixed Weekly Insight date validation so invalid `week_start` values are handled by typed FastAPI `date` validation with structured `422` responses; valid supplied dates normalize to that week’s Monday.
+- Fixed Weekly Insight attribution so finalized Session lifecycle metrics use `ended_at` while Event activity metrics use `occurred_at` across week boundaries.
+- Fixed SQLite-backed RAG connection lifecycle so production reads and writes use a managed connection boundary that commits, rolls back, and closes deterministically.
 
 ### Known blockers
 
-- RC promotion is blocked in this local environment because Node.js `22.18.0` and npm `10.9.3` are not available; detected Node/npm are `24.11.1`/`11.6.2`. Full frontend reinstall, E2E, Docker, and delivery verification still need to run on the mandated toolchain.
+- RC promotion is blocked in this local environment because the official Python `3.11.x` backend lane, mandated Node.js `22.18.0` / npm `10.9.3` frontend reinstall and audits, E2E, Docker, and delivery verification have not all passed. Keep `1.6.0-dev.1` until those gates are green.
 
 ## [1.5.0] - 2026-07-21
 

@@ -12,7 +12,7 @@ This document describes the current storage, API, and integration boundaries for
 
 ## Migrations
 
-- Migration `0012_learning_sessions.sql` adds the `learning_sessions` and `learning_session_events` tables.
+- Migration `0012_learning_sessions_and_events.sql` adds the `learning_sessions` and `learning_session_events` tables.
 - Session lifecycle is additive and local-first: `active -> completed` or `active -> abandoned`.
 - Event history is append-only and ordered by per-session `sequence_number`.
 - Idempotency remains local SQLite behavior; no distributed coordinator is introduced in Phase 1.
@@ -64,6 +64,7 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 - A brand-new event after finalization still raises `LearningSessionNotActiveError`.
 - Session completion remains idempotent by `completion_idempotency_key`.
 - Session abandonment is state-idempotent and does not accept an idempotency key in Phase 1.
+- Manual Session notes use a bounded operation identity. The frontend creates one random operation ID per intentional Add Note action and sends `session-note:<operation-id>` as the idempotency key; note text is never part of that key. A pending timeout retry reuses the same operation ID until the canonical event is accepted, and canonical event IDs are de-duplicated in the timeline.
 
 ## Primary Workflow Isolation
 
@@ -87,7 +88,10 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 
 - `GET/PUT /api/learning-goals?language=EN|JP` returns and updates the demo user's per-language goals.
 - `GET /api/learning-insights/weekly?language=EN|JP` computes deterministic weekly metrics from stored Sessions and Events.
+- `week_start` is typed as a date query parameter. Invalid text or invalid calendar dates return FastAPI's structured `422` validation response. Any valid supplied date is normalized to the Monday of that week.
 - Weeks start Monday 00:00 in `settings.timezone` and end at the next Monday 00:00.
+- Completed and abandoned Session lifecycle metrics are attributed to the week containing the Session's canonical `ended_at`. Active unfinished Sessions are not counted as completed or abandoned.
+- Event activity metrics are attributed to the week containing each Event's `occurred_at`. A Session may start in one week and finish in the next while its Events remain attributed to their actual occurrence dates.
 - Insights include completed/abandoned Sessions, duration, active days, goal progress, event counts, review correctness only when review-answer metadata exists, most-active-day tie-breaking by earliest date, and recent completed Sessions.
 - Insights do not call AI and do not infer CEFR movement, weakness analysis, mastery, recommendations, or curriculum changes.
 
@@ -96,6 +100,7 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 - RAG-enabled local storage is backed by SQLite under `CHROMA_DB_PATH`.
 - Chroma, Transformers, and sentence-transformers are no longer runtime dependencies for the local RAG lane.
 - RAG-disabled startup remains deterministic and does not import optional vector-store packages.
+- Production RAG operations use a managed SQLite connection boundary that commits on success, rolls back on failure, closes every connection in `finally`, and allows exceptions to propagate.
 
 ## Summary Boundary
 
@@ -111,11 +116,9 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 
 ## Non-goals
 
-- No Phase 3 frontend Session dashboard until Phase 2.1 gates are green
-- No Phase 4 Learning Goals or Weekly Insights until Phase 2.1 gates are green
-- No weekly reports or adaptive recommendations
+- No weekly reports, adaptive recommendations, or AI-generated recommendations
 - No authentication, PostgreSQL migration, or distributed idempotency layer
 
 ## Current Gate Status
 
-Backend and RAG gates are green locally. Keep `1.6.0-dev.1`; do not promote to `1.6.0-rc1` until the mandatory Node.js `22.18.0` / npm `10.9.3` frontend, E2E, Docker, and delivery gates are run and green.
+Focused backend/RAG and frontend component checks are green locally for this hardening pass. Keep `1.6.0-dev.1`; do not promote to `1.6.0-rc1` until the mandatory Python `3.11.x`, Node.js `22.18.0` / npm `10.9.3`, full frontend, E2E, Docker, and delivery gates are run and green.
