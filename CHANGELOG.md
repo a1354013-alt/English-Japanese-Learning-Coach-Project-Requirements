@@ -331,7 +331,7 @@ All notable changes to this project will be documented in this file.
 - Reusable Vue state components: `LoadingState.vue`, `ErrorState.vue`, and `EmptyState.vue`.
 - Release handoff docs in `RELEASE_CHECKLIST.md`.
 - `scripts/verify_delivery.py` and `scripts/make_release_zip.py` for release verification and packaging.
-- A dedicated `ENABLE_RAG=true` smoke test for real Chroma-backed CRUD coverage.
+- A dedicated `ENABLE_RAG=true` smoke test for real Chroma-backed CRUD coverage. Historical note: current v1.6 RAG storage is SQLite-backed.
 - A CI full-stack smoke job that checks backend startup, frontend startup, demo seed reset, and real review-to-progress flow.
 
 ### Changed
