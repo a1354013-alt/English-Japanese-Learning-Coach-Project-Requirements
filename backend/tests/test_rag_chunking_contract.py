@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gc
+import warnings
 from pathlib import Path
 
 from config import settings
@@ -29,7 +31,7 @@ def test_add_material_splits_long_text_and_stores_required_metadata(tmp_path, mo
         user_id="u1",
     )
 
-    with manager._connect() as conn:
+    with manager._connection() as conn:
         stored = conn.execute(
             "SELECT * FROM rag_chunks WHERE material_id = ? ORDER BY chunk_index",
             (material_id,),
@@ -101,14 +103,77 @@ def test_delete_material_removes_all_chunks_for_same_material(tmp_path, monkeypa
         user_id="u1",
     )
 
-    with manager._connect() as conn:
+    with manager._connection() as conn:
         count = conn.execute("SELECT COUNT(1) AS count FROM rag_chunks").fetchone()["count"]
     assert count > 1
     assert manager.delete_material(user_id="u1", doc_id=material_id) is True
-    with manager._connect() as conn:
+    with manager._connection() as conn:
         count = conn.execute("SELECT COUNT(1) AS count FROM rag_chunks").fetchone()["count"]
     assert count == 0
     assert manager.delete_material(user_id="u1", doc_id=material_id) is False
+
+
+def test_managed_connection_rolls_back_and_closes(tmp_path, monkeypatch):
+    manager = _make_manager(tmp_path, monkeypatch)
+
+    try:
+        with manager._connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO rag_chunks (
+                    id, user_id, material_id, title, source, language, source_type,
+                    chunk_index, total_chunks, uploaded_at, document
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "rolled-back",
+                    "u1",
+                    "doc",
+                    "title",
+                    "source",
+                    "EN",
+                    "text",
+                    0,
+                    1,
+                    "2026-05-10T10:00:00",
+                    "temporary",
+                ),
+            )
+            raise RuntimeError("force rollback")
+    except RuntimeError:
+        pass
+
+    with manager._connection() as conn:
+        assert conn.execute("SELECT COUNT(1) AS count FROM rag_chunks").fetchone()["count"] == 0
+
+    try:
+        conn.execute("SELECT 1")
+    except Exception as exc:
+        assert "closed" in str(exc).lower()
+    else:  # pragma: no cover
+        raise AssertionError("managed RAG connection was not closed")
+
+
+def test_repeated_rag_query_cycles_do_not_emit_unclosed_connection_warnings(tmp_path, monkeypatch):
+    manager = _make_manager(tmp_path, monkeypatch)
+    manager.add_material(
+        "alpha beta gamma " * 40,
+        metadata={
+            "title": "cycle.txt",
+            "source": "cycle.txt",
+            "language": "EN",
+            "source_type": "text",
+            "uploaded_at": "2026-05-10T10:00:00",
+        },
+        user_id="u1",
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ResourceWarning)
+        for _ in range(25):
+            assert manager.query_materials("alpha", user_id="u1", language="EN", n_results=1)
+            assert manager.list_materials(user_id="u1", language="EN")
+        gc.collect()
 
 
 def test_split_into_chunks_keeps_english_text_chunked():

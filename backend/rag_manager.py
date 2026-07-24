@@ -5,8 +5,9 @@ from __future__ import annotations
 import re
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from config import settings
 from time_utils import local_now
@@ -100,8 +101,17 @@ class _LocalRAGManager:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _initialize(self) -> None:
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS rag_chunks (
@@ -185,7 +195,7 @@ class _LocalRAGManager:
             }
             for idx, chunk in enumerate(chunks)
         ]
-        with self._connect() as conn:
+        with self._connection() as conn:
             conn.execute(
                 "DELETE FROM rag_chunks WHERE user_id = ? AND material_id = ?",
                 (user_id, material_id),
@@ -219,7 +229,7 @@ class _LocalRAGManager:
         query += " GROUP BY material_id, source, title, language, source_type, uploaded_at"
         query += " ORDER BY uploaded_at DESC, material_id ASC"
 
-        with self._connect() as conn:
+        with self._connection() as conn:
             rows = conn.execute(query, params).fetchall()
             materials: list[dict[str, Any]] = []
             for row in rows:
@@ -247,7 +257,7 @@ class _LocalRAGManager:
         return materials
 
     def delete_material(self, *, user_id: str, doc_id: str) -> bool:
-        with self._connect() as conn:
+        with self._connection() as conn:
             result = conn.execute(
                 "DELETE FROM rag_chunks WHERE user_id = ? AND material_id = ?",
                 (user_id, doc_id),
@@ -268,7 +278,7 @@ class _LocalRAGManager:
         if language:
             sql += " AND language = ?"
             params.append(language)
-        with self._connect() as conn:
+        with self._connection() as conn:
             rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
 
         def score(row: dict[str, Any]) -> tuple[int, str, int, str]:
