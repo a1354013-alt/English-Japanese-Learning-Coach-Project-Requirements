@@ -1903,6 +1903,18 @@ class Database:
     ) -> Dict[str, Any]:
         normalized_language = language.strip().upper()
         goal = self.get_learning_goal(user_id=user_id, language=normalized_language)
+        app_tz = ZoneInfo(settings.timezone)
+
+        def _parse_app_time(value: Any) -> datetime:
+            parsed = datetime.fromisoformat(str(value))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=app_tz)
+            return parsed.astimezone(app_tz)
+
+        def _inside_week(value: Any) -> bool:
+            timestamp = _parse_app_time(value)
+            return week_start <= timestamp < week_end
+
         with self.get_connection() as conn:
             sessions = [
                 dict(row)
@@ -1910,12 +1922,13 @@ class Database:
                     """
                     SELECT session_id, status, planned_minutes, started_at, ended_at, duration_seconds
                     FROM learning_sessions
-                    WHERE user_id = ? AND language = ? AND ended_at >= ? AND ended_at < ?
+                    WHERE user_id = ? AND language = ? AND ended_at IS NOT NULL
                       AND status IN ('completed', 'abandoned')
                     ORDER BY ended_at DESC, session_id DESC
                     """,
-                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
+                    (user_id, normalized_language),
                 ).fetchall()
+                if _inside_week(row["ended_at"])
             ]
             events = [
                 dict(row)
@@ -1924,30 +1937,33 @@ class Database:
                     SELECT e.event_type, e.metadata_json, e.occurred_at, e.session_id
                     FROM learning_session_events AS e
                     JOIN learning_sessions AS s ON s.session_id = e.session_id
-                    WHERE s.user_id = ? AND s.language = ? AND e.occurred_at >= ? AND e.occurred_at < ?
+                    WHERE s.user_id = ? AND s.language = ?
                     ORDER BY e.occurred_at ASC, e.sequence_number ASC
                     """,
-                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
+                    (user_id, normalized_language),
                 ).fetchall()
+                if _inside_week(row["occurred_at"])
             ]
-            event_counts = {
-                str(row["session_id"]): int(row["count"])
-                for row in conn.execute(
-                    """
-                    SELECT e.session_id, COUNT(1) AS count
-                    FROM learning_session_events AS e
-                    JOIN learning_sessions AS s ON s.session_id = e.session_id
-                    WHERE s.user_id = ? AND s.language = ? AND s.ended_at >= ? AND s.ended_at < ?
-                      AND s.status IN ('completed', 'abandoned')
-                    GROUP BY e.session_id
-                    """,
-                    (user_id, normalized_language, week_start.isoformat(), week_end.isoformat()),
-                ).fetchall()
-            }
+            finalized_session_ids = {str(session["session_id"]) for session in sessions}
+            event_counts: Dict[str, int] = {session_id: 0 for session_id in finalized_session_ids}
+            for row in conn.execute(
+                """
+                SELECT e.session_id
+                FROM learning_session_events AS e
+                JOIN learning_sessions AS s ON s.session_id = e.session_id
+                WHERE s.user_id = ? AND s.language = ?
+                  AND s.ended_at IS NOT NULL
+                  AND s.status IN ('completed', 'abandoned')
+                """,
+                (user_id, normalized_language),
+            ).fetchall():
+                session_id = str(row["session_id"])
+                if session_id in event_counts:
+                    event_counts[session_id] += 1
 
         completed_sessions = [session for session in sessions if session["status"] == "completed"]
         abandoned_sessions = [session for session in sessions if session["status"] == "abandoned"]
-        total_duration = sum(int(session.get("duration_seconds") or 0) for session in completed_sessions)
+        total_duration = sum(max(0, int(session.get("duration_seconds") or 0)) for session in completed_sessions)
         event_type_counts = {
             "lesson_started": 0,
             "lesson_completed": 0,
@@ -1959,18 +1975,21 @@ class Database:
             "session_note": 0,
         }
         correct_review_answers = 0
+        review_answers_with_known_correctness = 0
         active_days: set[str] = set()
         day_scores: Dict[str, int] = {}
         for event in events:
             event_type = str(event["event_type"])
             if event_type in event_type_counts:
                 event_type_counts[event_type] += 1
-            occurred = datetime.fromisoformat(str(event["occurred_at"]))
+            occurred = _parse_app_time(event["occurred_at"])
             day_key = occurred.date().isoformat()
             active_days.add(day_key)
             day_scores[day_key] = day_scores.get(day_key, 0) + 1
             if event_type == "review_answered":
                 metadata = _json_loads_dict(event.get("metadata_json"))
+                if isinstance(metadata.get("correct"), bool):
+                    review_answers_with_known_correctness += 1
                 if metadata.get("correct") is True:
                     correct_review_answers += 1
 
@@ -2000,7 +2019,11 @@ class Database:
             "lesson_completion_count": event_type_counts["lesson_completed"],
             "review_answer_count": review_count,
             "correct_review_answer_count": correct_review_answers,
-            "review_correctness_rate": (correct_review_answers / review_count * 100.0) if review_count else None,
+            "review_correctness_rate": (
+                (correct_review_answers / review_answers_with_known_correctness * 100.0)
+                if review_answers_with_known_correctness
+                else None
+            ),
             "srs_review_count": event_type_counts["srs_reviewed"],
             "chat_turn_count": event_type_counts["chat_turn_completed"],
             "feynman_completion_count": event_type_counts["feynman_completed"],

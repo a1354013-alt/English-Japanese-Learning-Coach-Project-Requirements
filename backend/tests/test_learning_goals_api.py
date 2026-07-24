@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import database as database_module
 from database import Database
 from fastapi.testclient import TestClient
@@ -214,3 +216,97 @@ def test_weekly_insight_attributes_sessions_by_end_and_events_by_occurrence(monk
     assert sunday_to_monday.session_id in recent_ids
     assert inside.session_id in recent_ids
     assert inside_to_next.session_id not in recent_ids
+
+
+def test_weekly_insight_does_not_invent_review_correctness_when_metadata_missing(monkeypatch, tmp_path):
+    test_db = _patch_db(monkeypatch, tmp_path)
+    client = TestClient(app)
+    session = test_db.learning_session_repository.start_session(
+        user_id="default_user",
+        language="EN",
+        planned_minutes=10,
+    )
+    with test_db.get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO learning_session_events (
+                event_id, session_id, event_type, entity_type, entity_id,
+                sequence_number, metadata_json, idempotency_key, occurred_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "event-review-missing-correctness",
+                session.session_id,
+                "review_answered",
+                "review",
+                "review-missing-correctness",
+                1,
+                json.dumps({"note": "legacy review metadata"}),
+                "review-missing-correctness",
+                "2026-07-24T08:01:00+08:00",
+                "2026-07-24T08:01:00+08:00",
+            ),
+        )
+    test_db.learning_session_repository.complete_session(
+        session_id=session.session_id,
+        user_id="default_user",
+        idempotency_key="complete-missing-correctness",
+    )
+
+    response = client.get("/api/learning-insights/weekly?language=EN&week_start=2026-07-20")
+
+    assert response.status_code == 200
+    insight = response.json()["insight"]
+    assert insight["review_answer_count"] == 1
+    assert insight["correct_review_answer_count"] == 0
+    assert insight["review_correctness_rate"] is None
+
+
+def test_weekly_insight_uses_application_timezone_for_boundaries(monkeypatch, tmp_path):
+    test_db = _patch_db(monkeypatch, tmp_path)
+    client = TestClient(app)
+    session = test_db.learning_session_repository.start_session(
+        user_id="default_user",
+        language="EN",
+        planned_minutes=10,
+    )
+    event = test_db.learning_session_repository.append_event(
+        session_id=session.session_id,
+        user_id="default_user",
+        event_type="lesson_completed",
+        entity_type="lesson",
+        entity_id="timezone-lesson",
+        idempotency_key="timezone-lesson",
+    )
+    test_db.learning_session_repository.complete_session(
+        session_id=session.session_id,
+        user_id="default_user",
+        idempotency_key="complete-timezone",
+    )
+    with test_db.get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE learning_sessions
+            SET started_at = ?, ended_at = ?, duration_seconds = ?
+            WHERE session_id = ?
+            """,
+            (
+                "2026-07-19T15:40:00+00:00",
+                "2026-07-19T16:10:00+00:00",
+                1800,
+                session.session_id,
+            ),
+        )
+        conn.execute(
+            "UPDATE learning_session_events SET occurred_at = ? WHERE event_id = ?",
+            ("2026-07-19T16:00:00+00:00", event.event_id),
+        )
+
+    response = client.get("/api/learning-insights/weekly?language=EN&week_start=2026-07-20")
+
+    assert response.status_code == 200
+    insight = response.json()["insight"]
+    assert insight["completed_session_count"] == 1
+    assert insight["lesson_completion_count"] == 1
+    assert insight["active_learning_days"] == 1
+    assert insight["most_active_day"] == "2026-07-20"
