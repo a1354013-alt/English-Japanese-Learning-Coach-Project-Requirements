@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Hardened the Learning Session Phase 1 contract with a shared semantic validation table, canonical post-finalization event retries, state-idempotent abandonment, snapshot-consistent summaries, and demo-reset cleanup through the repository clear path.
 - Extended backend regression coverage to include migration `0012`, repository idempotency rules, 50-round concurrency races, semantic-contract enforcement, demo-reset cleanup, and OpenAPI/API contract checks for the new learning-session boundary.
 - Updated delivery verification so development versions such as `1.6.0-dev.1` use explicit README development markers while stable release checklist and demo-guide references remain pinned to `v1.5.0`.
+- Learning Session frontend flows now use accessible in-app confirmation dialogs, cursor-driven Session/event pagination, and i18n-backed learner-facing copy instead of hardcoded English plus `window.confirm()`.
 
 ### Fixed
 
@@ -32,6 +33,9 @@ All notable changes to this project will be documented in this file.
 - Fixed Weekly Insight date validation so invalid `week_start` values are handled by typed FastAPI `date` validation with structured `422` responses; valid supplied dates normalize to that week’s Monday.
 - Fixed Weekly Insight attribution so finalized Session lifecycle metrics use `ended_at` while Event activity metrics use `occurred_at` across week boundaries.
 - Fixed SQLite-backed RAG connection lifecycle so production reads and writes use a managed connection boundary that commits, rolls back, and closes deterministically.
+- Fixed abandoned Session frontend state so the active reactive Session is cleared while deterministic summary, history, and timeline data remain readable.
+- Fixed Learning Goal optional `weekly_minutes` handling so cleared number inputs serialize to JSON `null` instead of leaking empty strings.
+- Fixed Learning Session readiness observability by exposing recorder degraded state and structured success/failure counters through `/api/ready` without logging note/chat payload text.
 
 ### Known blockers
 

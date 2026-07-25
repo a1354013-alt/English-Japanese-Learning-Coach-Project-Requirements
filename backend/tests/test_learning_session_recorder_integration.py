@@ -21,7 +21,7 @@ from routers import micro_lessons as micro_lessons_router
 from routers import review as review_router
 from routers import study as study_router
 from services.learning_intelligence import sync_lesson_items
-from services.learning_session_recorder import build_learning_session_recorder
+from services.learning_session_recorder import RECORDER_HEALTH, build_learning_session_recorder
 from test_learning_intelligence import _seed_textbook_lesson
 from test_micro_lessons import _submit_diagnostic
 from time_utils import local_now
@@ -390,6 +390,7 @@ def test_legacy_srs_review_records_session_event_and_retries_once(tmp_path, monk
 
 
 def test_recorder_tolerant_lookup_failure_preserves_review_result(tmp_path, monkeypatch):
+    RECORDER_HEALTH.reset()
     monkeypatch.setenv("LEARNING_SESSION_RECORDER_MODE", "tolerant")
     test_db = Database(str(tmp_path / "session-lookup-failure.db"))
     _patch_all(monkeypatch, test_db)
@@ -412,6 +413,7 @@ def test_recorder_tolerant_lookup_failure_preserves_review_result(tmp_path, monk
 
 
 def test_recorder_tolerant_append_failures_preserve_review_result(tmp_path, monkeypatch):
+    RECORDER_HEALTH.reset()
     for exc in (
         sqlite3.OperationalError("append failed"),
         LearningSessionIdempotencyConflictError("conflict"),
@@ -433,6 +435,7 @@ def test_recorder_tolerant_append_failures_preserve_review_result(tmp_path, monk
 
 
 def test_recorder_strict_mode_raises_invalid_semantic_mapping(tmp_path):
+    RECORDER_HEALTH.reset()
     test_db = Database(str(tmp_path / "session-strict.db"))
     test_db.learning_session_repository.start_session(user_id="default_user", language="EN")
     recorder = build_learning_session_recorder(test_db, mode="strict")
@@ -449,3 +452,55 @@ def test_recorder_strict_mode_raises_invalid_semantic_mapping(tmp_path):
             idempotency_key="bad-review",
             metadata=LearningSessionEventMetadata(note="missing correct"),
         )
+
+
+def test_recorder_tolerant_failure_updates_health_and_redacts_note_text(tmp_path, monkeypatch, caplog):
+    RECORDER_HEALTH.reset()
+    monkeypatch.setenv("LEARNING_SESSION_RECORDER_MODE", "tolerant")
+    test_db = Database(str(tmp_path / "session-append-health.db"))
+    _patch_all(monkeypatch, test_db)
+    lesson = _seed_textbook_lesson(test_db, tmp_path, user_id="default_user")
+    test_db.learning_session_repository.start_session(user_id="default_user", language="EN")
+
+    def fail_append(*_: object, **__: object):
+        raise sqlite3.OperationalError("append failed")
+
+    monkeypatch.setattr(test_db.learning_session_repository, "append_event", fail_append)
+
+    with caplog.at_level("ERROR"):
+        response = TestClient(app).post("/api/review", json=_review_answers(lesson))
+
+    assert response.status_code == 200
+    health = RECORDER_HEALTH.snapshot(mode="tolerant")
+    assert health["degraded"] is True
+    assert health["total_failures"] == 3
+    assert health["consecutive_failures"] == 3
+    assert health["last_failure_event_type"] == "lesson_completed"
+    assert health["last_failure_entity_type"] == "lesson"
+    assert health["last_failure_error"] == "OperationalError"
+    log_text = "\n".join(record.getMessage() for record in caplog.records)
+    assert "append failed" not in log_text
+    assert "one pattern" not in log_text
+
+
+def test_recorder_success_clears_degraded_health_state(tmp_path):
+    RECORDER_HEALTH.reset()
+    test_db = Database(str(tmp_path / "session-health-success.db"))
+    test_db.learning_session_repository.start_session(user_id="default_user", language="EN")
+    recorder = build_learning_session_recorder(test_db, mode="tolerant")
+
+    recorder.record_event(
+        user_id="default_user",
+        language="EN",
+        event_type="session_note",
+        entity_type=None,
+        entity_id=None,
+        idempotency_key="note-health",
+        metadata=LearningSessionEventMetadata(note="safe note"),
+    )
+
+    health = RECORDER_HEALTH.snapshot(mode="tolerant")
+    assert health["degraded"] is False
+    assert health["total_successes"] == 1
+    assert health["consecutive_failures"] == 0
+    assert health["last_success_at"] is not None

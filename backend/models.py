@@ -1525,6 +1525,20 @@ class RagHealth(BaseModel):
     error: Optional[str] = None
 
 
+class LearningSessionRecorderHealth(BaseModel):
+    mode: Literal["strict", "tolerant"]
+    degraded: bool
+    total_successes: int
+    total_failures: int
+    consecutive_failures: int
+    last_success_at: Optional[datetime] = None
+    last_failure_at: Optional[datetime] = None
+    last_failure_error: Optional[str] = None
+    last_failure_event_type: Optional[str] = None
+    last_failure_entity_type: Optional[str] = None
+    last_failure_entity_id: Optional[str] = None
+
+
 class HealthCheckResponse(BaseModel):
     api: str
     database: DatabaseHealth
@@ -1536,6 +1550,7 @@ class ReadyCheckResponse(BaseModel):
     database: DatabaseHealth
     ollama: OllamaHealth
     rag: RagHealth
+    learning_session_recorder: LearningSessionRecorderHealth
     timestamp: datetime
 
 

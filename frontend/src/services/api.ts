@@ -605,9 +605,14 @@ export const learningGoalApi = {
       weekly_minutes?: number | null
     },
   ) {
+    const normalizedPayload = {
+      daily_minutes: payload.daily_minutes,
+      weekly_sessions: payload.weekly_sessions,
+      weekly_minutes: payload.weekly_minutes ?? null,
+    }
     const response = await api.put<{ success: boolean; goal: LearningGoal }>(
       '/learning-goals',
-      payload,
+      normalizedPayload,
       { params: { language } },
     )
     return response.data

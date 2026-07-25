@@ -250,6 +250,115 @@
     "wordCardsDescription": "Your collected cards stay visible here so progress feels cumulative over time.",
     "noDefinition": "No definition available"
   },
+  "learningSession": {
+    "title": "Learning Session",
+    "plannedMinutesOption": "{minutes} min",
+    "actions": {
+      "start": "Start",
+      "resume": "Resume",
+      "addNote": "Add note",
+      "addingNote": "Adding...",
+      "complete": "Complete",
+      "abandon": "Abandon"
+    },
+    "labels": {
+      "language": "Language",
+      "plannedMinutes": "Planned minutes",
+      "elapsed": "Elapsed",
+      "events": "Events",
+      "status": "Status",
+      "note": "Session note"
+    },
+    "placeholders": {
+      "note": "Session note"
+    },
+    "statuses": {
+      "active": "Active",
+      "completed": "Completed",
+      "abandoned": "Abandoned"
+    },
+    "summary": {
+      "title": "Summary",
+      "details": "{status} - {events} events - {duration}"
+    },
+    "timeline": {
+      "title": "Timeline",
+      "empty": "No events yet.",
+      "errors": {
+        "retry": "Unable to load more events. Try again."
+      }
+    },
+    "history": {
+      "title": "History",
+      "empty": "No previous sessions yet.",
+      "item": "{language} - {status}",
+      "errors": {
+        "refresh": "Unable to refresh session history.",
+        "retry": "Unable to load more sessions. Try again.",
+        "summary": "Unable to load session summary."
+      }
+    },
+    "weeklyReview": {
+      "title": "Weekly Review",
+      "range": "{start} - {end}",
+      "completedSessions": "Completed",
+      "time": "Time",
+      "activeDays": "Active days",
+      "review": "Review",
+      "reviewRate": "{rate}%",
+      "notAvailable": "n/a"
+    },
+    "weeklyGoal": {
+      "dailyMinutes": "Daily minutes",
+      "weeklySessions": "Weekly sessions",
+      "weeklyMinutes": "Weekly minutes",
+      "save": "Save goals",
+      "saving": "Saving...",
+      "invalid": "Goal values are outside the supported range.",
+      "errors": {
+        "save": "Unable to save goals."
+      }
+    },
+    "pagination": {
+      "loadMoreSessions": "Load more sessions",
+      "loadMoreEvents": "Load more events",
+      "loadingMore": "Loading...",
+      "eventsLoaded": "Loaded {loaded} of {total} events"
+    },
+    "confirmation": {
+      "complete": {
+        "title": "Complete this session?",
+        "message": "This ends the active session and keeps its summary and timeline in history.",
+        "confirm": "Complete session"
+      },
+      "abandon": {
+        "title": "Abandon this session?",
+        "message": "This stops the active session now. Existing events stay in history and you can start a new session right away.",
+        "confirm": "Abandon session"
+      }
+    },
+    "errors": {
+      "load": "Unable to load session state.",
+      "start": "Unable to start session.",
+      "note": "Unable to add note.",
+      "complete": "Unable to complete session.",
+      "abandon": "Unable to abandon session.",
+      "invalidPlannedMinutes": "Planned minutes must be between 1 and 480."
+    },
+    "eventTypes": {
+      "lesson_started": "Lesson started",
+      "lesson_completed": "Lesson completed",
+      "review_answered": "Review answered",
+      "srs_reviewed": "SRS reviewed",
+      "chat_turn_completed": "Chat turn completed",
+      "feynman_completed": "Feynman completed",
+      "micro_lesson_completed": "Micro lesson completed",
+      "session_note": "Session note"
+    },
+    "accessibility": {
+      "quickMinutes": "Set planned minutes to {minutes}"
+    }
+  },
   "taskHistory": {
     "title": "Generation Tasks",
     "loading": "Loading task history...",

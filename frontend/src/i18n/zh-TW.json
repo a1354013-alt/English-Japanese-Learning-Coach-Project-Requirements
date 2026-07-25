@@ -250,6 +250,115 @@
     "wordCardsDescription": "已收集的單字卡會固定保留在這裡，讓成長感能持續累積。",
     "noDefinition": "尚無解釋"
   },
+  "learningSession": {
+    "title": "學習 Session",
+    "plannedMinutesOption": "{minutes} 分鐘",
+    "actions": {
+      "start": "開始",
+      "resume": "繼續",
+      "addNote": "新增筆記",
+      "addingNote": "新增中...",
+      "complete": "完成",
+      "abandon": "放棄"
+    },
+    "labels": {
+      "language": "語言",
+      "plannedMinutes": "預計分鐘數",
+      "elapsed": "已經過",
+      "events": "事件",
+      "status": "狀態",
+      "note": "Session 筆記"
+    },
+    "placeholders": {
+      "note": "Session 筆記"
+    },
+    "statuses": {
+      "active": "進行中",
+      "completed": "已完成",
+      "abandoned": "已放棄"
+    },
+    "summary": {
+      "title": "摘要",
+      "details": "{status} - {events} 個事件 - {duration}"
+    },
+    "timeline": {
+      "title": "時間軸",
+      "empty": "目前還沒有事件。",
+      "errors": {
+        "retry": "無法載入更多事件，請再試一次。"
+      }
+    },
+    "history": {
+      "title": "歷史紀錄",
+      "empty": "目前還沒有先前的 Session。",
+      "item": "{language} - {status}",
+      "errors": {
+        "refresh": "無法重新整理 Session 歷史紀錄。",
+        "retry": "無法載入更多 Session，請再試一次。",
+        "summary": "無法載入 Session 摘要。"
+      }
+    },
+    "weeklyReview": {
+      "title": "每週回顧",
+      "range": "{start} - {end}",
+      "completedSessions": "已完成",
+      "time": "時間",
+      "activeDays": "活躍天數",
+      "review": "答題正確率",
+      "reviewRate": "{rate}%",
+      "notAvailable": "無資料"
+    },
+    "weeklyGoal": {
+      "dailyMinutes": "每日分鐘數",
+      "weeklySessions": "每週 Session 數",
+      "weeklyMinutes": "每週分鐘數",
+      "save": "儲存目標",
+      "saving": "儲存中...",
+      "invalid": "目標數值超出支援範圍。",
+      "errors": {
+        "save": "無法儲存目標。"
+      }
+    },
+    "pagination": {
+      "loadMoreSessions": "載入更多 Session",
+      "loadMoreEvents": "載入更多事件",
+      "loadingMore": "載入中...",
+      "eventsLoaded": "已載入 {loaded} / {total} 個事件"
+    },
+    "confirmation": {
+      "complete": {
+        "title": "要完成這個 Session 嗎？",
+        "message": "這會結束目前的 Session，但摘要與時間軸會保留在歷史紀錄中。",
+        "confirm": "完成 Session"
+      },
+      "abandon": {
+        "title": "要放棄這個 Session 嗎？",
+        "message": "這會立即停止目前的 Session。既有事件會保留在歷史紀錄中，而且你可以立刻開始新的 Session。",
+        "confirm": "放棄 Session"
+      }
+    },
+    "errors": {
+      "load": "無法載入 Session 狀態。",
+      "start": "無法開始 Session。",
+      "note": "無法新增筆記。",
+      "complete": "無法完成 Session。",
+      "abandon": "無法放棄 Session。",
+      "invalidPlannedMinutes": "預計分鐘數必須介於 1 到 480 之間。"
+    },
+    "eventTypes": {
+      "lesson_started": "開始課程",
+      "lesson_completed": "完成課程",
+      "review_answered": "完成答題",
+      "srs_reviewed": "完成 SRS 複習",
+      "chat_turn_completed": "完成一輪對話",
+      "feynman_completed": "完成費曼解釋",
+      "micro_lesson_completed": "完成微課程",
+      "session_note": "Session 筆記"
+    },
+    "accessibility": {
+      "quickMinutes": "將預計分鐘數設為 {minutes}"
+    }
+  },
   "taskHistory": {
     "title": "生成任務",
     "loading": "載入任務紀錄中...",

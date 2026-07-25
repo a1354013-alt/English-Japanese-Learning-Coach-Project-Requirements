@@ -25,6 +25,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python -m pytest backend/tests/test_rag_disabled_startup.py -q` as the separate startup isolation lane.
 - Run `python -m pytest -q -m "not rag and not startup_isolation" --cov=backend --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage/backend/coverage.xml --cov-report=json:coverage/backend/coverage.json --cov-report=html:coverage/backend/html -W error::ResourceWarning`
 - Run `python -m pytest backend/tests/test_sqlite_lifecycle.py -q -W error::pytest.PytestUnraisableExceptionWarning` to keep all-thread SQLite shutdown regressions visible.
+- Explicitly verify Learning Session RC fixes: abandon state consistency, nullable `weekly_minutes`, Session history pagination, event timeline pagination, confirmation dialog cancellation/submit behavior, and recorder degraded readiness exposure.
 - Optional RAG verification uses the SQLite-backed RAG store. Run `python -m pip install -r backend/requirements-rag.lock.txt` and then `python -m pytest backend/tests -q -m rag` when validating the RAG lane.
 - Run `python scripts/sqlite_backup_restore.py backup --target data/backups/release-check.sqlite3 --dry-run`
 - Run `python scripts/sqlite_backup_restore.py restore --source data/backups/release-check.sqlite3 --target data/language_coach.db --dry-run` after creating a real local backup file.
@@ -50,6 +51,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `npm run test:component`
 - Run `npm run test:coverage`
 - Run `npm run build`
+- Explicitly verify Learning Session i18n completeness in both `en` and `zh-TW`, including summary copy, confirmation copy, empty states, pagination copy, and accessibility labels.
 
 ## 4. E2E verification
 
@@ -68,6 +70,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Run `python scripts/verify_delivery.py`
 - Optionally run `python scripts/verify_delivery.py --include-rag` after installing `backend/requirements-rag.lock.txt`; skipped optional checks must print a clear reason.
 - Run `python scripts/make_release_zip.py`
+- Confirm `RELEASE_NOTES_v1.6.0-rc1.md` exists and matches the shipped API, migration, and runtime behavior.
 - Inspect the zip contents and confirm it preserves only `.env.example`, `.env.sample`, and `.env.template` while excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, case-insensitive stage-style `env.*` / `env-*` variants such as `env.qa` or `env.production`, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, at any directory depth. Also confirm shared virtual-environment classification excludes `.venv`, `.venv311`, `.venv311_hotfix2`, `.venv-3.11`, `.venv_py311`, `venv`, `venv311`, and `venv-3.11` variants while preserving source files such as `frontend/src/env.d.ts`, and that `*.log`, any `*.sqlite`, `*.sqlite3`, `*.db`, `*.db-wal`, `*.db-shm`, runtime data directories, backup directories, root local validation directories such as `dist_phase1_check/`, `dist_test/`, and `dist-local/`, nested archive payloads such as `.zip`, `.tar`, `.tar.gz`, and `.tgz`, cache directories, SQLite-backed RAG runtime directories such as `data/chroma/` and `data/chroma_db/`, `data/audio/`, `data/backups/`, `data/exports/`, `data/lessons/`, `frontend/dist/`, `frontend/test-results/`, `frontend/playwright-report/`, `frontend/coverage/`, and `frontend/node_modules/` remain excluded.
 
 * Docker checks require local Docker availability. Run `docker compose config` when Docker is installed locally.
@@ -86,6 +89,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
+- Do not promote `1.6.0-dev.1` to `1.6.0-rc1` or `1.6.0` until the canonical Python `3.11.x`, Node `22.18.0`, and npm `10.9.3` toolchain has passed the full verifier, Docker, frontend reinstall/audit, and E2E gates.
 - Do not publish final `v1.5` release notes from this development branch until release scope is complete and approved.
 - Known limitations should include: TTS is integration-ready but disabled by default; immersion is text shadowing only; real recording and speech comparison are not part of this release; auth, authorization, user isolation, rate limiting, and audit logging are out of scope for the local demo; RAG remains optional and requires separate SQLite-backed verification.
 

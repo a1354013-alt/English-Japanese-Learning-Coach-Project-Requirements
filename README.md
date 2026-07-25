@@ -66,6 +66,10 @@ Version `1.6.0-dev.1` adds the release-candidate foundation for learner-facing L
 - Manual notes use bounded `session-note:<operation-id>` idempotency keys. Note text is never part of the key; timeout retries reuse the pending operation only when the Session ID and note text are unchanged, while edited notes, Session changes, and later intentional identical notes receive new operation IDs.
 - Weekly Insights accept an optional `week_start` date, normalize valid supplied dates to Monday, and return structured `422` validation for invalid date text or impossible calendar dates.
 - Weekly Session lifecycle metrics are attributed by finalized `ended_at`; Event activity metrics are attributed by `occurred_at`.
+- Session history and per-Session event timelines both use cursor pagination with `has_more` plus `next_cursor`; the Progress UI now appends additional pages without duplicating records and resets pagination state on language or Session changes.
+- Abandoning a Session now clears the active reactive Session state, keeps deterministic summary/timeline/history access, and allows a new Session to start immediately without waiting for a reload.
+- Learning Goal editing normalizes cleared optional `weekly_minutes` to explicit `null`; invalid empty strings, `NaN`, negatives, non-integers, and out-of-range values remain rejected by the typed API contract.
+- Learning Session telemetry keeps tolerant-mode primary-flow isolation while exposing recorder degraded state and counters through `GET /api/ready`.
 - Optional RAG storage is SQLite-backed and uses managed connection boundaries that commit, roll back, and close deterministically.
 
 Do not treat `1.6.0-dev.1` as `1.6.0-rc1` until the mandatory Python `3.11.x`, Node.js `22.18.0` / npm `10.9.3`, full frontend, E2E, Docker, and delivery gates have all passed.
@@ -365,6 +369,13 @@ curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
 This reseeds a deterministic v1.4.3 demo lesson, progress snapshot, item-level SRS data, weak-item groups, 7-day review activity, and supporting demo data for the default user.
+
+Demo data boundaries for the current branch:
+
+- `v1.4.3` fixture data covers the adaptive-learning baseline that demo reset rebuilds.
+- `v1.5.0` persisted-chat behavior is validated against the stable baseline but conversations themselves are not pre-seeded by demo reset.
+- `v1.6.0-dev.1` Learning Session runtime rows, Session event history, and learner-created goals are not pre-seeded; demo reset clears them before rebuilding the older adaptive baseline.
+- Migrations `0012` through `0014` remain additive: `0012` stores Sessions and Events, `0013` adds retry-safe Review/SRS operation identities, and `0014` stores per-language Learning Goals.
 
 ### Full-Stack Smoke E2E
 

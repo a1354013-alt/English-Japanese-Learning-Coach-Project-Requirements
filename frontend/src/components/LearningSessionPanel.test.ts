@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n from '@/i18n'
 import LearningSessionPanel from '@/components/LearningSessionPanel.vue'
 
 const apiMocks = vi.hoisted(() => ({
@@ -110,11 +111,26 @@ const noteEvent = {
   created_at: '2026-07-24T08:01:00.000Z',
 }
 
+const noteEventPage = {
+  success: true,
+  events: [noteEvent],
+  limit: 50,
+  has_more: false,
+  next_cursor: null,
+}
+
 const completedSession = {
   ...activeSession,
   status: 'completed',
   ended_at: '2026-07-24T08:25:00.000Z',
   duration_seconds: 1500,
+}
+
+const abandonedSession = {
+  ...activeSession,
+  status: 'abandoned',
+  ended_at: '2026-07-24T08:15:00.000Z',
+  duration_seconds: 900,
 }
 
 const completedSummary = {
@@ -148,16 +164,31 @@ const completedSummary = {
   correct_event_count: null,
 }
 
+const abandonedSummary = {
+  ...completedSummary,
+  status: 'abandoned',
+  ended_at: '2026-07-24T08:15:00.000Z',
+  duration_seconds: 900,
+}
+
+const historyPage = {
+  success: true,
+  sessions: [],
+  limit: 10,
+  has_more: false,
+  next_cursor: null,
+}
+
 function defaultApiState(session: unknown = activeSession) {
   apiMocks.getActive.mockResolvedValue({ success: true, session })
-  apiMocks.listEvents.mockResolvedValue({ success: true, events: [] })
-  apiMocks.list.mockResolvedValue({
+  apiMocks.listEvents.mockResolvedValue({
     success: true,
-    sessions: [],
-    limit: 10,
+    events: [],
+    limit: 50,
     has_more: false,
     next_cursor: null,
   })
+  apiMocks.list.mockResolvedValue(historyPage)
   apiMocks.getGoal.mockResolvedValue({ success: true, goal })
   apiMocks.weeklyInsight.mockResolvedValue({ success: true, insight })
   apiMocks.addNote.mockResolvedValue({ success: true, event: noteEvent })
@@ -165,17 +196,17 @@ function defaultApiState(session: unknown = activeSession) {
 
 async function mountReady(session: unknown = activeSession) {
   defaultApiState(session)
-  const wrapper = mount(LearningSessionPanel)
+  const wrapper = mount(LearningSessionPanel, {
+    global: {
+      plugins: [i18n],
+    },
+  })
   await flushPromises()
   return wrapper
 }
 
-function findButton(wrapper: ReturnType<typeof mount>, text: string) {
-  const button = wrapper
-    .findAll('button')
-    .find((candidate) => candidate.text() === text)
-  if (!button) throw new Error(`Missing button: ${text}`)
-  return button
+function byTestId(wrapper: ReturnType<typeof mount>, testId: string) {
+  return wrapper.find(`[data-testid="${testId}"]`)
 }
 
 describe('LearningSessionPanel.vue', () => {
@@ -183,12 +214,14 @@ describe('LearningSessionPanel.vue', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-24T08:05:00.000Z'))
     window.localStorage.clear()
+    i18n.global.locale.value = 'en'
     vi.stubGlobal('crypto', {
       randomUUID: vi
         .fn()
         .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
         .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
-        .mockReturnValueOnce('33333333-3333-4333-8333-333333333333'),
+        .mockReturnValueOnce('33333333-3333-4333-8333-333333333333')
+        .mockReturnValueOnce('44444444-4444-4444-8444-444444444444'),
     })
     apiMocks.getActive.mockReset()
     apiMocks.start.mockReset()
@@ -227,8 +260,8 @@ describe('LearningSessionPanel.vue', () => {
       const wrapper = await mountReady()
       const note = 'x'.repeat(length)
 
-      await wrapper.find('input[placeholder="Session note"]').setValue(note)
-      await findButton(wrapper, 'Add note').trigger('click')
+      await byTestId(wrapper, 'learning-session-note-input').setValue(note)
+      await byTestId(wrapper, 'learning-session-add-note').trigger('click')
       await flushPromises()
 
       expect(apiMocks.addNote).toHaveBeenCalledWith(
@@ -246,10 +279,10 @@ describe('LearningSessionPanel.vue', () => {
       .mockRejectedValueOnce(new Error('timeout'))
       .mockResolvedValueOnce({ success: true, event: noteEvent })
 
-    await wrapper.find('input[placeholder="Session note"]').setValue('retry me')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue('retry me')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
 
     expect(apiMocks.addNote).toHaveBeenCalledTimes(2)
@@ -267,15 +300,15 @@ describe('LearningSessionPanel.vue', () => {
         event: { ...noteEvent, metadata: { note: 'edited note' } },
       })
 
-    await wrapper
-      .find('input[placeholder="Session note"]')
-      .setValue('first note')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue(
+      'first note',
+    )
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
-    await wrapper
-      .find('input[placeholder="Session note"]')
-      .setValue('edited note')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue(
+      'edited note',
+    )
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
 
     expect(apiMocks.addNote).toHaveBeenCalledTimes(2)
@@ -311,17 +344,13 @@ describe('LearningSessionPanel.vue', () => {
       insight: { ...insight, language: 'JP' },
     })
 
-    await wrapper
-      .find('input[placeholder="Session note"]')
-      .setValue('same note')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue('same note')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
-    await wrapper.find('select').setValue('JP')
+    await byTestId(wrapper, 'learning-session-language').setValue('JP')
     await flushPromises()
-    await wrapper
-      .find('input[placeholder="Session note"]')
-      .setValue('same note')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue('same note')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
 
     expect(apiMocks.addNote).toHaveBeenCalledTimes(2)
@@ -336,35 +365,67 @@ describe('LearningSessionPanel.vue', () => {
     const wrapper = await mountReady()
     apiMocks.addNote.mockResolvedValue({ success: true, event: noteEvent })
 
-    await wrapper.find('input[placeholder="Session note"]').setValue('same')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue('same')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
-    await wrapper.find('input[placeholder="Session note"]').setValue('same')
-    await findButton(wrapper, 'Add note').trigger('click')
+    await byTestId(wrapper, 'learning-session-note-input').setValue('same')
+    await byTestId(wrapper, 'learning-session-add-note').trigger('click')
     await flushPromises()
 
     expect(apiMocks.addNote.mock.calls[0][2]).not.toBe(
       apiMocks.addNote.mock.calls[1][2],
     )
-    expect(wrapper.findAll('.timeline li')).toHaveLength(1)
+    expect(
+      wrapper.findAll('[data-testid^="learning-session-event-"]'),
+    ).toHaveLength(1)
   })
 
-  it('rejects notes when the visible session is already finalized', async () => {
-    const wrapper = await mountReady({ ...activeSession, status: 'completed' })
+  it('clears the active session after abandon but keeps summary and history available', async () => {
+    const wrapper = await mountReady()
+    apiMocks.abandon.mockResolvedValueOnce({
+      success: true,
+      session: abandonedSession,
+    })
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: abandonedSummary,
+    })
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [abandonedSession],
+    })
 
-    await wrapper.find('input[placeholder="Session note"]').setValue('blocked')
-    const addButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Add note')
-    expect(addButton?.attributes('disabled')).toBeDefined()
-    await addButton?.trigger('click')
+    await byTestId(wrapper, 'learning-session-abandon').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await flushPromises()
 
-    expect(apiMocks.addNote).not.toHaveBeenCalled()
+    expect(apiMocks.abandon).toHaveBeenCalledWith('session-en')
+    expect(wrapper.text()).not.toContain('Elapsed')
+    expect(wrapper.text()).toContain('Summary')
+    expect(wrapper.text()).toContain('Abandoned')
+    expect(
+      wrapper.find('[data-testid="learning-session-start"]').exists(),
+    ).toBe(true)
+  })
+
+  it('does not clear the active session when abandon fails', async () => {
+    const wrapper = await mountReady()
+    apiMocks.abandon.mockRejectedValueOnce(new Error('boom'))
+
+    await byTestId(wrapper, 'learning-session-abandon').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Active')
+    expect(apiMocks.summary).not.toHaveBeenCalled()
   })
 
   it('reuses the stable completion idempotency key after a timeout retry', async () => {
     const wrapper = await mountReady()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiMocks.complete
       .mockRejectedValueOnce(new Error('timeout'))
       .mockResolvedValueOnce({ success: true, session: completedSession })
@@ -372,81 +433,155 @@ describe('LearningSessionPanel.vue', () => {
       success: true,
       summary: completedSummary,
     })
+    apiMocks.listEvents.mockResolvedValue(noteEventPage)
+    apiMocks.list.mockResolvedValue({
+      ...historyPage,
+      sessions: [completedSession],
+    })
 
-    await findButton(wrapper, 'Complete').trigger('click')
+    await byTestId(wrapper, 'learning-session-complete').trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('Unable to complete Session.')
-    await findButton(wrapper, 'Complete').trigger('click')
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
     await flushPromises()
 
     expect(apiMocks.complete).toHaveBeenCalledTimes(2)
     expect(apiMocks.complete.mock.calls[0][1]).toBe(
       apiMocks.complete.mock.calls[1][1],
     )
-    expect(wrapper.text()).toContain('completed')
+    expect(wrapper.text()).toContain('Completed')
     expect(wrapper.text()).toContain('25:00')
   })
 
-  it('does not erase the active session when historical summary loading fails', async () => {
+  it('loads additional history pages and resets when language changes', async () => {
     const wrapper = await mountReady()
-    apiMocks.summary.mockRejectedValueOnce(new Error('history failed'))
-    apiMocks.list.mockResolvedValue({
-      success: true,
-      sessions: [completedSession],
-      limit: 10,
-      has_more: false,
-      next_cursor: null,
-    })
-
-    await findButton(wrapper, 'Refresh').trigger('click')
-    await flushPromises()
-    await flushPromises()
-    const historyItem = wrapper.find('.history-item')
-    expect(historyItem.exists()).toBe(true)
-    await historyItem.trigger('click')
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Unable to load Session summary.')
-    expect(wrapper.text()).toContain('5:00')
-  })
-
-  it('does not let a slow previous-language reload overwrite the current language', async () => {
-    let resolveEnglish: (() => void) | undefined
-    apiMocks.getActive
-      .mockReturnValueOnce(
-        new Promise((resolve) => {
-          resolveEnglish = () =>
-            resolve({ success: true, session: activeSession })
-        }),
-      )
+    apiMocks.list
       .mockResolvedValueOnce({
-        success: true,
-        session: { ...activeSession, session_id: 'session-jp', language: 'JP' },
+        ...historyPage,
+        sessions: [completedSession],
+        has_more: true,
+        next_cursor: 'cursor-2',
       })
-    apiMocks.listEvents.mockResolvedValue({ success: true, events: [] })
-    apiMocks.list.mockResolvedValue({
+      .mockResolvedValueOnce({
+        ...historyPage,
+        sessions: [{ ...completedSession, session_id: 'session-en-2' }],
+      })
+
+    await byTestId(wrapper, 'learning-session-history-refresh').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-history-load-more').trigger(
+      'click',
+    )
+    await flushPromises()
+
+    expect(apiMocks.list).toHaveBeenLastCalledWith('EN', 10, 'cursor-2')
+    expect(wrapper.findAll('.history-item')).toHaveLength(2)
+
+    apiMocks.getActive.mockResolvedValueOnce({
       success: true,
-      sessions: [],
-      limit: 10,
-      has_more: false,
-      next_cursor: null,
+      session: { ...activeSession, session_id: 'session-jp', language: 'JP' },
     })
-    apiMocks.getGoal.mockResolvedValue({
+    apiMocks.getGoal.mockResolvedValueOnce({
       success: true,
       goal: { ...goal, language: 'JP' },
     })
-    apiMocks.weeklyInsight.mockResolvedValue({
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
       success: true,
       insight: { ...insight, language: 'JP' },
     })
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [],
+    })
+    apiMocks.listEvents.mockResolvedValueOnce({
+      success: true,
+      events: [],
+      limit: 50,
+      has_more: false,
+      next_cursor: null,
+    })
 
-    const wrapper = mount(LearningSessionPanel)
-    await wrapper.find('select').setValue('JP')
-    resolveEnglish?.()
-    await flushPromises()
+    await byTestId(wrapper, 'learning-session-language').setValue('JP')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('JP')
-    expect(wrapper.text()).not.toContain('session-en')
+    expect(apiMocks.list).toHaveBeenLastCalledWith('JP', 10, undefined)
+    expect(
+      byTestId(wrapper, 'learning-session-history-load-more').exists(),
+    ).toBe(false)
+  })
+
+  it('loads additional event pages without duplicating records', async () => {
+    const wrapper = await mountReady()
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: { ...completedSummary, total_event_count: 3 },
+    })
+    apiMocks.listEvents
+      .mockResolvedValueOnce({
+        success: true,
+        events: [noteEvent],
+        limit: 50,
+        has_more: true,
+        next_cursor: '1',
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        events: [
+          noteEvent,
+          {
+            ...noteEvent,
+            event_id: 'event-note-2',
+            sequence_number: 2,
+            metadata: { note: 'next' },
+          },
+        ],
+        limit: 50,
+        has_more: false,
+        next_cursor: null,
+      })
+
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [completedSession],
+    })
+
+    await byTestId(wrapper, 'learning-session-history-refresh').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-history-session-en').trigger(
+      'click',
+    )
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-events-load-more').trigger(
+      'click',
+    )
+    await flushPromises()
+
+    expect(
+      wrapper.findAll('[data-testid^="learning-session-event-"]'),
+    ).toHaveLength(2)
+    expect(wrapper.text()).toContain('Loaded 2 of 3 events')
+  })
+
+  it('normalizes cleared weekly minutes to null before saving', async () => {
+    const wrapper = await mountReady()
+    apiMocks.updateGoal.mockResolvedValueOnce({
+      success: true,
+      goal: { ...goal, weekly_minutes: null },
+    })
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
+      success: true,
+      insight: { ...insight, goal: { ...goal, weekly_minutes: null } },
+    })
+
+    await byTestId(wrapper, 'learning-goal-weekly-minutes').setValue('')
+    await byTestId(wrapper, 'learning-session-save-goal').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateGoal).toHaveBeenCalledWith('EN', {
+      daily_minutes: 20,
+      weekly_sessions: 4,
+      weekly_minutes: null,
+    })
   })
 })

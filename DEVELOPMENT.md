@@ -37,6 +37,14 @@ Migration `0013_review_and_srs_operation_ids.sql` adds:
 
 Migration `0014_learning_goals.sql` adds per-user/per-language Learning Goals with bounded daily minutes, weekly Sessions, and optional weekly minutes. Demo defaults are EN 20 daily minutes / 4 weekly Sessions / 120 weekly minutes and JP 15 / 3 / 90.
 
+Current Phase 2.1 frontend/API expectations:
+
+- Completing or abandoning a Session must clear the active frontend Session state instead of only hiding it visually.
+- Finalized Sessions must remain readable through deterministic summary plus cursor-paginated event history.
+- Session history pagination and per-Session event pagination must both reset cleanly when the selected language or Session changes.
+- Learning Goal drafts may temporarily hold `number | null | ""`, but outbound API payloads must normalize optional `weekly_minutes` to explicit `null`.
+- Complete and abandon flows should use the same accessible confirmation-dialog pattern; `window.confirm()` is no longer sufficient for RC-quality UI behavior.
+
 Current backend boundary:
 
 - `backend/routers/learning_sessions.py` owns the typed REST contract and error mapping.
@@ -75,6 +83,7 @@ Recorder failure policy:
 - Set `LEARNING_SESSION_RECORDER_MODE=tolerant` for production-style optional telemetry. Lookup, append, idempotency, semantic, and SQLite failures are logged with structured context and return `None`.
 - Set `LEARNING_SESSION_RECORDER_MODE=strict`, or call `build_learning_session_recorder(..., mode="strict")`, for focused integration tests that must fail on malformed mappings, ownership bugs, source-ID mistakes, and programmer errors.
 - If the environment variable is unset, pytest defaults to strict mode and normal runtime defaults to tolerant mode.
+- Readiness now exposes `learning_session_recorder` diagnostics with mode, degraded state, success/failure counters, and the latest failure classification without logging sensitive note or chat payload content.
 
 Lifecycle and idempotency rules:
 
@@ -83,6 +92,7 @@ Lifecycle and idempotency rules:
 - New events after finalization are still rejected.
 - Abandonment is state-idempotent and no longer accepts an idempotency key in the request contract.
 - Demo reset now clears all Learning Session rows for the local demo user through the repository clear operation before rebuilding the seeded `v1.5.0` demo dataset.
+- Demo reset does not pre-seed fake Learning Session rows, event timelines, or learner-authored goals for `v1.6.0-dev.1`; those remain runtime-only data after startup.
 
 Version verification note:
 

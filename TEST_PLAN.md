@@ -50,13 +50,20 @@ Learning Session hardening coverage is included in backend pytest and should exp
 - `week_start` accepts an optional date, normalizes valid dates to that week’s Monday, and returns structured `422` for invalid text or impossible calendar dates.
 - Weekly Session lifecycle metrics use finalized `ended_at`; Event activity metrics use Event `occurred_at`, including cross-week Session and Event boundary regressions.
 - Manual Session notes use `session-note:<operation-id>` idempotency keys that exclude note text, stay below the backend length limit for 1/49/500-character notes, reuse the pending operation after timeout, allow later intentional identical notes, reconcile canonical Events, avoid duplicate timeline rows, and reject finalized Sessions.
+- Abandoning a Session clears the active frontend Session state, preserves deterministic summary/timeline/history access, and immediately allows a new Session to start.
+- Learning Goal editing must normalize cleared optional `weekly_minutes` to JSON `null` instead of `""`, `NaN`, or `undefined`.
+- Session history UI pagination must append by `next_cursor`, avoid duplicates, reset on language change, and keep prior rows visible when a later page fails.
+- Session event timeline UI pagination must append by `next_cursor`, avoid duplicates, reset on Session change, and keep summary event totals semantically aligned with the visible timeline.
+- Learning Session user-visible copy must come from i18n keys in both English and Traditional Chinese rather than hardcoded template/script strings.
+- Complete and abandon confirmation flows must use the same accessible dialog path, block duplicate submits, and avoid dispatching requests when cancelled.
+- Readiness must expose Learning Session recorder degraded status and structured counters; tolerant-mode recorder failures must increment diagnostics without logging sensitive payload text.
 - RAG-enabled smoke uses the local SQLite RAG store and must pass without Chroma.
 - SQLite RAG lifecycle coverage must prove successful reads/writes, rollback on failure, repeated query cycles, garbage collection, and `ResourceWarning` warning-as-error cleanliness without global warning suppression.
 
 Current `1.6.0-dev.1` blockers:
 
-- RC validation requires Python `3.11.x`. This local shell exposes only the Windows Store Python shim on `python` and Miniconda Python `3.13.9`; the official Python `3.11.x` backend lane must be rerun before RC promotion.
-- RC validation requires Node.js `22.18.0` and npm `10.9.3`. Full frontend reinstall, audits, E2E, Docker, and delivery verification must be rerun on the mandated toolchain before RC promotion.
+- As of July 25, 2026, this local shell reports Python `3.11.0`, so the backend lane can be exercised locally.
+- RC validation still requires Node.js `22.18.0` and npm `10.9.3`, but this shell currently reports Node `24.15.0` and npm `11.12.1`. Full frontend reinstall, audits, E2E, Docker, and delivery verification must be rerun on the mandated toolchain before RC promotion.
 
 ## Frontend
 
