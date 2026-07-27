@@ -24,6 +24,14 @@
       <button type="button" :disabled="loading" @click="startOrResume">
         {{ activeSession ? 'Resume' : 'Start' }}
       </button>
+      <button
+        type="button"
+        class="secondary"
+        :disabled="loading"
+        @click="reload"
+      >
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </div>
 
     <div v-if="error" class="error-text">{{ error }}</div>
@@ -40,6 +48,10 @@
       <article class="stat-card">
         <p class="stat-label">Events</p>
         <p class="stat-value">{{ events.length }}</p>
+      </article>
+      <article class="stat-card">
+        <p class="stat-label">Status</p>
+        <p class="stat-value">{{ activeSession.status }}</p>
       </article>
     </div>
 
@@ -78,6 +90,15 @@
 
     <div class="timeline">
       <h3>Timeline</h3>
+      <button
+        v-if="eventPage.hasMore"
+        type="button"
+        class="secondary"
+        :disabled="eventPage.loadingMore"
+        @click="loadMoreEvents"
+      >
+        {{ eventPage.loadingMore ? 'Loading...' : 'Load more' }}
+      </button>
       <p v-if="!events.length" class="section-description">No events yet.</p>
       <ol v-else>
         <li v-for="event in events" :key="event.event_id">
@@ -86,6 +107,7 @@
           <em v-if="event.metadata?.note">{{ event.metadata.note }}</em>
         </li>
       </ol>
+      <p v-if="eventPage.error" class="error-text">{{ eventPage.error }}</p>
     </div>
 
     <div class="history">
@@ -124,8 +146,13 @@
             {{ new Date(weeklyInsight.week_end).toLocaleDateString() }}
           </p>
         </div>
-        <button type="button" class="secondary" @click="saveGoal">
-          Save goals
+        <button
+          type="button"
+          class="secondary"
+          :disabled="actionLoading.goal"
+          @click="saveGoal"
+        >
+          {{ actionLoading.goal ? 'Saving...' : 'Save goals' }}
         </button>
       </div>
 
@@ -207,6 +234,14 @@ type PendingNoteOperation = {
   operationId: string
 }
 
+type EventPageState = {
+  cursor: string | null
+  hasMore: boolean
+  loading: boolean
+  loadingMore: boolean
+  error: string | null
+}
+
 const language = ref<Language>('EN')
 const plannedMinutes = ref(20)
 const activeSession = ref<LearningSessionRecord | null>(null)
@@ -217,6 +252,13 @@ const goal = ref<LearningGoal | null>(null)
 const weeklyInsight = ref<WeeklyLearningInsight | null>(null)
 const noteText = ref('')
 const pendingNoteOperation = ref<PendingNoteOperation | null>(null)
+const eventPage = ref<EventPageState>({
+  cursor: null,
+  hasMore: false,
+  loading: false,
+  loadingMore: false,
+  error: null,
+})
 const nowMs = ref(Date.now())
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -231,6 +273,7 @@ const actionLoading = ref({
 let timer: number | undefined
 let reloadSequence = 0
 let historySelectionSequence = 0
+let eventLoadSequence = 0
 
 const elapsedSeconds = computed(() => {
   if (!activeSession.value) return 0
@@ -263,6 +306,16 @@ const setError = (fallback: string, err: unknown) => {
     }
   }
   error.value = fallback
+}
+
+const resetEventPage = () => {
+  eventPage.value = {
+    cursor: null,
+    hasMore: false,
+    loading: false,
+    loadingMore: false,
+    error: null,
+  }
 }
 
 const goalIsValid = (value: LearningGoal) => {
@@ -317,10 +370,23 @@ const noteOperationFor = (sessionId: string, note: string) => {
 }
 
 const mergeCanonicalEvent = (event: LearningSessionEventRecord) => {
-  const byEventId = events.value.filter(
-    (existing) => existing.event_id !== event.event_id,
-  )
-  events.value = [...byEventId, event].sort(
+  const eventKey = event.event_id
+  const idempotencyKey =
+    typeof event.metadata?.idempotency_key === 'string'
+      ? event.metadata.idempotency_key
+      : null
+  const withoutDuplicate = events.value.filter((existing) => {
+    if (existing.event_id === eventKey) return false
+    if (
+      idempotencyKey &&
+      typeof existing.metadata?.idempotency_key === 'string' &&
+      existing.metadata.idempotency_key === idempotencyKey
+    ) {
+      return false
+    }
+    return true
+  })
+  events.value = [...withoutDuplicate, event].sort(
     (a, b) => a.sequence_number - b.sequence_number,
   )
 }
@@ -331,9 +397,40 @@ const formatDuration = (seconds: number) => {
   return `${minutes}:${rest.toString().padStart(2, '0')}`
 }
 
-const loadEvents = async (sessionId = activeSession.value?.session_id) => {
-  if (!sessionId) return []
-  return (await learningSessionApi.listEvents(sessionId)).events
+const loadEvents = async (
+  sessionId = activeSession.value?.session_id,
+  cursor: string | null = null,
+) => {
+  if (!sessionId) {
+    resetEventPage()
+    return []
+  }
+  const response = await learningSessionApi.listEvents(sessionId, 50, cursor)
+  eventPage.value.cursor = response.next_cursor ?? null
+  eventPage.value.hasMore = response.has_more
+  return response.events
+}
+
+const loadMoreEvents = async () => {
+  const sessionId = activeSession.value?.session_id
+  const cursor = eventPage.value.cursor
+  if (!sessionId || !cursor || eventPage.value.loadingMore) return
+  const requestId = ++eventLoadSequence
+  eventPage.value.loadingMore = true
+  eventPage.value.error = null
+  try {
+    const moreEvents = await loadEvents(sessionId, cursor)
+    if (requestId !== eventLoadSequence) return
+    moreEvents.forEach(mergeCanonicalEvent)
+  } catch (err) {
+    if (requestId !== eventLoadSequence) return
+    eventPage.value.error = 'Unable to load more Events.'
+    setError('Unable to load more Events.', err)
+  } finally {
+    if (requestId === eventLoadSequence) {
+      eventPage.value.loadingMore = false
+    }
+  }
 }
 
 const loadHistory = async (selectedLanguage = language.value) => {
@@ -412,10 +509,12 @@ const startOrResume = async () => {
   error.value = null
   const selectedLanguage = language.value
   try {
-    activeSession.value = (
-      await learningSessionApi.start(selectedLanguage, plannedMinutes.value)
-    ).session
+    const started = await learningSessionApi.start(
+      selectedLanguage,
+      plannedMinutes.value,
+    )
     if (selectedLanguage !== language.value) return
+    activeSession.value = started.session
     const [loadedEvents, loadedHistory] = await Promise.all([
       loadEvents(),
       loadHistory(selectedLanguage),
