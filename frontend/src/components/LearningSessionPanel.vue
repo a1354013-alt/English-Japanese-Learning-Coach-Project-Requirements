@@ -48,6 +48,14 @@
             : tr('learningSession.actions.start')
         }}
       </button>
+      <button
+        type="button"
+        class="secondary"
+        :disabled="loading"
+        @click="reload"
+      >
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </button>
     </div>
 
     <div v-if="error" class="error-text" data-testid="learning-session-error">
@@ -630,10 +638,22 @@ const mergeUniqueSessions = (
 }
 
 const mergeCanonicalEvent = (event: LearningSessionEventRecord) => {
-  const byEventId = events.value.filter(
-    (existing) => existing.event_id !== event.event_id,
-  )
-  events.value = [...byEventId, event].sort(
+  const idempotencyKey =
+    typeof event.metadata?.idempotency_key === 'string'
+      ? event.metadata.idempotency_key
+      : null
+  const withoutDuplicate = events.value.filter((existing) => {
+    if (existing.event_id === event.event_id) return false
+    if (
+      idempotencyKey &&
+      typeof existing.metadata?.idempotency_key === 'string' &&
+      existing.metadata.idempotency_key === idempotencyKey
+    ) {
+      return false
+    }
+    return true
+  })
+  events.value = [...withoutDuplicate, event].sort(
     (a, b) => a.sequence_number - b.sequence_number,
   )
 }
@@ -794,8 +814,9 @@ const reload = async () => {
   resetEventState()
   try {
     const active = await learningSessionApi.getActive(selectedLanguage)
-    if (requestId !== reloadSequence || selectedLanguage !== language.value)
+    if (requestId !== reloadSequence || selectedLanguage !== language.value) {
       return
+    }
     const activeId =
       active.session?.status === 'active' ? active.session.session_id : null
     const [historyPage, goalAndInsight, eventsPage] = await Promise.all([
@@ -803,8 +824,9 @@ const reload = async () => {
       loadGoalAndInsight(selectedLanguage),
       activeId ? loadEventsPage(activeId) : Promise.resolve(null),
     ])
-    if (requestId !== reloadSequence || selectedLanguage !== language.value)
+    if (requestId !== reloadSequence || selectedLanguage !== language.value) {
       return
+    }
     activeSession.value =
       active.session?.status === 'active' ? active.session : null
     selectedSessionId.value = activeId
@@ -1040,7 +1062,7 @@ const updateGoalField = (field: keyof GoalDraft, event: Event) => {
   if (nextValue === '') {
     goalDraft.value = {
       ...goalDraft.value,
-      [field]: field === 'weekly_minutes' ? '' : '',
+      [field]: '',
     }
     return
   }
@@ -1074,14 +1096,7 @@ const normalizeGoalPayload = (draft: GoalDraft) => {
     return null
   }
 
-  if (draft.weekly_minutes === '') {
-    return {
-      daily_minutes: dailyMinutes,
-      weekly_sessions: weeklySessions,
-      weekly_minutes: null,
-    }
-  }
-  if (draft.weekly_minutes === null) {
+  if (draft.weekly_minutes === '' || draft.weekly_minutes === null) {
     return {
       daily_minutes: dailyMinutes,
       weekly_sessions: weeklySessions,

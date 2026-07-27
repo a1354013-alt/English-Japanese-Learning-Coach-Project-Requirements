@@ -209,6 +209,14 @@ function byTestId(wrapper: ReturnType<typeof mount>, testId: string) {
   return wrapper.find(`[data-testid="${testId}"]`)
 }
 
+function findButton(wrapper: ReturnType<typeof mount>, text: string) {
+  const button = wrapper
+    .findAll('button')
+    .find((candidate) => candidate.text() === text)
+  if (!button) throw new Error(`Missing button: ${text}`)
+  return button
+}
+
 describe('LearningSessionPanel.vue', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -252,6 +260,69 @@ describe('LearningSessionPanel.vue', () => {
     vi.advanceTimersByTime(2000)
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('5:02')
+  })
+
+  it('starts an English session with a planned preset and blocks duplicate creation while loading', async () => {
+    defaultApiState(null)
+    const resolveStart = vi.fn()
+    apiMocks.start.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStart.mockImplementation(resolve)
+      }),
+    )
+    const wrapper = mount(LearningSessionPanel, {
+      global: {
+        plugins: [i18n],
+      },
+    })
+    await flushPromises()
+
+    await findButton(wrapper, '10 min').trigger('click')
+    await findButton(wrapper, 'Start').trigger('click')
+    await findButton(wrapper, 'Start').trigger('click')
+
+    expect(apiMocks.start).toHaveBeenCalledTimes(1)
+    expect(apiMocks.start).toHaveBeenCalledWith('EN', 10)
+
+    resolveStart({ success: true, session: activeSession })
+    await flushPromises()
+    expect(wrapper.text()).toContain('EN')
+  })
+
+  it('starts a Japanese session after switching languages', async () => {
+    defaultApiState(null)
+    apiMocks.getActive.mockResolvedValueOnce({ success: true, session: null })
+    apiMocks.getActive.mockResolvedValueOnce({ success: true, session: null })
+    apiMocks.start.mockResolvedValueOnce({
+      success: true,
+      session: { ...activeSession, session_id: 'session-jp', language: 'JP' },
+    })
+    const wrapper = mount(LearningSessionPanel, {
+      global: {
+        plugins: [i18n],
+      },
+    })
+    await flushPromises()
+
+    await wrapper.find('select').setValue('JP')
+    await flushPromises()
+    await findButton(wrapper, 'Start').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.start).toHaveBeenCalledWith('JP', 20)
+    expect(wrapper.text()).toContain('JP')
+  })
+
+  it('shows a validation error for invalid custom duration', async () => {
+    const wrapper = await mountReady(null)
+
+    await wrapper.find('input[type="number"]').setValue(0)
+    await findButton(wrapper, 'Start').trigger('click')
+
+    expect(apiMocks.start).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      'Planned minutes must be between 1 and 480.',
+    )
   })
 
   it.each([1, 49, 500])(
@@ -363,7 +434,16 @@ describe('LearningSessionPanel.vue', () => {
 
   it('creates separate operation ids for intentional identical notes and de-duplicates canonical events', async () => {
     const wrapper = await mountReady()
-    apiMocks.addNote.mockResolvedValue({ success: true, event: noteEvent })
+    apiMocks.addNote.mockResolvedValue({
+      success: true,
+      event: {
+        ...noteEvent,
+        metadata: {
+          ...noteEvent.metadata,
+          idempotency_key: 'session-note:duplicate-key',
+        },
+      },
+    })
 
     await byTestId(wrapper, 'learning-session-note-input').setValue('same')
     await byTestId(wrapper, 'learning-session-add-note').trigger('click')
@@ -378,6 +458,14 @@ describe('LearningSessionPanel.vue', () => {
     expect(
       wrapper.findAll('[data-testid^="learning-session-event-"]'),
     ).toHaveLength(1)
+  })
+
+  it('rejects notes when the visible session is already finalized', async () => {
+    const wrapper = await mountReady({ ...activeSession, status: 'completed' })
+
+    expect(byTestId(wrapper, 'learning-session-note-input').exists()).toBe(false)
+    expect(byTestId(wrapper, 'learning-session-add-note').exists()).toBe(false)
+    expect(apiMocks.addNote).not.toHaveBeenCalled()
   })
 
   it('clears the active session after abandon but keeps summary and history available', async () => {
@@ -563,6 +651,55 @@ describe('LearningSessionPanel.vue', () => {
     expect(wrapper.text()).toContain('Loaded 2 of 3 events')
   })
 
+  it('does not let a slow previous-language reload overwrite the current language', async () => {
+    let resolveEnglish: (() => void) | undefined
+    apiMocks.getActive
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveEnglish = () =>
+            resolve({ success: true, session: activeSession })
+        }),
+      )
+      .mockResolvedValueOnce({
+        success: true,
+        session: { ...activeSession, session_id: 'session-jp', language: 'JP' },
+      })
+    apiMocks.listEvents.mockResolvedValue({
+      success: true,
+      events: [],
+      limit: 50,
+      has_more: false,
+      next_cursor: null,
+    })
+    apiMocks.list.mockResolvedValue({
+      success: true,
+      sessions: [],
+      limit: 10,
+      has_more: false,
+      next_cursor: null,
+    })
+    apiMocks.getGoal.mockResolvedValue({
+      success: true,
+      goal: { ...goal, language: 'JP' },
+    })
+    apiMocks.weeklyInsight.mockResolvedValue({
+      success: true,
+      insight: { ...insight, language: 'JP' },
+    })
+
+    const wrapper = mount(LearningSessionPanel, {
+      global: {
+        plugins: [i18n],
+      },
+    })
+    await byTestId(wrapper, 'learning-session-language').setValue('JP')
+    resolveEnglish?.()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('JP')
+  })
+
   it('normalizes cleared weekly minutes to null before saving', async () => {
     const wrapper = await mountReady()
     apiMocks.updateGoal.mockResolvedValueOnce({
@@ -583,5 +720,37 @@ describe('LearningSessionPanel.vue', () => {
       weekly_sessions: 4,
       weekly_minutes: null,
     })
+  })
+
+  it('validates goals locally and preserves canonical values after server validation failure', async () => {
+    const wrapper = await mountReady()
+    const inputs = wrapper.findAll('.goal-grid input')
+
+    await inputs[0].setValue(481)
+    await findButton(wrapper, 'Save goals').trigger('click')
+
+    expect(apiMocks.updateGoal).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      'Goal values are outside the supported range.',
+    )
+
+    await inputs[0].setValue(30)
+    apiMocks.updateGoal.mockRejectedValueOnce({
+      response: {
+        data: {
+          message: 'daily_minutes must be between 1 and 480',
+          code: 'invalid_goal_value',
+        },
+      },
+    })
+    await findButton(wrapper, 'Save goals').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateGoal).toHaveBeenCalledWith('EN', {
+      daily_minutes: 30,
+      weekly_sessions: 4,
+      weekly_minutes: 120,
+    })
+    expect(wrapper.text()).toContain('daily_minutes must be between 1 and 480')
   })
 })

@@ -413,6 +413,8 @@ test('learning session panel restores, retries notes, completes, and isolates la
   await page.getByRole('button', { name: 'Start' }).click()
   await expect(page.getByText('JP')).toBeVisible()
   await page.getByRole('button', { name: 'Abandon' }).click()
-  await expect(page.getByText(/abandoned/)).toBeVisible()
+  await expect(
+    page.locator('.stat-card').filter({ hasText: 'Status' }),
+  ).toContainText('abandoned')
   expect(mocks.counts().abandonCalls).toBe(1)
 })

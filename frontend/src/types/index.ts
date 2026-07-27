@@ -828,6 +828,7 @@ export interface LearningSessionRecord {
 }
 
 export interface LearningSessionEventMetadata {
+  idempotency_key?: string
   note?: string
   correct?: boolean
   rating?: number
