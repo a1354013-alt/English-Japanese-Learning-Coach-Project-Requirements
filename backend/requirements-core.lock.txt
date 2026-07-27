@@ -43,7 +43,7 @@ numpy==2.4.6
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.txt
-pandas==2.2.3
+pandas==3.0.5
     # via -r requirements.txt
 pillow==12.3.0
     # via reportlab
