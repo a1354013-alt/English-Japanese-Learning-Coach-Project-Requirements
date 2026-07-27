@@ -76,8 +76,30 @@ def test_weekly_insight_uses_monday_boundary_and_deterministic_counts(monkeypatc
         user_id="default_user",
         idempotency_key="complete-1",
     )
+    with test_db.get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE learning_sessions
+            SET started_at = ?, ended_at = ?, duration_seconds = ?
+            WHERE session_id = ?
+            """,
+            (
+                "2026-07-24T08:00:00+08:00",
+                "2026-07-24T08:10:00+08:00",
+                600,
+                session.session_id,
+            ),
+        )
+        conn.execute(
+            """
+            UPDATE learning_session_events
+            SET occurred_at = ?
+            WHERE session_id = ?
+            """,
+            ("2026-07-24T08:05:00+08:00", session.session_id),
+        )
 
-    response = client.get("/api/learning-insights/weekly?language=EN")
+    response = client.get("/api/learning-insights/weekly?language=EN&week_start=2026-07-24")
 
     assert response.status_code == 200
     insight = response.json()["insight"]

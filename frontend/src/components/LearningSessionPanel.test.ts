@@ -110,6 +110,15 @@ const noteEvent = {
   created_at: '2026-07-24T08:01:00.000Z',
 }
 
+const secondNoteEvent = {
+  ...noteEvent,
+  event_id: 'event-note-2',
+  sequence_number: 2,
+  metadata: { note: 'next page' },
+  occurred_at: '2026-07-24T08:02:00.000Z',
+  created_at: '2026-07-24T08:02:00.000Z',
+}
+
 const completedSession = {
   ...activeSession,
   status: 'completed',
@@ -219,6 +228,106 @@ describe('LearningSessionPanel.vue', () => {
     vi.advanceTimersByTime(2000)
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('5:02')
+  })
+
+  it('starts an English session with a planned preset and blocks duplicate creation while loading', async () => {
+    defaultApiState(null)
+    const resolveStart = vi.fn()
+    apiMocks.start.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStart.mockImplementation(resolve)
+      }),
+    )
+    const wrapper = mount(LearningSessionPanel)
+    await flushPromises()
+
+    await findButton(wrapper, '10 min').trigger('click')
+    await findButton(wrapper, 'Start').trigger('click')
+    await findButton(wrapper, 'Start').trigger('click')
+
+    expect(apiMocks.start).toHaveBeenCalledTimes(1)
+    expect(apiMocks.start).toHaveBeenCalledWith('EN', 10)
+
+    resolveStart({ success: true, session: activeSession })
+    await flushPromises()
+    expect(wrapper.text()).toContain('EN')
+  })
+
+  it('starts a Japanese session after switching languages', async () => {
+    defaultApiState(null)
+    apiMocks.getActive.mockResolvedValueOnce({ success: true, session: null })
+    apiMocks.getActive.mockResolvedValueOnce({ success: true, session: null })
+    apiMocks.start.mockResolvedValueOnce({
+      success: true,
+      session: { ...activeSession, session_id: 'session-jp', language: 'JP' },
+    })
+    const wrapper = mount(LearningSessionPanel)
+    await flushPromises()
+
+    await wrapper.find('select').setValue('JP')
+    await flushPromises()
+    await findButton(wrapper, 'Start').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.start).toHaveBeenCalledWith('JP', 20)
+    expect(wrapper.text()).toContain('JP')
+  })
+
+  it('shows a validation error for invalid custom duration', async () => {
+    const wrapper = await mountReady(null)
+
+    await wrapper.find('input[type="number"]').setValue(0)
+    await findButton(wrapper, 'Start').trigger('click')
+
+    expect(apiMocks.start).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      'Planned minutes must be between 1 and 480.',
+    )
+  })
+
+  it('loads additional timeline events without duplicating existing canonical rows', async () => {
+    apiMocks.getActive.mockResolvedValue({
+      success: true,
+      session: activeSession,
+    })
+    apiMocks.listEvents
+      .mockResolvedValueOnce({
+        success: true,
+        events: [noteEvent],
+        limit: 50,
+        has_more: true,
+        next_cursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        events: [noteEvent, secondNoteEvent],
+        limit: 50,
+        has_more: false,
+        next_cursor: null,
+      })
+    apiMocks.list.mockResolvedValue({
+      success: true,
+      sessions: [],
+      limit: 10,
+      has_more: false,
+      next_cursor: null,
+    })
+    apiMocks.getGoal.mockResolvedValue({ success: true, goal })
+    apiMocks.weeklyInsight.mockResolvedValue({ success: true, insight })
+
+    const wrapper = mount(LearningSessionPanel)
+    await flushPromises()
+    expect(wrapper.findAll('.timeline li')).toHaveLength(1)
+
+    await findButton(wrapper, 'Load more').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.listEvents).toHaveBeenLastCalledWith(
+      'session-en',
+      50,
+      'cursor-2',
+    )
+    expect(wrapper.findAll('.timeline li')).toHaveLength(2)
   })
 
   it.each([1, 49, 500])(
@@ -387,6 +496,37 @@ describe('LearningSessionPanel.vue', () => {
     expect(wrapper.text()).toContain('25:00')
   })
 
+  it('requires abandon confirmation and prevents duplicate abandon requests', async () => {
+    const wrapper = await mountReady()
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    await findButton(wrapper, 'Abandon').trigger('click')
+    expect(apiMocks.abandon).not.toHaveBeenCalled()
+
+    vi.mocked(window.confirm).mockReturnValue(true)
+    const resolveAbandon = vi.fn()
+    apiMocks.abandon.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveAbandon.mockImplementation(resolve)
+      }),
+    )
+    apiMocks.summary.mockResolvedValue({
+      success: true,
+      summary: { ...completedSummary, status: 'abandoned' },
+    })
+
+    await findButton(wrapper, 'Abandon').trigger('click')
+    await findButton(wrapper, 'Abandon').trigger('click')
+    expect(apiMocks.abandon).toHaveBeenCalledTimes(1)
+
+    resolveAbandon({
+      success: true,
+      session: { ...completedSession, status: 'abandoned' },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('abandoned')
+  })
+
   it('does not erase the active session when historical summary loading fails', async () => {
     const wrapper = await mountReady()
     apiMocks.summary.mockRejectedValueOnce(new Error('history failed'))
@@ -448,5 +588,37 @@ describe('LearningSessionPanel.vue', () => {
 
     expect(wrapper.text()).toContain('JP')
     expect(wrapper.text()).not.toContain('session-en')
+  })
+
+  it('validates goals locally and preserves canonical values after server validation failure', async () => {
+    const wrapper = await mountReady()
+    const inputs = wrapper.findAll('.goal-grid input')
+
+    await inputs[0].setValue(481)
+    await findButton(wrapper, 'Save goals').trigger('click')
+
+    expect(apiMocks.updateGoal).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      'Goal values are outside the supported range.',
+    )
+
+    await inputs[0].setValue(30)
+    apiMocks.updateGoal.mockRejectedValueOnce({
+      response: {
+        data: {
+          message: 'daily_minutes must be between 1 and 480',
+          code: 'invalid_goal_value',
+        },
+      },
+    })
+    await findButton(wrapper, 'Save goals').trigger('click')
+    await flushPromises()
+
+    expect(apiMocks.updateGoal).toHaveBeenCalledWith('EN', {
+      daily_minutes: 30,
+      weekly_sessions: 4,
+      weekly_minutes: 120,
+    })
+    expect(wrapper.text()).toContain('daily_minutes must be between 1 and 480')
   })
 })
