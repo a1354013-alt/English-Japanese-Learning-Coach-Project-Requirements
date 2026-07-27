@@ -316,7 +316,7 @@ scipy==1.17.1
     # via
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==3.3.1
+sentence-transformers==5.6.1
     # via -r requirements-rag.txt
 shellingham==1.5.4
     # via typer
