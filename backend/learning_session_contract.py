@@ -70,6 +70,7 @@ EVENT_RULES: dict[str, LearningSessionEventRule] = {
         allows_correct=True,
         allows_rating=True,
         allows_interval_days=True,
+        allows_response_time_ms=True,
         allows_result_category=True,
     ),
     "chat_turn_completed": LearningSessionEventRule(

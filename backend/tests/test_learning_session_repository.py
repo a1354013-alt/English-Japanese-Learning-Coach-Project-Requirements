@@ -270,6 +270,12 @@ def test_event_retry_after_finalization_returns_canonical_event_but_new_event_is
         ("review_answered", LearningSessionEntityType.review, "review-1", LearningSessionEventMetadata(correct=True)),
         ("review_answered", LearningSessionEntityType.review, "review-2", LearningSessionEventMetadata(correct=False, note="missed")),
         ("srs_reviewed", LearningSessionEntityType.srs_item, "srs-1", None),
+        (
+            "srs_reviewed",
+            LearningSessionEntityType.srs_item,
+            "srs-2",
+            LearningSessionEventMetadata(correct=True, rating=5, interval_days=4, response_time_ms=1200),
+        ),
         ("chat_turn_completed", LearningSessionEntityType.conversation, "chat-1", None),
         ("feynman_completed", LearningSessionEntityType.feynman_response, "feynman-1", None),
         ("micro_lesson_completed", LearningSessionEntityType.micro_lesson, "micro-1", None),
