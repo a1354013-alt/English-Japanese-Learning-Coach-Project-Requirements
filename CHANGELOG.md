@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [1.6.0-rc1] - 2026-07-28
+
 ### Added
 
 - Added structured learning-session storage with additive schema `0012`, including typed session lifecycle state, append-only event logs, partial unique active-session enforcement, and deterministic server-side summaries that do not call an AI provider in Phase 1.
@@ -36,10 +40,6 @@ All notable changes to this project will be documented in this file.
 - Fixed abandoned Session frontend state so the active reactive Session is cleared while deterministic summary, history, and timeline data remain readable.
 - Fixed Learning Goal optional `weekly_minutes` handling so cleared number inputs serialize to JSON `null` instead of leaking empty strings.
 - Fixed Learning Session readiness observability by exposing recorder degraded state and structured success/failure counters through `/api/ready` without logging note/chat payload text.
-
-### Known blockers
-
-- RC promotion is blocked in this local environment because the official Python `3.11.x` backend lane, mandated Node.js `22.18.0` / npm `10.9.3` frontend reinstall and audits, E2E, Docker, and delivery verification have not all passed. Keep `1.6.0-dev.1` until those gates are green.
 
 ## [1.5.0] - 2026-07-21
 
