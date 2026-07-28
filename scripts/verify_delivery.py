@@ -76,6 +76,10 @@ REQUIRED_BACKEND_MODULES = (
     ("ruff", "ruff"),
     ("mypy", "mypy"),
 )
+REQUIRED_RAG_MODULES = (
+    ("pydantic-settings", "pydantic_settings"),
+    ("pypdf", "pypdf"),
+)
 
 is_excluded_runtime_artifact = _release_file_policy.is_excluded_runtime_artifact
 is_safe_env_template = _release_file_policy.is_safe_env_template
@@ -519,17 +523,36 @@ def run_standard_verification() -> None:
 
 
 def require_rag_dependencies() -> None:
-    if importlib.util.find_spec("chromadb") is None:
+    if not RAG_LOCK.exists():
         raise StepFailed(
-            "RAG verification requires `chromadb`. Install `backend/requirements-rag.txt` before running "
+            "SQLite-backed RAG verification requires the committed lock file "
+            "`backend/requirements-rag.lock.txt`."
+        )
+    missing = [package for package, module in REQUIRED_RAG_MODULES if importlib.util.find_spec(module) is None]
+    if missing:
+        raise StepFailed(
+            "SQLite-backed RAG dependency preflight failed; missing importable packages: "
+            f"{', '.join(missing)}. Install them with "
+            "`python -m pip install -r backend/requirements-rag.lock.txt` before running "
             "`scripts/verify_delivery.py --include-rag`, `--mode rag`, or `--full`."
         )
+    run_step(
+        "Python dependency locked-install verification for SQLite-backed RAG",
+        [sys.executable, "scripts/python_dependency_locks.py", "check"],
+        cwd=REPO_ROOT,
+    )
+    run_step(
+        "SQLite-backed RAG dependency consistency preflight",
+        [sys.executable, "-m", "pip", "check"],
+        cwd=REPO_ROOT,
+        timeout=300,
+    )
 
 
 def run_rag_verification() -> None:
     require_rag_dependencies()
     run_step(
-        "Pytest backend (optional RAG)",
+        "Pytest backend (SQLite-backed RAG)",
         [sys.executable, "-m", "pytest", "backend/tests", "-q", "-m", "rag"],
         cwd=REPO_ROOT,
     )
@@ -747,14 +770,14 @@ def parse_args() -> argparse.Namespace:
         "--mode",
         choices=("standard", "rag", "full"),
         default="standard",
-        help="standard: backend/frontend/release gate; rag: optional RAG tests only; full: standard + optional advisory checks + rag.",
+        help="standard: backend/frontend/release gate; rag: SQLite-backed RAG tests only; full: standard + optional advisory checks + rag.",
     )
     parser.add_argument(
         "--include-rag",
         "--rag",
         action="store_true",
         dest="include_rag",
-        help="Also run the optional RAG pytest lane after the standard checks.",
+        help="Also run the SQLite-backed RAG pytest lane after the standard checks.",
     )
     return parser.parse_args()
 

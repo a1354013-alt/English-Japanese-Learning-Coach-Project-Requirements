@@ -37,7 +37,7 @@ def test_health_succeeds_without_ollama_or_rag_dependencies(tmp_path, monkeypatc
     monkeypatch.setattr(
         system_router,
         "rag_manager",
-        _StubRagManager(enabled=False, init_error="chromadb missing"),
+        _StubRagManager(enabled=False, init_error="SQLite-backed RAG unavailable"),
         raising=False,
     )
 
@@ -63,7 +63,7 @@ def test_ready_reports_optional_dependency_status_without_crashing(tmp_path, mon
     monkeypatch.setattr(
         system_router,
         "rag_manager",
-        _StubRagManager(enabled=False, init_error="chromadb missing"),
+        _StubRagManager(enabled=False, init_error="SQLite-backed RAG unavailable"),
         raising=False,
     )
 
@@ -77,7 +77,7 @@ def test_ready_reports_optional_dependency_status_without_crashing(tmp_path, mon
     assert body["ollama"]["large_model_ready"] is False
     assert body["ollama"]["ready"] is True
     assert body["rag"]["ready"] is False
-    assert body["rag"]["error"] == "chromadb missing"
+    assert body["rag"]["error"] == "SQLite-backed RAG unavailable"
     assert body["learning_session_recorder"]["mode"] == "strict"
     assert body["learning_session_recorder"]["degraded"] is False
     assert body["learning_session_recorder"]["total_failures"] == 0

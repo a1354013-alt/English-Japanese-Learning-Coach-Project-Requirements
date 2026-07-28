@@ -312,9 +312,6 @@ class _LocalRAGManager:
         ]
 
 
-_ChromaRAGManager = _LocalRAGManager
-
-
 class RAGManager:
     def __init__(self) -> None:
         self._backend = self._build_backend()
