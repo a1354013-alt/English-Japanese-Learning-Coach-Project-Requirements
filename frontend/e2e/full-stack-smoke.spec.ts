@@ -61,3 +61,53 @@ test('full-stack smoke boots both apps and completes seeded review flow', async 
 
   await resetDemoSeed(request)
 })
+
+test('full-stack smoke persists a learning session completion flow', async ({
+  page,
+  request,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('locale', 'en')
+  })
+
+  await resetDemoSeed(request)
+
+  await page.goto('/progress')
+
+  const panel = page.getByTestId('learning-session-panel')
+  const activeSession = page.getByTestId('learning-session-active')
+  const summary = page.getByTestId('learning-session-summary')
+  const history = page.getByTestId('learning-session-history')
+  const weeklyReview = page.getByTestId('learning-session-weekly-review')
+  const timeline = page.getByTestId('learning-session-event-timeline')
+  const confirmDialog = page.getByTestId('learning-session-confirm-dialog')
+
+  await expect(panel).toBeVisible()
+
+  await page.getByTestId('learning-session-start').click()
+  await expect(activeSession).toBeVisible()
+  await expect(activeSession).toContainText('Active')
+
+  await page
+    .getByTestId('learning-session-note-input')
+    .fill('Smoke session note')
+  await page.getByTestId('learning-session-add-note').click()
+  await expect(timeline).toContainText('Smoke session note')
+
+  await page.getByTestId('learning-session-complete').click()
+  await expect(confirmDialog).toBeVisible()
+  await page.getByTestId('learning-session-confirm-accept').click()
+
+  await expect(confirmDialog).toBeHidden()
+  await expect(activeSession).toBeHidden()
+  await expect(summary).toContainText('Completed')
+  await expect(timeline).toContainText('Smoke session note')
+  await expect(history).toContainText('Completed')
+  await expect(weeklyReview).toContainText('Completed')
+
+  await page.reload()
+  await expect(history).toContainText('Completed')
+  await history.locator('.history-item').first().click()
+  await expect(summary).toContainText('Completed')
+  await expect(timeline).toContainText('Smoke session note')
+})

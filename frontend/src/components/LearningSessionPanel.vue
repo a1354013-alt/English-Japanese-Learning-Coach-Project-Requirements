@@ -51,8 +51,8 @@
       <button
         type="button"
         class="secondary"
-        :disabled="loading"
-        @click="reload"
+        :disabled="loading || actionLoading.complete || actionLoading.abandon"
+        @click="refreshVisibleState"
       >
         {{ loading ? 'Refreshing...' : 'Refresh' }}
       </button>
@@ -62,7 +62,19 @@
       {{ error }}
     </div>
 
-    <div v-if="activeSession" class="session-grid">
+    <div
+      v-if="refreshError"
+      class="error-text"
+      data-testid="learning-session-refresh-error"
+    >
+      {{ refreshError }}
+    </div>
+
+    <div
+      v-if="activeSession"
+      class="session-grid"
+      data-testid="learning-session-active"
+    >
       <article class="stat-card">
         <p class="stat-label">{{ tr('learningSession.labels.language') }}</p>
         <p class="stat-value">{{ activeSession.language }}</p>
@@ -142,7 +154,7 @@
       </p>
     </div>
 
-    <div class="timeline">
+    <div class="timeline" data-testid="learning-session-event-timeline">
       <div class="section-header compact">
         <div>
           <h3>{{ tr('learningSession.timeline.title') }}</h3>
@@ -164,11 +176,13 @@
           :key="event.event_id"
           :data-testid="`learning-session-event-${event.event_id}`"
         >
-          <span>{{
-            tr(`learningSession.eventTypes.${event.event_type}`)
-          }}</span>
-          <small>{{ formatDateTime(event.occurred_at) }}</small>
-          <em v-if="event.metadata?.note">{{ event.metadata.note }}</em>
+          <div data-testid="learning-session-event-row">
+            <span>{{
+              tr(`learningSession.eventTypes.${event.event_type}`)
+            }}</span>
+            <small>{{ formatDateTime(event.occurred_at) }}</small>
+            <em v-if="event.metadata?.note">{{ event.metadata.note }}</em>
+          </div>
         </li>
       </ol>
       <div v-if="eventsError" class="error-text">
@@ -222,15 +236,17 @@
           :data-testid="`learning-session-history-${session.session_id}`"
           @click="selectHistory(session.session_id)"
         >
-          <span>
-            {{
-              tr('learningSession.history.item', {
-                language: session.language,
-                status: tr(`learningSession.statuses.${session.status}`),
-              })
-            }}
-          </span>
-          <small>{{ formatDateTime(session.started_at) }}</small>
+          <div data-testid="learning-session-history-item">
+            <span>
+              {{
+                tr('learningSession.history.item', {
+                  language: session.language,
+                  status: tr(`learningSession.statuses.${session.status}`),
+                })
+              }}
+            </span>
+            <small>{{ formatDateTime(session.started_at) }}</small>
+          </div>
         </button>
       </div>
       <div v-if="historyError" class="error-text">
@@ -252,7 +268,7 @@
       </button>
     </div>
 
-    <div class="weekly-review" data-testid="weekly-review">
+    <div class="weekly-review" data-testid="learning-session-weekly-review">
       <div class="section-header compact">
         <div>
           <h3>{{ tr('learningSession.weeklyReview.title') }}</h3>
@@ -280,7 +296,11 @@
         </button>
       </div>
 
-      <div v-if="goalDraft" class="goal-grid">
+      <div
+        v-if="goalDraft"
+        class="goal-grid"
+        data-testid="learning-session-goals"
+      >
         <label>
           {{ tr('learningSession.weeklyGoal.dailyMinutes') }}
           <input
@@ -360,7 +380,7 @@
     <div
       v-if="confirmationDialog"
       class="dialog-backdrop"
-      data-testid="learning-session-confirmation"
+      data-testid="learning-session-confirm-dialog"
       @click.self="closeConfirmation"
     >
       <div
@@ -459,6 +479,7 @@ const pendingNoteOperation = ref<PendingNoteOperation | null>(null)
 const nowMs = ref(Date.now())
 const loading = ref(false)
 const error = ref<string | null>(null)
+const refreshError = ref<string | null>(null)
 const historyError = ref<string | null>(null)
 const eventsError = ref<string | null>(null)
 const confirmationError = ref<string | null>(null)
@@ -485,6 +506,8 @@ const actionLoading = ref({
 let timer: number | undefined
 let reloadSequence = 0
 let historySelectionSequence = 0
+let finalizationRefreshSequence = 0
+let isUnmounted = false
 
 const tr = (key: string, values?: Record<string, unknown>) =>
   values ? t(key, values) : t(key)
@@ -585,6 +608,23 @@ const setScopedError = (
   target.value = tr(fallbackKey)
 }
 
+const resolveErrorMessage = (fallbackKey: string, err: unknown) => {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const response = (err as { response?: { data?: unknown } }).response
+    const data = response?.data
+    if (data && typeof data === 'object' && 'message' in data) {
+      const message = (data as { message?: unknown }).message
+      if (typeof message === 'string' && message.trim()) {
+        return message
+      }
+    }
+  }
+  if (err instanceof Error && err.message.trim()) {
+    return err.message
+  }
+  return tr(fallbackKey)
+}
+
 const clientKey = (prefix: string, id: string) => {
   const storageKey = `learning-session:${prefix}:${id}`
   const existing = window.localStorage.getItem(storageKey)
@@ -596,6 +636,10 @@ const clientKey = (prefix: string, id: string) => {
   const created = `${prefix}:${id}:${random}`
   window.localStorage.setItem(storageKey, created)
   return created
+}
+
+const clearClientKey = (prefix: string, id: string) => {
+  window.localStorage.removeItem(`learning-session:${prefix}:${id}`)
 }
 
 const randomOperationId = () => {
@@ -669,6 +713,53 @@ const mergeUniqueEvents = (
   return [...byId.values()].sort(
     (left, right) => left.sequence_number - right.sequence_number,
   )
+}
+
+const emptyEventCounts = () => ({
+  lesson_started: 0,
+  lesson_completed: 0,
+  review_answered: 0,
+  srs_reviewed: 0,
+  chat_turn_completed: 0,
+  feynman_completed: 0,
+  micro_lesson_completed: 0,
+  session_note: 0,
+})
+
+const buildFallbackSummary = (
+  session: LearningSessionRecord,
+): LearningSessionSummary => {
+  const counts = emptyEventCounts()
+  for (const event of events.value) {
+    counts[event.event_type] += 1
+  }
+  return {
+    session_id: session.session_id,
+    language: session.language,
+    status: session.status,
+    started_at: session.started_at,
+    ended_at: session.ended_at,
+    duration_seconds: session.duration_seconds ?? null,
+    planned_minutes: session.planned_minutes ?? null,
+    total_event_count: events.value.length,
+    counts_by_event_type: counts,
+    lesson_completion_count: counts.lesson_completed,
+    review_answer_count: counts.review_answered,
+    srs_review_count: counts.srs_reviewed,
+    chat_turn_count: counts.chat_turn_completed,
+    feynman_completion_count: counts.feynman_completed,
+    micro_lesson_completion_count: counts.micro_lesson_completed,
+    first_event_at: events.value[0]?.occurred_at ?? null,
+    last_event_at:
+      events.value.length > 0
+        ? (events.value[events.value.length - 1]?.occurred_at ?? null)
+        : null,
+    planned_duration_goal_reached:
+      session.duration_seconds != null && session.planned_minutes != null
+        ? session.duration_seconds >= session.planned_minutes * 60
+        : null,
+    correct_event_count: null,
+  }
 }
 
 const formatDuration = (seconds: number) => {
@@ -802,11 +893,101 @@ const loadMoreEvents = async () => {
   }
 }
 
+const refreshFinalizedState = async (
+  sessionId: string,
+  selectedLanguage = language.value,
+) => {
+  const requestId = ++finalizationRefreshSequence
+  refreshError.value = null
+  const results = await Promise.allSettled([
+    learningSessionApi.summary(sessionId),
+    loadEventsPage(sessionId),
+    loadHistoryPage(selectedLanguage),
+    loadGoalAndInsight(selectedLanguage),
+  ])
+  if (
+    isUnmounted ||
+    requestId !== finalizationRefreshSequence ||
+    selectedLanguage !== language.value ||
+    selectedSessionId.value !== sessionId
+  ) {
+    return
+  }
+
+  const nextErrors: string[] = []
+  const [summaryResult, eventsResult, historyResult, goalInsightResult] =
+    results
+
+  if (summaryResult.status === 'fulfilled') {
+    summary.value = summaryResult.value.summary
+  } else {
+    nextErrors.push(
+      resolveErrorMessage(
+        'learningSession.history.errors.summary',
+        summaryResult.reason,
+      ),
+    )
+  }
+
+  if (eventsResult.status === 'fulfilled') {
+    assignEventPage(eventsResult.value, false)
+  } else {
+    nextErrors.push(
+      resolveErrorMessage(
+        'learningSession.timeline.errors.retry',
+        eventsResult.reason,
+      ),
+    )
+  }
+
+  if (historyResult.status === 'fulfilled') {
+    assignHistoryPage(historyResult.value, false)
+  } else {
+    nextErrors.push(
+      resolveErrorMessage(
+        'learningSession.history.errors.refresh',
+        historyResult.reason,
+      ),
+    )
+  }
+
+  if (goalInsightResult.status === 'fulfilled') {
+    goal.value = goalInsightResult.value.goal
+    goalDraft.value = buildGoalDraft(goalInsightResult.value.goal)
+    weeklyInsight.value = goalInsightResult.value.insight
+  } else {
+    nextErrors.push(
+      resolveErrorMessage(
+        'learningSession.weeklyGoal.errors.save',
+        goalInsightResult.reason,
+      ),
+    )
+  }
+
+  refreshError.value = nextErrors[0] ?? null
+}
+
+const refreshVisibleState = async () => {
+  if (activeSession.value || !selectedSessionId.value) {
+    await reload()
+    return
+  }
+  loading.value = true
+  try {
+    await refreshFinalizedState(selectedSessionId.value, language.value)
+  } finally {
+    if (!isUnmounted) {
+      loading.value = false
+    }
+  }
+}
+
 const reload = async () => {
   const requestId = ++reloadSequence
   const selectedLanguage = language.value
   loading.value = true
   error.value = null
+  refreshError.value = null
   summary.value = null
   confirmationError.value = null
   selectedSessionId.value = null
@@ -824,7 +1005,11 @@ const reload = async () => {
       loadGoalAndInsight(selectedLanguage),
       activeId ? loadEventsPage(activeId) : Promise.resolve(null),
     ])
-    if (requestId !== reloadSequence || selectedLanguage !== language.value) {
+    if (
+      isUnmounted ||
+      requestId !== reloadSequence ||
+      selectedLanguage !== language.value
+    ) {
       return
     }
     activeSession.value =
@@ -860,6 +1045,7 @@ const startOrResume = async () => {
   }
   loading.value = true
   error.value = null
+  refreshError.value = null
   const selectedLanguage = language.value
   try {
     const started = await learningSessionApi.start(
@@ -891,6 +1077,7 @@ const addNote = async () => {
   if (!noteText.value.trim()) return
   actionLoading.value.note = true
   error.value = null
+  refreshError.value = null
   const sessionId = activeSession.value.session_id
   const note = noteText.value.trim()
   const operation = noteOperationFor(sessionId, note)
@@ -930,7 +1117,8 @@ const closeConfirmation = () => {
 }
 
 const finishSession = async (kind: ConfirmationKind, sessionId: string) => {
-  summary.value = null
+  const selectedLanguage = language.value
+  refreshError.value = null
   eventsError.value = null
   historyError.value = null
   error.value = null
@@ -942,30 +1130,29 @@ const finishSession = async (kind: ConfirmationKind, sessionId: string) => {
             clientKey('complete', sessionId),
           )
         : await learningSessionApi.abandon(sessionId)
-    const [sessionSummary, eventsPage, historyPage, goalAndInsight] =
-      await Promise.all([
-        learningSessionApi.summary(sessionId),
-        loadEventsPage(sessionId),
-        loadHistoryPage(language.value),
-        loadGoalAndInsight(language.value),
-      ])
+    if (isUnmounted || selectedLanguage !== language.value) {
+      return sessionResponse.session
+    }
+
+    const finalizedSession = sessionResponse.session
     activeSession.value = null
     selectedSessionId.value = sessionId
-    summary.value = sessionSummary.summary
-    assignEventPage(eventsPage, false)
-    assignHistoryPage(historyPage, false)
-    goal.value = goalAndInsight.goal
-    goalDraft.value = buildGoalDraft(goalAndInsight.goal)
-    weeklyInsight.value = goalAndInsight.insight
+    summary.value = buildFallbackSummary(finalizedSession)
+    history.value = mergeUniqueSessions(history.value, [finalizedSession])
+    historyCursor.value = null
+    hasMoreHistory.value = false
     if (kind === 'complete') {
-      actionLoading.value.complete = false
-    } else {
-      actionLoading.value.abandon = false
+      clearClientKey('complete', sessionId)
     }
     confirmationDialog.value = null
     confirmationError.value = null
-    lastFocusedElement.value?.focus()
-    return sessionResponse.session
+    const focusTarget = lastFocusedElement.value
+    lastFocusedElement.value = null
+    void nextTick(() => {
+      focusTarget?.focus()
+    })
+    void refreshFinalizedState(sessionId, selectedLanguage)
+    return finalizedSession
   } catch (err) {
     setScopedError(
       confirmationError,
@@ -1030,6 +1217,7 @@ const selectHistory = async (sessionId: string) => {
   const requestId = ++historySelectionSequence
   actionLoading.value.history = true
   error.value = null
+  refreshError.value = null
   eventsError.value = null
   historyError.value = null
   selectedSessionId.value = sessionId
@@ -1040,6 +1228,7 @@ const selectHistory = async (sessionId: string) => {
       loadEventsPage(sessionId),
     ])
     if (
+      isUnmounted ||
       requestId !== historySelectionSequence ||
       selectedSessionId.value !== sessionId
     ) {
@@ -1127,6 +1316,7 @@ const saveGoal = async () => {
   const selectedLanguage = language.value
   actionLoading.value.goal = true
   error.value = null
+  refreshError.value = null
   try {
     const saved = await learningGoalApi.update(selectedLanguage, payload)
     if (selectedLanguage !== language.value) return
@@ -1143,6 +1333,7 @@ const saveGoal = async () => {
 }
 
 onMounted(() => {
+  isUnmounted = false
   timer = window.setInterval(() => {
     nowMs.value = Date.now()
   }, 1000)
@@ -1150,6 +1341,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  isUnmounted = true
+  reloadSequence += 1
+  historySelectionSequence += 1
+  finalizationRefreshSequence += 1
   if (timer !== undefined) window.clearInterval(timer)
 })
 </script>

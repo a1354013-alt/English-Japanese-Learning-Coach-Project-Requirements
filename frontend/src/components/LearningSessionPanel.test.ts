@@ -456,14 +456,16 @@ describe('LearningSessionPanel.vue', () => {
       apiMocks.addNote.mock.calls[1][2],
     )
     expect(
-      wrapper.findAll('[data-testid^="learning-session-event-"]'),
+      wrapper.findAll('[data-testid="learning-session-event-row"]'),
     ).toHaveLength(1)
   })
 
   it('rejects notes when the visible session is already finalized', async () => {
     const wrapper = await mountReady({ ...activeSession, status: 'completed' })
 
-    expect(byTestId(wrapper, 'learning-session-note-input').exists()).toBe(false)
+    expect(byTestId(wrapper, 'learning-session-note-input').exists()).toBe(
+      false,
+    )
     expect(byTestId(wrapper, 'learning-session-add-note').exists()).toBe(false)
     expect(apiMocks.addNote).not.toHaveBeenCalled()
   })
@@ -499,6 +501,25 @@ describe('LearningSessionPanel.vue', () => {
     ).toBe(true)
   })
 
+  it('cancels abandonment without calling the abandon endpoint', async () => {
+    const wrapper = await mountReady()
+
+    await byTestId(wrapper, 'learning-session-abandon').trigger('click')
+    await flushPromises()
+    expect(byTestId(wrapper, 'learning-session-confirm-dialog').exists()).toBe(
+      true,
+    )
+
+    await byTestId(wrapper, 'learning-session-confirm-cancel').trigger('click')
+    await flushPromises()
+
+    expect(byTestId(wrapper, 'learning-session-confirm-dialog').exists()).toBe(
+      false,
+    )
+    expect(apiMocks.abandon).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Active')
+  })
+
   it('does not clear the active session when abandon fails', async () => {
     const wrapper = await mountReady()
     apiMocks.abandon.mockRejectedValueOnce(new Error('boom'))
@@ -510,6 +531,43 @@ describe('LearningSessionPanel.vue', () => {
 
     expect(wrapper.text()).toContain('Active')
     expect(apiMocks.summary).not.toHaveBeenCalled()
+  })
+
+  it('keeps the canonical abandoned state visible when history refresh fails', async () => {
+    const wrapper = await mountReady()
+    apiMocks.abandon.mockResolvedValueOnce({
+      success: true,
+      session: abandonedSession,
+    })
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: abandonedSummary,
+    })
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockRejectedValueOnce(new Error('history refresh failed'))
+    apiMocks.getGoal.mockResolvedValueOnce({ success: true, goal })
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
+      success: true,
+      insight: { ...insight, abandoned_session_count: 1 },
+    })
+
+    await byTestId(wrapper, 'learning-session-abandon').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(apiMocks.abandon).toHaveBeenCalledTimes(1)
+    expect(
+      byTestId(wrapper, 'learning-session-refresh-error').text(),
+    ).toContain('history refresh failed')
+    expect(byTestId(wrapper, 'learning-session-summary').text()).toContain(
+      'Abandoned',
+    )
+    expect(byTestId(wrapper, 'learning-session-note-input').exists()).toBe(
+      false,
+    )
+    expect(byTestId(wrapper, 'learning-session-complete').exists()).toBe(false)
   })
 
   it('reuses the stable completion idempotency key after a timeout retry', async () => {
@@ -540,6 +598,147 @@ describe('LearningSessionPanel.vue', () => {
     )
     expect(wrapper.text()).toContain('Completed')
     expect(wrapper.text()).toContain('25:00')
+  })
+
+  it('cancels completion without calling the complete endpoint', async () => {
+    const wrapper = await mountReady()
+
+    await byTestId(wrapper, 'learning-session-complete').trigger('click')
+    await flushPromises()
+    expect(byTestId(wrapper, 'learning-session-confirm-dialog').exists()).toBe(
+      true,
+    )
+
+    await byTestId(wrapper, 'learning-session-confirm-cancel').trigger('click')
+    await flushPromises()
+
+    expect(byTestId(wrapper, 'learning-session-confirm-dialog').exists()).toBe(
+      false,
+    )
+    expect(apiMocks.complete).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Active')
+  })
+
+  it('keeps the canonical completed state visible when summary refresh fails', async () => {
+    const wrapper = await mountReady()
+    apiMocks.complete.mockResolvedValueOnce({
+      success: true,
+      session: completedSession,
+    })
+    apiMocks.summary.mockRejectedValueOnce(new Error('summary refresh failed'))
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [completedSession],
+    })
+    apiMocks.getGoal.mockResolvedValueOnce({ success: true, goal })
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
+      success: true,
+      insight: { ...insight, completed_session_count: 1 },
+    })
+
+    await byTestId(wrapper, 'learning-session-complete').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(apiMocks.complete).toHaveBeenCalledTimes(1)
+    expect(byTestId(wrapper, 'learning-session-summary').text()).toContain(
+      'Completed',
+    )
+    expect(byTestId(wrapper, 'learning-session-summary').text()).toContain(
+      '25:00',
+    )
+    expect(
+      byTestId(wrapper, 'learning-session-refresh-error').text(),
+    ).toContain('summary refresh failed')
+  })
+
+  it('refreshes finalized completion details without sending a duplicate complete call', async () => {
+    const wrapper = await mountReady()
+    apiMocks.complete.mockResolvedValueOnce({
+      success: true,
+      session: completedSession,
+    })
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: completedSummary,
+    })
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockRejectedValueOnce(new Error('history refresh failed'))
+    apiMocks.getGoal.mockResolvedValueOnce({ success: true, goal })
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
+      success: true,
+      insight: { ...insight, completed_session_count: 1 },
+    })
+
+    await byTestId(wrapper, 'learning-session-complete').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: completedSummary,
+    })
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [completedSession],
+    })
+    apiMocks.getGoal.mockResolvedValueOnce({ success: true, goal })
+    apiMocks.weeklyInsight.mockResolvedValueOnce({
+      success: true,
+      insight: { ...insight, completed_session_count: 1 },
+    })
+
+    await findButton(wrapper, 'Refresh').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(apiMocks.complete).toHaveBeenCalledTimes(1)
+    expect(byTestId(wrapper, 'learning-session-refresh-error').exists()).toBe(
+      false,
+    )
+    expect(byTestId(wrapper, 'learning-session-summary').text()).toContain(
+      '25:00',
+    )
+  })
+
+  it('keeps the canonical completed state visible when weekly insight refresh fails', async () => {
+    const wrapper = await mountReady()
+    apiMocks.complete.mockResolvedValueOnce({
+      success: true,
+      session: completedSession,
+    })
+    apiMocks.summary.mockResolvedValueOnce({
+      success: true,
+      summary: completedSummary,
+    })
+    apiMocks.listEvents.mockResolvedValueOnce(noteEventPage)
+    apiMocks.list.mockResolvedValueOnce({
+      ...historyPage,
+      sessions: [completedSession],
+    })
+    apiMocks.getGoal.mockResolvedValueOnce({ success: true, goal })
+    apiMocks.weeklyInsight.mockRejectedValueOnce(
+      new Error('weekly refresh failed'),
+    )
+
+    await byTestId(wrapper, 'learning-session-complete').trigger('click')
+    await flushPromises()
+    await byTestId(wrapper, 'learning-session-confirm-accept').trigger('click')
+    await flushPromises()
+    await flushPromises()
+
+    expect(byTestId(wrapper, 'learning-session-summary').text()).toContain(
+      'Completed',
+    )
+    expect(
+      byTestId(wrapper, 'learning-session-refresh-error').text(),
+    ).toContain('weekly refresh failed')
   })
 
   it('loads additional history pages and resets when language changes', async () => {
@@ -646,7 +845,7 @@ describe('LearningSessionPanel.vue', () => {
     await flushPromises()
 
     expect(
-      wrapper.findAll('[data-testid^="learning-session-event-"]'),
+      wrapper.findAll('[data-testid="learning-session-event-row"]'),
     ).toHaveLength(2)
     expect(wrapper.text()).toContain('Loaded 2 of 3 events')
   })

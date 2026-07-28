@@ -370,51 +370,90 @@ test('learning session panel restores, retries notes, completes, and isolates la
   await page.addInitScript(() => {
     window.localStorage.setItem('locale', 'en')
   })
-  page.on('dialog', async (dialog) => {
-    await dialog.accept()
-  })
   await page.clock.setFixedTime(new Date('2026-07-24T08:05:00.000Z'))
 
   await page.goto('/progress')
-  await expect(page.getByTestId('learning-session-panel')).toBeVisible()
+  const panel = page.getByTestId('learning-session-panel')
+  const activeSession = page.getByTestId('learning-session-active')
+  const timeline = page.getByTestId('learning-session-event-timeline')
+  const summary = page.getByTestId('learning-session-summary')
+  const weeklyReview = page.getByTestId('learning-session-weekly-review')
+  const confirmDialog = page.getByTestId('learning-session-confirm-dialog')
 
-  await page.getByRole('button', { name: '10 min' }).click()
-  await page.getByRole('button', { name: 'Start' }).click()
-  await expect(page.getByText('5:00').first()).toBeVisible()
-  await expect(page.getByText('No events yet.')).toBeVisible()
+  await expect(panel).toBeVisible()
+
+  await page.getByRole('button', { name: 'Set planned minutes to 10' }).click()
+  await page.getByTestId('learning-session-start').click()
+  await expect(activeSession).toContainText('5:00')
+  await expect(timeline).toContainText('No events yet.')
 
   const longNote = 'x'.repeat(500)
   await page.getByPlaceholder('Session note').fill(longNote)
-  await page.getByRole('button', { name: 'Add note' }).click()
+  await page.getByTestId('learning-session-add-note').click()
   await expect(page.getByText('simulated timeout')).toBeVisible()
-  await page.getByRole('button', { name: 'Add note' }).click()
-  await expect(page.locator('.timeline li')).toHaveCount(1)
-  await expect(page.locator('.timeline li')).toContainText(longNote)
+  await page.getByTestId('learning-session-add-note').click()
+  await expect(page.getByTestId('learning-session-event-row')).toHaveCount(1)
+  await expect(timeline).toContainText(longNote)
 
   await page.reload()
-  await expect(page.getByTestId('learning-session-panel')).toBeVisible()
-  await expect(page.locator('.timeline li')).toHaveCount(1)
-  await expect(page.getByText('5:00').first()).toBeVisible()
+  await expect(panel).toBeVisible()
+  await expect(page.getByTestId('learning-session-event-row')).toHaveCount(1)
+  await expect(activeSession).toContainText('5:00')
 
-  await page.getByRole('button', { name: 'Complete' }).click()
-  await expect(page.getByText(/completed/)).toBeVisible()
-  await expect(page.getByText('25:00')).toBeVisible()
-  await expect(
-    page.getByTestId('weekly-review').getByText('Completed'),
-  ).toBeVisible()
-  await expect(
-    page.getByTestId('weekly-review').getByText('1').first(),
-  ).toBeVisible()
+  await page.getByTestId('learning-session-complete').click()
+  await expect(confirmDialog).toBeVisible()
+  expect(mocks.counts().completeCalls).toBe(0)
+  await page.getByTestId('learning-session-confirm-cancel').click()
+  await expect(confirmDialog).toBeHidden()
+  expect(mocks.counts().completeCalls).toBe(0)
+  await expect(activeSession).toContainText('Active')
+
+  const completeResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/learning-sessions/session-en/complete') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200,
+  )
+  await page.getByTestId('learning-session-complete').click()
+  await expect(confirmDialog).toBeVisible()
+  expect(mocks.counts().completeCalls).toBe(0)
+  await page.getByTestId('learning-session-confirm-accept').click()
+  await completeResponse
+  await expect(confirmDialog).toBeHidden()
+  await expect(activeSession).toBeHidden()
+  await expect(summary).toContainText('Completed')
+  await expect(summary).toContainText('25:00')
+  await expect(weeklyReview).toContainText('Completed')
+  await expect(weeklyReview).toContainText('1')
   expect(mocks.counts().noteAttempts).toBe(2)
   expect(mocks.counts().completeCalls).toBe(1)
 
-  await page.getByRole('combobox').selectOption('JP')
-  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible()
-  await page.getByRole('button', { name: 'Start' }).click()
-  await expect(page.getByText('JP')).toBeVisible()
-  await page.getByRole('button', { name: 'Abandon' }).click()
-  await expect(
-    page.locator('.stat-card').filter({ hasText: 'Status' }),
-  ).toContainText('abandoned')
+  await page.getByTestId('learning-session-language').selectOption('JP')
+  await expect(page.getByTestId('learning-session-start')).toBeVisible()
+  await page.getByTestId('learning-session-start').click()
+  await expect(activeSession).toContainText('JP')
+
+  await page.getByTestId('learning-session-abandon').click()
+  await expect(confirmDialog).toBeVisible()
+  expect(mocks.counts().abandonCalls).toBe(0)
+  await page.getByTestId('learning-session-confirm-cancel').click()
+  await expect(confirmDialog).toBeHidden()
+  expect(mocks.counts().abandonCalls).toBe(0)
+  await expect(activeSession).toContainText('Active')
+
+  const abandonResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/learning-sessions/session-jp/abandon') &&
+      response.request().method() === 'POST' &&
+      response.status() === 200,
+  )
+  await page.getByTestId('learning-session-abandon').click()
+  await expect(confirmDialog).toBeVisible()
+  expect(mocks.counts().abandonCalls).toBe(0)
+  await page.getByTestId('learning-session-confirm-accept').click()
+  await abandonResponse
+  await expect(confirmDialog).toBeHidden()
+  await expect(activeSession).toBeHidden()
+  await expect(summary).toContainText('Abandoned')
   expect(mocks.counts().abandonCalls).toBe(1)
 })

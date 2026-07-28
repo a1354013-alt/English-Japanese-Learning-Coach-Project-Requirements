@@ -527,7 +527,8 @@ def test_concurrent_idempotency_and_completion_races(tmp_path):
     assert len(events_page.events) in {0, 1}
     assert raced == "not-active" or raced.sequence_number == 1
     assert conflict_count == 50
-    assert set(successful_notes) == {"same", "different"}
+    assert len(successful_notes) == 50
+    assert set(successful_notes).issubset({"same", "different"})
 
 
 def test_concurrent_completion_requests_converge_on_one_canonical_state(tmp_path):

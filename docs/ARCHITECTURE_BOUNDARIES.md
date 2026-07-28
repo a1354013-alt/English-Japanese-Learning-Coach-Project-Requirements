@@ -1,6 +1,6 @@
 # Architecture Boundaries for v1.6 Phase 2.1
 
-This document describes the current storage, API, and integration boundaries for the additive Learning Session foundation that ships on the `1.6.0-dev.1` branch.
+This document describes the current storage, API, and integration boundaries for the additive Learning Session foundation that ships on the `1.6.0-rc1` branch.
 
 ## Runtime Boundary
 
@@ -121,4 +121,4 @@ Blank `entity_id` values, blank notes, mismatched entity types, and unsupported 
 
 ## Current Gate Status
 
-Focused backend/RAG and frontend component checks are green locally for this hardening pass. Keep `1.6.0-dev.1`; do not promote to `1.6.0-rc1` until the mandatory Python `3.11.x`, Node.js `22.18.0` / npm `10.9.3`, full frontend, E2E, Docker, and delivery gates are run and green.
+Focused backend/frontend, E2E, Docker validation, and delivery gates are green for `1.6.0-rc1` on the mandated Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3` toolchain.

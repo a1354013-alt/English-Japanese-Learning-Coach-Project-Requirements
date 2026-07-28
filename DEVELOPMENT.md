@@ -1,6 +1,6 @@
 # Development Guide
 
-This project pins the supported release-verification toolchain to Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3` for `1.6.0-dev.1`.
+This project pins the supported release-verification toolchain to Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3` for `1.6.0-rc1`.
 
 ## Backend Setup
 
@@ -92,20 +92,17 @@ Lifecycle and idempotency rules:
 - New events after finalization are still rejected.
 - Abandonment is state-idempotent and no longer accepts an idempotency key in the request contract.
 - Demo reset now clears all Learning Session rows for the local demo user through the repository clear operation before rebuilding the seeded `v1.5.0` demo dataset.
-- Demo reset does not pre-seed fake Learning Session rows, event timelines, or learner-authored goals for `v1.6.0-dev.1`; those remain runtime-only data after startup.
+- Demo reset does not pre-seed fake Learning Session rows, event timelines, or learner-authored goals for `v1.6.0-rc1`; those remain runtime-only data after startup.
 
 Version verification note:
 
-- `scripts/verify_delivery.py` now has an explicit development-version mode for versions like `1.6.0-dev.1`.
-- Development mode requires root/frontend/package-lock version parity plus the canonical README development marker and line.
-- Development mode intentionally keeps `RELEASE_CHECKLIST.md` and `docs/DEMO_GUIDE.md` pinned to the latest stable release, currently `v1.5.0`.
-- RC and final versions still use the strict release-facing wording checks.
+- `scripts/verify_delivery.py` uses strict release-facing version checks for `1.6.0-rc1`, including root/frontend/package-lock parity plus the canonical README, release checklist, and demo-guide markers.
 
 Phase 2.1 gate status:
 
 - Backend pytest, RAG-enabled tests, RAG-disabled startup tests, Python lock checks, and Python lock audit are green locally.
 - A compact frontend Session/Weekly Review workflow is present on the Progress overview tab.
-- `1.6.0-rc1` promotion remains blocked until validation runs with Node.js `22.18.0` and npm `10.9.3`, plus full frontend reinstall, E2E, Docker, and delivery verification.
+- `1.6.0-rc1` has passed validation on Node.js `22.18.0` and npm `10.9.3`, including full frontend reinstall, E2E, Docker validation, and delivery verification.
 
 ## Frontend Setup
 

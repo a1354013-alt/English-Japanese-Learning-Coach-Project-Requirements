@@ -1,6 +1,6 @@
-# Release Notes: v1.6.0-rc1 Candidate
+# Release Notes: v1.6.0-rc1
 
-This document describes the intended `1.6.0-rc1` release scope for the current `1.6.0-dev.1` branch state. It does not promote the repository version on its own.
+This document describes the verified `1.6.0-rc1` release-candidate scope for the current branch state.
 
 ## 1. Release summary
 
@@ -104,7 +104,7 @@ The project remains a local single-user demo. Authentication, authorization, mul
 - Immersion remains text shadowing rather than real voice coaching.
 - Real recording and speech comparison are not part of this release.
 - Learning Session runtime data is not pre-seeded by demo reset.
-- RC promotion remains blocked until the mandated frontend toolchain and full verification lanes pass.
+- The release candidate has passed the mandated frontend toolchain and full verification lanes.
 
 ## 16. Verification commands
 
@@ -141,14 +141,14 @@ python scripts/verify_delivery.py
 python scripts/make_release_zip.py
 ```
 
-## 17. RC promotion criteria
+## 17. RC verification result
 
-Promotion to `v1.6.0-rc1` requires:
+`v1.6.0-rc1` now satisfies the RC gate:
 
 - all Learning Session RC blockers fixed
-- no known P0/P1 regressions
+- no known P0/P1 regressions in the verified lanes
 - contract alignment across frontend, backend, migrations, and docs
 - full validation on Python `3.11.x`, Node `22.18.0`, npm `10.9.3`
-- verifier, Docker, frontend audits, and E2E lanes all green
+- verifier, Docker validation, frontend audits, and E2E lanes all green
 
-Until those gates pass, keep the branch at `1.6.0-dev.1`.
+The repository is ready for a `v1.6.0-rc1` tag after review.

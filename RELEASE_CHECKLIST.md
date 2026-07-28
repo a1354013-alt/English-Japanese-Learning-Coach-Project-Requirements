@@ -2,13 +2,13 @@
 
 Use this checklist for every release so a new maintainer can ship confidently without tribal knowledge.
 
-<!-- release:current=v1.5.0 -->
+<!-- release:current=v1.6.0-rc1 -->
 
 ## 1. Prepare the release
 
 - Confirm the target branch is up to date and CI is green.
-- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.5.0`.
-- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.5.0`; `scripts/verify_delivery.py` checks this.
+- Review `CHANGELOG.md` and confirm the release-facing notes for `v1.6.0-rc1`.
+- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `1.6.0-rc1`; `scripts/verify_delivery.py` checks this.
 - Confirm release notes still state that the project is a single-user/local demo learning coach, not production multi-user SaaS.
 - Confirm README demo limitations still say authentication, authorization, user isolation, rate limiting, and audit logging are intentionally out of scope.
 
@@ -89,7 +89,7 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 - Bump version numbers and confirm `CHANGELOG.md` reflects the release contents.
 - Create the git tag for the release version.
 - Draft release notes using the changelog summary plus any known limitations.
-- Do not promote `1.6.0-dev.1` to `1.6.0-rc1` or `1.6.0` until the canonical Python `3.11.x`, Node `22.18.0`, and npm `10.9.3` toolchain has passed the full verifier, Docker, frontend reinstall/audit, and E2E gates.
+- Do not promote `1.6.0-rc1` to final `1.6.0` until the canonical Python `3.11.x`, Node `22.18.0`, and npm `10.9.3` toolchain has passed the full verifier, Docker, frontend reinstall/audit, and E2E gates for the final release candidate state.
 - Do not publish final `v1.5` release notes from this development branch until release scope is complete and approved.
 - Known limitations should include: TTS is integration-ready but disabled by default; immersion is text shadowing only; real recording and speech comparison are not part of this release; auth, authorization, user isolation, rate limiting, and audit logging are out of scope for the local demo; RAG remains optional and requires separate SQLite-backed verification.
 
