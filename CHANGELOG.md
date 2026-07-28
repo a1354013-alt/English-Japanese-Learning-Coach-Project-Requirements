@@ -16,6 +16,7 @@ No unreleased changes.
 - Added an explicit `POST /api/lessons/{lesson_id}/start` learner-start contract so generated or preloaded Lessons are not counted as started until the learner begins them.
 - Added focused Learning Session recorder integration regressions for no active Session, wrong-language Session isolation, tolerant lookup/append/idempotency/SQLite failures, strict semantic failures, repeated Review attempts, Review network retries, legacy and item-level SRS, Chat, Feynman, Micro Lesson, and 50 Review retry/resubmission rounds.
 - Added migration `0014_learning_goals.sql`, typed Learning Goal APIs, deterministic weekly insight APIs, and a compact Progress-page Learning Session/Weekly Review panel.
+- Added manually triggered full-stack Learning Session E2E coverage for real FastAPI/SQLite migrations, retry-safe Lesson/Review/SRS/Note events, persisted Chat event recording, goals, weekly insights, completion, abandonment, and language isolation.
 
 ### Changed
 
@@ -25,6 +26,7 @@ No unreleased changes.
 - Extended backend regression coverage to include migration `0012`, repository idempotency rules, 50-round concurrency races, semantic-contract enforcement, demo-reset cleanup, and OpenAPI/API contract checks for the new learning-session boundary.
 - Updated delivery verification so development versions such as `1.6.0-dev.1` use explicit README development markers while stable release checklist and demo-guide references remain pinned to `v1.5.0`.
 - Learning Session frontend flows now use accessible in-app confirmation dialogs, cursor-driven Session/event pagination, and i18n-backed learner-facing copy instead of hardcoded English plus `window.confirm()`.
+- Delivery verification now validates the current SQLite-backed RAG lock and pytest lane without requiring ChromaDB.
 
 ### Fixed
 
@@ -40,6 +42,7 @@ No unreleased changes.
 - Fixed abandoned Session frontend state so the active reactive Session is cleared while deterministic summary, history, and timeline data remain readable.
 - Fixed Learning Goal optional `weekly_minutes` handling so cleared number inputs serialize to JSON `null` instead of leaking empty strings.
 - Fixed Learning Session readiness observability by exposing recorder degraded state and structured success/failure counters through `/api/ready` without logging note/chat payload text.
+- Fixed item-level SRS Learning Session event semantics so `response_time_ms` metadata is accepted instead of being dropped by tolerant recorder handling.
 
 ## [1.5.0] - 2026-07-21
 

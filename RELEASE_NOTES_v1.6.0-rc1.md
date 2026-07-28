@@ -132,6 +132,11 @@ npm run format:check
 npm run test:unit
 npm run test:component
 npm run build
+npm run e2e:install
+RUN_E2E=1 npm run test:e2e -- --project=chromium
+npm run test:e2e:fullstack:smoke -- --project=chromium
+npm run test:e2e:fullstack -- --project=chromium --list
+npm run test:e2e:fullstack -- --project=chromium
 ```
 
 Release:

@@ -66,7 +66,7 @@ Integration contracts:
 - Chat assistant completion, Feynman completion, and Micro Lesson completion record their existing persisted source IDs.
 - `GET/PUT /api/learning-goals?language=EN|JP` owns typed Learning Goal state.
 - `GET /api/learning-insights/weekly?language=EN|JP` returns deterministic Monday-based weekly metrics from stored Sessions and Events only.
-- RAG-enabled local development uses the SQLite RAG store under `CHROMA_DB_PATH`; Chroma is no longer a runtime dependency.
+- RAG-enabled local development uses the SQLite-backed RAG store configured by the legacy `CHROMA_DB_PATH` variable; Chroma is no longer a runtime dependency.
 
 Learning Session event rules:
 

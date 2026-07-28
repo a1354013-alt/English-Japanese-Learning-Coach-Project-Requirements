@@ -402,7 +402,7 @@ This smoke suite validates the shortest stable real-app path:
 
 - `npm run test:e2e` is the default CI-safe acceptance check because it is API-mocked and deterministic.
 - `npm run test:e2e:fullstack:smoke` now runs automatically in CI for pull requests, pushes to `main`/`master`, and the nightly scheduled workflow.
-- `npm run test:e2e:fullstack` remains reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises the broader persistence and PDF/wrong-answer flow.
+- `npm run test:e2e:fullstack` remains reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises the broader persistence, PDF/wrong-answer, persisted-chat, and Learning Session workflow. The manual CI job lists collected full-stack specs before running them so the Learning Session full-stack test name is visible in logs.
 - The full-stack smoke and full suite both avoid external AI-provider dependency by relying on deterministic demo data and the backend fallback lesson path.
 
 ### Docker

@@ -191,7 +191,7 @@ npm run test:e2e:fullstack -- --project=chromium
 ### Mocked vs Full-Stack E2E
 
 - `npm run test:e2e` is the default CI path. It runs only the frontend dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs. Use it for fast regression checks.
-- `npm run test:e2e:fullstack` starts the real FastAPI backend and real Vite frontend. The backend process for this flow must set `ALLOW_DEMO_RESET=true` because it calls `POST /api/demo/reset` before the scenario to rebuild deterministic demo data.
+- `npm run test:e2e:fullstack` starts the real FastAPI backend and real Vite frontend against fresh Playwright SQLite data. It covers the seeded demo/PDF flow, persisted chat, and the Learning Session full-stack workflow; use `-- --project=chromium --list` first when you need collection proof. The backend process for this flow must set `ALLOW_DEMO_RESET=true` because it calls `POST /api/demo/reset` before the scenario to rebuild deterministic demo data.
 - The full-stack suite is better for release smoke tests or `workflow_dispatch`; the mocked suite is better for every PR because it is faster and less sensitive to process startup timing.
 
 ## Demo Seed Workflow

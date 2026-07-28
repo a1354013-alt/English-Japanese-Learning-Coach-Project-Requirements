@@ -90,8 +90,11 @@ cd frontend
 npm run e2e:install
 RUN_E2E=1 npm run test:e2e -- --project=chromium
 npm run test:e2e:fullstack:smoke -- --project=chromium
+npm run test:e2e:fullstack -- --project=chromium --list
 npm run test:e2e:fullstack -- --project=chromium
 ```
+
+The manual full-stack suite must collect and pass the Learning Session full-stack workflow alongside the seeded demo/PDF flow and persisted-chat flow.
 
 The `v1.5.0` persisted-chat release gate should explicitly verify:
 

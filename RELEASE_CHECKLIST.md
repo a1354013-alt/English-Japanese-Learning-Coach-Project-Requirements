@@ -57,8 +57,9 @@ Use this checklist for every release so a new maintainer can ship confidently wi
 
 - Run mocked smoke coverage with `cd frontend && npm ci && npm run e2e:install && RUN_E2E=1 npm run test:e2e -- --project=chromium`
 - Run auto-CI-equivalent full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack:smoke -- --project=chromium`
-- Run full-stack smoke coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack -- --project=chromium`
+- Run full-stack coverage with `cd frontend && npm ci && npm run e2e:install && npm run test:e2e:fullstack -- --project=chromium --list && npm run test:e2e:fullstack -- --project=chromium`
 - Confirm persisted-chat coverage includes create/select, reload/history restore, retry-safe canonical reconciliation, EN/JP isolation, rename, and delete flows without live Ollama.
+- Confirm Learning Session full-stack coverage is collected and passes, including real FastAPI/SQLite migrations, retry-safe Lesson/Review/SRS/Note events, persisted Chat event recording, goals, weekly insights, completion, abandonment, and language isolation.
 - If Playwright browsers are missing on Windows, run `cd frontend && npx playwright install chromium` after `npm ci`, then repeat the E2E command.
 - Confirm the full-stack run resets deterministic demo data before the scenario and leaves the demo resettable afterward.
 - Confirm the stable lesson flow coverage still demonstrates `lesson generate -> review submit -> progress updated` without relying on a live Ollama model.
