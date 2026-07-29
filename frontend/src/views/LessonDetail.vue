@@ -118,6 +118,38 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const lesson = ref<Lesson | null>(null)
 
+const createClientOperationId = (prefix: string) => {
+  const random =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}:${random}`
+}
+
+const stableLessonStartKey = (lessonId: string) => {
+  const storageKey = `learning-session:lesson-start:${lessonId}`
+  try {
+    const existing = window.localStorage.getItem(storageKey)
+    if (existing) return existing
+    const created = createClientOperationId(`lesson-start:${lessonId}`)
+    window.localStorage.setItem(storageKey, created)
+    return created
+  } catch {
+    return `lesson-start:${lessonId}`
+  }
+}
+
+const recordLessonStart = async (currentLesson: Lesson) => {
+  try {
+    await lessonApi.startLesson(
+      currentLesson.metadata.lesson_id,
+      stableLessonStartKey(currentLesson.metadata.lesson_id),
+    )
+  } catch (err) {
+    console.error(err)
+  }
+}
+
 const loadLesson = async () => {
   loading.value = true
   error.value = null
@@ -126,6 +158,7 @@ const loadLesson = async () => {
     const id = String(route.params.id)
     const res = await lessonApi.getLesson(id)
     lesson.value = res.lesson
+    await recordLessonStart(res.lesson)
   } catch (err) {
     console.error(err)
     error.value = t('lesson.loadError')

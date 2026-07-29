@@ -1,4 +1,4 @@
-"""Startup and collection behavior when RAG is disabled or chromadb is unavailable."""
+"""Startup and collection behavior when RAG is disabled or optional packages are absent."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ SUBPROCESS_TIMEOUT_SECONDS = 60
 pytestmark = pytest.mark.startup_isolation
 
 
-def _blocked_chromadb_env(tmp_path: Path, enable_rag: bool) -> dict[str, str]:
+def _blocked_optional_rag_env(tmp_path: Path, enable_rag: bool) -> dict[str, str]:
     sitecustomize = tmp_path / "sitecustomize.py"
     sitecustomize.write_text(
         "\n".join(
@@ -82,8 +82,8 @@ def _decode_output(output: str | bytes | None) -> str:
     return output or ""
 
 
-def test_import_main_without_chromadb_when_rag_disabled(tmp_path):
-    env = _blocked_chromadb_env(tmp_path, enable_rag=False)
+def test_import_main_without_optional_rag_packages_when_rag_disabled(tmp_path):
+    env = _blocked_optional_rag_env(tmp_path, enable_rag=False)
     result = _run_subprocess(
         [sys.executable, "-c", "import main; print('import-ok')"],
         env=env,
@@ -93,8 +93,8 @@ def test_import_main_without_chromadb_when_rag_disabled(tmp_path):
     assert "import-ok" in result.stdout
 
 
-def test_pytest_collection_succeeds_without_chromadb_when_rag_disabled(tmp_path):
-    env = _blocked_chromadb_env(tmp_path, enable_rag=False)
+def test_pytest_collection_succeeds_without_optional_rag_packages_when_rag_disabled(tmp_path):
+    env = _blocked_optional_rag_env(tmp_path, enable_rag=False)
     result = _run_subprocess(
         [sys.executable, "-m", "pytest", "--collect-only", "tests/test_ai_tools.py", "-q"],
         env=env,
@@ -104,8 +104,8 @@ def test_pytest_collection_succeeds_without_chromadb_when_rag_disabled(tmp_path)
     assert "collected" in result.stdout
 
 
-def test_import_main_when_rag_enabled_but_chromadb_missing_reports_clear_error(tmp_path):
-    env = _blocked_chromadb_env(tmp_path, enable_rag=True)
+def test_import_main_when_rag_enabled_without_optional_rag_packages_uses_local_backend(tmp_path):
+    env = _blocked_optional_rag_env(tmp_path, enable_rag=True)
     code = (
         "import main\n"
         "from routers import imports\n"
@@ -117,5 +117,5 @@ def test_import_main_when_rag_enabled_but_chromadb_missing_reports_clear_error(t
     lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     enabled_line = next(line for line in lines if line.startswith("ENABLED="))
     error_line = next(line for line in lines if line.startswith("ERROR="))
-    assert enabled_line == "ENABLED=False"
-    assert "chromadb" in error_line.lower()
+    assert enabled_line == "ENABLED=True"
+    assert error_line == "ERROR=None"

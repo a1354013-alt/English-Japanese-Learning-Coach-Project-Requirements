@@ -19,6 +19,7 @@ from models import (
 )
 from ollama_client import ollama_client
 from rag_manager import rag_manager
+from services.learning_session_recorder import get_learning_session_recorder_health
 from services.streak_service import get_streak_snapshot
 from time_utils import local_now
 from version import get_app_version
@@ -80,6 +81,7 @@ async def readiness_check():
             "ready": rag_manager.enabled,
             "error": rag_manager.init_error,
         },
+        "learning_session_recorder": get_learning_session_recorder_health(),
         "timestamp": local_now().isoformat(),
     }
 

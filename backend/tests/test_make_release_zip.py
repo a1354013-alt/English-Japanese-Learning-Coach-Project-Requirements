@@ -516,6 +516,87 @@ def test_shell_syntax_validation_runs_when_supported(tmp_path, monkeypatch):
     assert all(call[2] == extract_root for call in recorded_calls)
 
 
+def test_sqlite_backed_rag_verification_does_not_probe_chromadb(tmp_path, monkeypatch):
+    rag_lock = tmp_path / "requirements-rag.lock.txt"
+    rag_lock.write_text("pypdf==6.14.2\npydantic-settings==2.14.2\n", encoding="utf-8")
+    recorded_steps: list[tuple[str, list[str]]] = []
+    inspected_modules: list[str] = []
+
+    def fake_find_spec(name: str):
+        inspected_modules.append(name)
+        if name == "chromadb" or name.startswith("chromadb."):
+            raise AssertionError("SQLite-backed RAG verification must not inspect chromadb")
+        return object()
+
+    def fake_run_step(label: str, command: list[str], **_: object) -> None:
+        recorded_steps.append((label, command))
+
+    monkeypatch.setattr(verify_delivery, "RAG_LOCK", rag_lock)
+    monkeypatch.setattr(verify_delivery.importlib.util, "find_spec", fake_find_spec)
+    monkeypatch.setattr(verify_delivery, "run_step", fake_run_step)
+
+    verify_delivery.run_rag_verification()
+
+    assert inspected_modules == ["pydantic_settings", "pypdf"]
+    assert [label for label, _command in recorded_steps] == [
+        "Python dependency locked-install verification for SQLite-backed RAG",
+        "SQLite-backed RAG dependency consistency preflight",
+        "Pytest backend (SQLite-backed RAG)",
+    ]
+    assert recorded_steps[-1][1][-3:] == ["-q", "-m", "rag"]
+
+
+def test_sqlite_backed_rag_verification_fails_for_missing_current_dependency(tmp_path, monkeypatch):
+    rag_lock = tmp_path / "requirements-rag.lock.txt"
+    rag_lock.write_text("pypdf==6.14.2\n", encoding="utf-8")
+
+    def fake_find_spec(name: str):
+        if name == "pypdf":
+            return None
+        return object()
+
+    monkeypatch.setattr(verify_delivery, "RAG_LOCK", rag_lock)
+    monkeypatch.setattr(verify_delivery.importlib.util, "find_spec", fake_find_spec)
+
+    with pytest.raises(verify_delivery.StepFailed, match="SQLite-backed RAG dependency preflight failed") as exc_info:
+        verify_delivery.require_rag_dependencies()
+
+    message = str(exc_info.value)
+    assert "pypdf" in message
+    assert "backend/requirements-rag.lock.txt" in message
+    assert "chromadb" not in message.lower()
+
+
+@pytest.mark.parametrize(
+    ("namespace", "expected_calls"),
+    (
+        (
+            {"full": False, "mode": "standard", "include_rag": True},
+            ["standard", "rag"],
+        ),
+        (
+            {"full": False, "mode": "rag", "include_rag": False},
+            ["rag"],
+        ),
+        (
+            {"full": True, "mode": "standard", "include_rag": False},
+            ["standard", "optional", "rag"],
+        ),
+    ),
+)
+def test_delivery_modes_route_to_sqlite_backed_rag_lane(monkeypatch, namespace, expected_calls):
+    import argparse
+
+    calls: list[str] = []
+    monkeypatch.setattr(verify_delivery, "parse_args", lambda: argparse.Namespace(**namespace))
+    monkeypatch.setattr(verify_delivery, "run_standard_verification", lambda: calls.append("standard"))
+    monkeypatch.setattr(verify_delivery, "run_optional_advisory_checks", lambda: calls.append("optional"))
+    monkeypatch.setattr(verify_delivery, "run_rag_verification", lambda: calls.append("rag"))
+
+    assert verify_delivery.main() == 0
+    assert calls == expected_calls
+
+
 def _seed_symlink_repo(tmp_path: Path, monkeypatch) -> tuple[Path, Path, Path, Path]:
     repo_root = tmp_path / "repo"
     dist_dir = repo_root / "dist"
@@ -622,24 +703,13 @@ def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path
         encoding="utf-8",
     )
 
-    readme_path = root / "README.md"
-    readme_path.write_text(
-        "\n".join(
-            (
-                f"<!-- release:current=v{version} -->",
-                f"Current release: `v{version}`.",
-                "Maintenance wording can change without breaking release verification.",
-            )
-        ),
-        encoding="utf-8",
-    )
-
+    stable_reference_version = "1.5.0" if "-dev." in version else version
     checklist_path = root / "RELEASE_CHECKLIST.md"
     checklist_path.write_text(
         "\n".join(
             (
-                f"<!-- release:current=v{version} -->",
-                f"- Review `CHANGELOG.md` and confirm the release-facing notes for `v{version}`.",
+                f"<!-- release:current=v{stable_reference_version} -->",
+                f"- Review `CHANGELOG.md` and confirm the release-facing notes for `v{stable_reference_version}`.",
                 f"- Update root `VERSION`; it is the source of truth for backend app metadata and release archives. Keep `frontend/package.json` in sync at `{version}`; `scripts/verify_delivery.py` checks this.",
             )
         ),
@@ -651,13 +721,36 @@ def _write_version_reference_files(root: Path, version: str) -> tuple[Path, Path
     demo_guide_path.write_text(
         "\n".join(
             (
-                f"<!-- release:current=v{version} -->",
-                f"Use this guide when you want to present the `v{version}` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
-                f"- Real recording and speech comparison are not part of the `v{version}` release.",
+                f"<!-- release:current=v{stable_reference_version} -->",
+                f"Use this guide when you want to present the `v{stable_reference_version}` Adaptive Learning project as a polished portfolio demo instead of only a developer handoff.",
+                f"- Real recording and speech comparison are not part of the `v{stable_reference_version}` release.",
             )
         ),
         encoding="utf-8",
     )
+    readme_path = root / "README.md"
+    if "-dev." in version:
+        readme_path.write_text(
+            "\n".join(
+                (
+                    f"<!-- release:current={version} -->",
+                    f"Current development version: `{version}`.",
+                    "Development wording can change without breaking release verification.",
+                )
+            ),
+            encoding="utf-8",
+        )
+    else:
+        readme_path.write_text(
+            "\n".join(
+                (
+                    f"<!-- release:current=v{version} -->",
+                    f"Current release: `v{version}`.",
+                    "Maintenance wording can change without breaking release verification.",
+                )
+            ),
+            encoding="utf-8",
+        )
     return package_json_path, package_lock_path, readme_path, checklist_path, demo_guide_path
 
 
@@ -780,3 +873,99 @@ def test_verify_version_consistency_rejects_stale_package_lock_version(tmp_path,
         verify_delivery.verify_version_consistency()
     assert "9.9.8" in str(exc_info.value)
     assert "9.9.9" in str(exc_info.value)
+
+
+def test_verify_version_consistency_accepts_development_version_mode(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_accepts_release_candidate_mode(tmp_path, monkeypatch):
+    version = "1.6.0-rc1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_development_readme_using_release_wording(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+    readme_path.write_text(
+        "\n".join(
+            (
+                f"<!-- release:current=v{version} -->",
+                f"Current release: `v{version}`.",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="README current development marker"):
+        verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_development_mode_with_stable_reference_drift(tmp_path, monkeypatch):
+    version = "1.6.0-dev.1"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+    checklist_path.write_text(
+        checklist_path.read_text(encoding="utf-8").replace("v1.5.0", "v1.4.3"),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="expected v1.5.0"):
+        verify_delivery.verify_version_consistency()
+
+
+def test_verify_version_consistency_rejects_malformed_version_string(tmp_path, monkeypatch):
+    version = "1.6-dev"
+    package_json_path, _package_lock_path, readme_path, checklist_path, demo_guide_path = _write_version_reference_files(
+        tmp_path, version
+    )
+
+    monkeypatch.setattr(verify_delivery, "VERSION", version)
+    monkeypatch.setattr(verify_delivery, "FRONTEND_DIR", package_json_path.parent)
+    monkeypatch.setattr(verify_delivery, "README_PATH", readme_path)
+    monkeypatch.setattr(verify_delivery, "RELEASE_CHECKLIST_PATH", checklist_path)
+    monkeypatch.setattr(verify_delivery, "DEMO_GUIDE_PATH", demo_guide_path)
+    monkeypatch.setattr(verify_delivery, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(verify_delivery.StepFailed, match="Unsupported project version format"):
+        verify_delivery.verify_version_consistency()

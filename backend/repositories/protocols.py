@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol
 
-from models import ChatConversationRecord, ChatMessagePage, ChatMessageRecord
+from models import (
+    ChatConversationRecord,
+    ChatMessagePage,
+    ChatMessageRecord,
+    LearningSessionEntityType,
+    LearningSessionEventHistoryPage,
+    LearningSessionEventMetadata,
+    LearningSessionEventRecord,
+    LearningSessionEventType,
+    LearningSessionHistoryPage,
+    LearningSessionRecord,
+    LearningSessionSummary,
+)
 
 
 class PersistedChatRepositoryProtocol(Protocol):
@@ -105,31 +117,67 @@ class PersistedChatRepositoryProtocol(Protocol):
 
 
 class LearningSessionRepositoryProtocol(Protocol):
-    """Persistence contract reserved for future long-lived guided learning sessions."""
+    """Persistence contract for Phase 1 learning-session storage and summaries."""
 
-    def create_learning_session(
+    def start_session(
         self,
         *,
         user_id: str,
         language: str,
-        session_type: str,
-        lesson_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> str: ...
+        planned_minutes: Optional[int] = None,
+    ) -> LearningSessionRecord: ...
 
-    def record_learning_session_step(
+    def get_session(self, *, session_id: str, user_id: str) -> LearningSessionRecord: ...
+
+    def find_active_session(self, *, user_id: str, language: str) -> Optional[LearningSessionRecord]: ...
+
+    def list_session_history(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        limit: int = 20,
+        cursor: Optional[str] = None,
+    ) -> LearningSessionHistoryPage: ...
+
+    def append_event(
         self,
         *,
         session_id: str,
         user_id: str,
-        step_type: str,
-        payload: Dict[str, Any],
-    ) -> str: ...
+        event_type: LearningSessionEventType | str,
+        entity_type: LearningSessionEntityType | str | None = None,
+        entity_id: Optional[str] = None,
+        metadata: Optional[LearningSessionEventMetadata] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> LearningSessionEventRecord: ...
 
-    def complete_learning_session(
+    def list_events(
         self,
         *,
         session_id: str,
         user_id: str,
-        outcome: Dict[str, Any],
-    ) -> None: ...
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> LearningSessionEventHistoryPage: ...
+
+    def complete_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        idempotency_key: str,
+    ) -> LearningSessionRecord: ...
+
+    def abandon_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+    ) -> LearningSessionRecord: ...
+
+    def produce_summary(self, *, session_id: str, user_id: str) -> LearningSessionSummary: ...
+
+    def delete_session(self, *, session_id: str, user_id: str) -> None: ...
+
+    def clear_local_demo_user_session_data(self, *, user_id: str) -> int: ...

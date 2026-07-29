@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.5.0 -->
-Current release: `v1.5.0`.
+<!-- release:current=v1.6.0-rc1 -->
+Current release: `v1.6.0-rc1`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -21,7 +21,7 @@ This repository is intentionally scoped as a local-first demo and portfolio proj
 - Vue 3 + TypeScript frontend with i18n, workspace flows, progress dashboards, wrong-answer review, and writing support
 - Textbook-style AI lesson units with objectives, vocabulary, word roots, sentence patterns, grammar, dialogue, reading, text shadowing, Feynman prompts, and review plans
 - Imported vocabulary categories, tags, roots, affixes, word families, and memory tips for stronger word-book review
-- Optional RAG integration via ChromaDB, with chunked material storage plus safe disabled mode for CI and lightweight demos
+- Optional SQLite-backed RAG integration, with chunked material storage plus safe disabled mode for CI and lightweight demos
 - SRS and gamification flows that avoid duplicate XP on repeated submissions
 - TTS provider-ready placeholder with a stable unavailable response shape; this is not shipped as full voice synthesis
 - SQLite persistence with migration smoke tests and index coverage
@@ -45,14 +45,34 @@ flowchart LR
     API --> DEMO["Demo Reset Seeder"]
     LESSON --> OLLAMA["Ollama / Local LLM"]
     LESSON --> RAG["RAG Manager"]
-    RAG --> CHROMA["ChromaDB (Optional)"]
+    RAG --> RAGDB["SQLite RAG Store (Optional)"]
     REVIEW --> DB["SQLite"]
     IMPORTS --> DB
     DEMO --> DB
     API --> FILES["Lesson JSON / PDF / Audio Files"]
 ```
 
-Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, and analytics in SQLite. Core mode works without RAG dependencies. RAG mode requires `backend/requirements-rag.txt`, `ENABLE_RAG=true`, and separate verification; when enabled it stores chunked material metadata in ChromaDB. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, analytics, Learning Sessions, Learning Goals, Weekly Insights, and optional RAG material chunks in SQLite. Core mode works without RAG dependencies. RAG mode requires `ENABLE_RAG=true` and separate verification; when enabled it stores chunked material metadata in the local SQLite-backed RAG store. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
+
+## v1.6.0 Release Candidate
+
+Version `1.6.0-rc1` packages the learner-facing Learning Sessions release candidate while preserving the verified `v1.5.0` persisted-chat baseline:
+
+- Migration `0012_learning_sessions_and_events.sql` adds explicit Session lifecycle storage and append-only Events.
+- Migration `0013_review_and_srs_operation_ids.sql` adds canonical Review/SRS operation identities for retry-safe Session telemetry.
+- Migration `0014_learning_goals.sql` adds per-language Learning Goals.
+- The Progress page includes a compact Learning Session workflow with explicit start/resume, planned minutes, server-derived timer restore, notes, completion, abandonment, history, deterministic summary, goals, and Weekly Review metrics.
+- Lesson, Review, SRS, Chat, Feynman, and Micro Lesson flows record optional same-language Session Events without requiring a live AI provider.
+- Manual notes use bounded `session-note:<operation-id>` idempotency keys. Note text is never part of the key; timeout retries reuse the pending operation only when the Session ID and note text are unchanged, while edited notes, Session changes, and later intentional identical notes receive new operation IDs.
+- Weekly Insights accept an optional `week_start` date, normalize valid supplied dates to Monday, and return structured `422` validation for invalid date text or impossible calendar dates.
+- Weekly Session lifecycle metrics are attributed by finalized `ended_at`; Event activity metrics are attributed by `occurred_at`.
+- Session history and per-Session event timelines both use cursor pagination with `has_more` plus `next_cursor`; the Progress UI now appends additional pages without duplicating records and resets pagination state on language or Session changes.
+- Abandoning a Session now clears the active reactive Session state, keeps deterministic summary/timeline/history access, and allows a new Session to start immediately without waiting for a reload.
+- Learning Goal editing normalizes cleared optional `weekly_minutes` to explicit `null`; invalid empty strings, `NaN`, negatives, non-integers, and out-of-range values remain rejected by the typed API contract.
+- Learning Session telemetry keeps tolerant-mode primary-flow isolation while exposing recorder degraded state and counters through `GET /api/ready`.
+- Optional RAG storage is SQLite-backed and uses managed connection boundaries that commit, roll back, and close deterministically.
+
+The `v1.6.0-rc1` gate has been verified on Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3`, including frontend reinstall/audit, E2E, Docker validation, and delivery verification.
 
 ## Textbook-Style Lessons
 
@@ -101,7 +121,7 @@ Current limitations remain explicit:
 - Per-conversation turn ordering is local to one backend process and is not a distributed lock.
 - TTS is provider-ready but disabled by default unless a real provider is configured.
 - Immersion is currently text shadowing rather than live audio coaching.
-- RAG is optional and requires `backend/requirements-rag.txt` plus extra verification.
+- RAG is optional, SQLite-backed, and requires a separate verification lane when `ENABLE_RAG=true`.
 - Real recording and speech comparison are not part of this release.
 
 ## Portfolio Demo Flow
@@ -162,7 +182,7 @@ Backend environment variables:
 
 - `DATA_DIR` runtime data directory
 - `DB_PATH` SQLite database path
-- `CHROMA_DB_PATH` Chroma persistence directory
+- `CHROMA_DB_PATH` SQLite RAG persistence directory retained for compatibility with existing environment files
 - `ENABLE_RAG` defaults to `false`; set `true` only after installing `backend/requirements-rag.txt`
 - `ALLOW_DEMO_RESET` defaults to `false`; set `true` only for local demo or seeded full-stack test runs
 - `MAX_UPLOAD_SIZE_MB` maximum upload size for import and RAG material endpoints, defaults to `10`
@@ -181,7 +201,7 @@ Runtime requirements:
 
 Use `backend/.env.example` as the source of truth for local configuration. Do not commit real secrets or provider credentials. For local development, RAG is disabled by default. Enable it only after installing `backend/requirements-rag.txt` and setting `ENABLE_RAG=true`.
 
-Runtime data such as local SQLite files, generated lessons, audio, exports, and Chroma persistence must stay out of git. The repository keeps only `data/.gitkeep`; create runtime content locally under `data/` or a custom `DATA_DIR`.
+Runtime data such as local SQLite files, generated lessons, audio, exports, and SQLite-backed RAG persistence must stay out of git. The repository keeps only `data/.gitkeep`; create runtime content locally under `data/` or a custom `DATA_DIR`.
 
 Versioning uses root `VERSION` as the source of truth. Backend app metadata and release archives read that file, and `scripts/verify_delivery.py` checks that `frontend/package.json` stays in sync.
 
@@ -251,7 +271,7 @@ The provided Compose file starts the backend API only. The frontend is intended 
 docker compose up --build
 ```
 
-The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness is available at [http://localhost:8000/api/health](http://localhost:8000/api/health) and checks only app + DB basics. Readiness is available at [http://localhost:8000/api/ready](http://localhost:8000/api/ready) and reports Ollama/RAG status. The compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup in environments without ChromaDB.
+The API is exposed at [http://localhost:8000](http://localhost:8000). Liveness is available at [http://localhost:8000/api/health](http://localhost:8000/api/health) and checks only app + DB basics. Readiness is available at [http://localhost:8000/api/ready](http://localhost:8000/api/ready) and reports Ollama/RAG status. The compose configuration defaults `ENABLE_RAG=false` plus `MAX_UPLOAD_SIZE_MB=10` for reliable startup without optional AI or RAG features.
 
 The backend image installs `fonts-noto-cjk` and `fontconfig` so PDF export can render Japanese and Chinese text reliably. The PDF exporter prefers an installed CJK font and logs a warning before falling back to Helvetica if no compatible font is available. For local Windows development, the exporter checks common system CJK fonts such as Microsoft YaHei, Microsoft JhengHei, MingLiU, SimSun, MS Gothic, and Yu Gothic. Set `PDF_CJK_FONT_PATH=C:\Windows\Fonts\msjh.ttc` or another known CJK font path if your machine uses a nonstandard font install.
 
@@ -281,8 +301,8 @@ python -m pytest tests -q -m rag
 
 Test lanes at a glance:
 
-- Standard backend/frontend checks are the default CI-safe gate and do not require ChromaDB or Ollama.
-- Optional RAG tests validate Chroma-backed flows only after installing `backend/requirements-rag.txt`.
+- Standard backend/frontend checks are the default CI-safe gate and do not require Ollama or RAG to be enabled.
+- Optional RAG tests validate the SQLite-backed RAG flows with `ENABLE_RAG=true`.
 - Mocked Playwright E2E validates the primary lesson flow with deterministic API mocks.
 - Full-stack smoke E2E validates the seeded real backend/frontend path without a live LLM.
 
@@ -315,7 +335,7 @@ On Windows, `npm run e2e:install` runs `playwright install chromium`. If the npm
 Playwright mocked E2E starts only the Vite dev server and mocks lesson, review, progress, analytics, streak, onboarding, and PDF export APIs inside the test run.
 
 - No backend startup is required for `cd frontend && npm run test:e2e -- --project=chromium`
-- No Ollama, ChromaDB, network access, or other external services are required
+- No Ollama, network access, or other external services are required
 - The E2E lesson flow uses stable mocked lesson/review responses instead of relying on live generation
 
 ### Full-Stack E2E
@@ -337,7 +357,7 @@ The full-stack Playwright suite starts:
 - a real FastAPI backend on `http://127.0.0.1:8000`
 - a real Vite frontend on `http://127.0.0.1:4273`
 
-It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, so the backend process for this suite must set `ALLOW_DEMO_RESET=true`. The suite still keeps `ENABLE_RAG=false` so it does not depend on ChromaDB.
+It uses `POST /api/demo/reset` before and after the run to seed deterministic demo data, so the backend process for this suite must set `ALLOW_DEMO_RESET=true`. The suite still keeps `ENABLE_RAG=false` so it does not depend on optional RAG state.
 
 ## Demo Seed
 
@@ -349,6 +369,13 @@ curl -X POST http://127.0.0.1:8000/api/demo/reset
 ```
 
 This reseeds a deterministic v1.4.3 demo lesson, progress snapshot, item-level SRS data, weak-item groups, 7-day review activity, and supporting demo data for the default user.
+
+Demo data boundaries for the current branch:
+
+- `v1.4.3` fixture data covers the adaptive-learning baseline that demo reset rebuilds.
+- `v1.5.0` persisted-chat behavior is validated against the stable baseline but conversations themselves are not pre-seeded by demo reset.
+- `v1.6.0-rc1` Learning Session runtime rows, Session event history, and learner-created goals are not pre-seeded; demo reset clears them before rebuilding the older adaptive baseline.
+- Migrations `0012` through `0014` remain additive: `0012` stores Sessions and Events, `0013` adds retry-safe Review/SRS operation identities, and `0014` stores per-language Learning Goals.
 
 ### Full-Stack Smoke E2E
 
@@ -375,7 +402,7 @@ This smoke suite validates the shortest stable real-app path:
 
 - `npm run test:e2e` is the default CI-safe acceptance check because it is API-mocked and deterministic.
 - `npm run test:e2e:fullstack:smoke` now runs automatically in CI for pull requests, pushes to `main`/`master`, and the nightly scheduled workflow.
-- `npm run test:e2e:fullstack` remains reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises the broader persistence and PDF/wrong-answer flow.
+- `npm run test:e2e:fullstack` remains reserved for `workflow_dispatch` / manual verification because it boots both servers and exercises the broader persistence, PDF/wrong-answer, persisted-chat, and Learning Session workflow. The manual CI job lists collected full-stack specs before running them so the Learning Session full-stack test name is visible in logs.
 - The full-stack smoke and full suite both avoid external AI-provider dependency by relying on deterministic demo data and the backend fallback lesson path.
 
 ### Docker
@@ -405,13 +432,13 @@ This project is intended to demonstrate engineering quality rather than flashy f
 
 ## Reliability Notes
 
-- Importing `backend/main.py` does not require `chromadb` or `sentence-transformers` when `ENABLE_RAG=false`.
-- `backend/requirements-rag.txt` contains the optional Chroma / embedding dependencies for RAG-enabled environments.
-- If `ENABLE_RAG=true` but `chromadb` or `sentence-transformers` is not installed, the app still starts and RAG endpoints return a clear service-unavailable error instead of crashing startup.
+- Importing `backend/main.py` does not require ChromaDB, sentence-transformers, or any external vector-store service.
+- `backend/requirements-rag.txt` currently reuses the standard runtime dependency set; RAG-enabled mode is backed by local SQLite storage and lexical chunk search.
+- If `ENABLE_RAG=true`, the app initializes the local SQLite-backed RAG store under `CHROMA_DB_PATH` and reports readiness through `/api/ready`.
 - `GET /api/health` is intentionally lightweight and does not depend on Ollama or RAG. Use `GET /api/ready` when you need optional dependency status.
 - Upload endpoints enforce a `MAX_UPLOAD_SIZE_MB` limit with chunked reads and return HTTP `413` with code `FILE_TOO_LARGE` when exceeded.
 - Excel import is intentionally `.xlsx` only. The backend uses `openpyxl`, and the frontend/file validation/docs now match that contract.
-- RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored vectors are CJK-aware chunked per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
+- RAG uploads support `.txt`, `.md`, `.csv`, and `.pdf`. Stored chunks are CJK-aware per material and keep stable metadata for `material_id`, `title`, `language`, `source_type`, `chunk_index`, `total_chunks`, and `uploaded_at`.
 - Re-submitted lesson reviews do not duplicate XP or completed lesson count; progress keeps the best per-lesson score while SRS reflects the latest attempt.
 - Review submission requires a complete answer set for every grammar and reading question; incomplete, duplicate, or out-of-range answers now return a clear `422` error instead of silently counting missing answers as wrong.
 - When `ENABLE_RAG=false`, `GET /api/rag/materials` still returns a stable empty list while mutating endpoints return a clear unavailable error.
@@ -426,7 +453,7 @@ This project is intended to demonstrate engineering quality rather than flashy f
 
 - Python version: use `3.11.x` for the same toolchain that CI and `scripts/verify_delivery.py` enforce.
 - Node version: use `22.18.0`. The repo pins this in `.nvmrc`, `.node-version`, `frontend/package.json`, and GitHub Actions.
-- Optional RAG dependency: install `backend/requirements-rag.txt` only when you want `ENABLE_RAG=true` or `python -m pytest backend/tests -q -m rag`.
+- Optional RAG lane: set `ENABLE_RAG=true` and run `python -m pytest backend/tests -q -m rag` when validating SQLite-backed RAG behavior.
 - Ollama not running: standard tests and `/api/health` should still work; check `/api/ready` for optional dependency status.
 - Frontend API base URL: `VITE_API_BASE_URL` controls REST calls, and WebSocket URLs are derived from the current host or API origin instead of hardcoded `localhost`.
 - Playwright browser install: run `cd frontend && npm run e2e:install` before the first local E2E run if Chromium is missing.
@@ -441,7 +468,7 @@ python scripts/verify_delivery.py --include-rag
 python scripts/make_release_zip.py
 ```
 
-`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, Python dependency locked-install verification, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, backend application-only coverage reporting, `npm ci`, both frontend audits, frontend checks, frontend coverage generation, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` only after installing `backend/requirements-rag.lock.txt`; those modes fail fast when the optional RAG dependency set is missing. `scripts/python_dependency_locks.py check` validates lock metadata fingerprints plus portability and secret-redaction rules without re-resolving the live package index during ordinary CI runs. `scripts/make_release_zip.py` and `scripts/release_file_policy.py` create a delivery zip under `dist/` while preserving only approved env templates (`.env.example`, `.env.sample`, `.env.template`) and excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, stage-style `env.*` / `env-*` variants at any depth with case-insensitive matching, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, while still allowing source declaration files such as `frontend/src/env.d.ts`. Runtime DB/log artifacts, Chroma data, generated lessons/audio/exports, backup directories, local validation output directories such as `dist_phase1_check/`, `dist_test/`, and `dist-local/`, nested archives such as `.zip`, `.tar`, `.tar.gz`, and `.tgz`, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts remain excluded as well. Release ZIP creation now writes through a temporary file and replaces the final archive atomically only after the build succeeds. Release extraction smoke also syntax-checks `start_backend.sh`, `start_frontend.sh`, and `backend/docker-entrypoint.sh` with `bash -n` on non-Windows hosts when `bash` is available.
+`scripts/verify_delivery.py` is the standard release gate for a clean checkout. It enforces Python `3.11.x`, Node `22.18.0`, Python dependency locked-install verification, backend dependency availability, version consistency, backend compile/lint/type checks, the main backend pytest lane excluding `rag` and `startup_isolation`, the separate startup isolation pytest lane, backend application-only coverage reporting, `npm ci`, both frontend audits, frontend checks, frontend coverage generation, and release-zip validation. Use `--include-rag`, `--mode rag`, or `--mode full` when validating the SQLite-backed RAG lane. `scripts/python_dependency_locks.py check` validates lock metadata fingerprints plus portability and secret-redaction rules without re-resolving the live package index during ordinary CI runs. `scripts/make_release_zip.py` and `scripts/release_file_policy.py` create a delivery zip under `dist/` while preserving only approved env templates (`.env.example`, `.env.sample`, `.env.template`) and excluding `.envrc`, every filename beginning with `.env` except those templates, every filename ending with `.env`, every filename containing `.env.` or `.env-`, stage-style `env.*` / `env-*` variants at any depth with case-insensitive matching, common credential files such as `.npmrc`, `.pypirc`, `.netrc`, `id_rsa`, `id_ed25519`, `service-account.json`, `.pem`, `.key`, `.p12`, and `.pfx`, plus local runtime directories such as `.direnv`, while still allowing source declaration files such as `frontend/src/env.d.ts`. Runtime DB/log artifacts, SQLite-backed RAG data, generated lessons/audio/exports, backup directories, local validation output directories such as `dist_phase1_check/`, `dist_test/`, and `dist-local/`, nested archives such as `.zip`, `.tar`, `.tar.gz`, and `.tgz`, frontend build output, test reports, caches, virtualenvs, `node_modules`, and other local build artifacts remain excluded as well. Release ZIP creation now writes through a temporary file and replaces the final archive atomically only after the build succeeds. Release extraction smoke also syntax-checks `start_backend.sh`, `start_frontend.sh`, and `backend/docker-entrypoint.sh` with `bash -n` on non-Windows hosts when `bash` is available.
 
 SQLite maintenance commands:
 

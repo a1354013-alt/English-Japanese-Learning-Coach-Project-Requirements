@@ -143,7 +143,7 @@ def test_rag_list_returns_empty_when_rag_disabled_by_configuration(monkeypatch):
 def test_rag_list_returns_503_when_rag_backend_failed(monkeypatch):
     stub = _StubRag()
     stub.enabled = False
-    stub.init_error = "RAG is enabled but chromadb is not installed."
+    stub.init_error = "SQLite-backed RAG store could not be initialized."
     stub.disabled_by_config = False
     monkeypatch.setattr(imports_router, "rag_manager", stub, raising=False)
 
@@ -153,4 +153,4 @@ def test_rag_list_returns_503_when_rag_backend_failed(monkeypatch):
 
     response = client.get("/api/rag/materials?language=EN")
     assert response.status_code == 503
-    assert response.json()["detail"] == "RAG is enabled but chromadb is not installed."
+    assert response.json()["detail"] == "SQLite-backed RAG store could not be initialized."

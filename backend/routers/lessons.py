@@ -14,12 +14,14 @@ from models import (
     LanguageCode,
     LessonDetailResponse,
     LessonListResponse,
+    LessonStartRequest,
     OnboardRequest,
     SuccessResponse,
     TodayLessonResponse,
     UserRPGStats,
 )
 from services.learning_intelligence import generate_feynman_feedback
+from services.learning_session_recorder import build_learning_session_recorder
 from services.lesson_ops import load_lesson_payload
 
 from routers.deps import require_demo_user_id
@@ -82,6 +84,30 @@ async def get_lesson(lesson_id: str, user_id: str = Depends(require_demo_user_id
     return {"success": True, "lesson": load_lesson_payload(lesson_id, user_id=user_id)}
 
 
+@router.post("/lessons/{lesson_id}/start", response_model=SuccessResponse)
+async def start_lesson(
+    lesson_id: str,
+    request: LessonStartRequest | None = None,
+    user_id: str = Depends(require_demo_user_id),
+):
+    lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
+    language = str(lesson_data.get("metadata", {}).get("language", "")).strip()
+    idempotency_key = (
+        request.idempotency_key.strip()
+        if request is not None and request.idempotency_key is not None
+        else f"lesson-started:{lesson_id}"
+    )
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=language,
+        event_type="lesson_started",
+        entity_type="lesson",
+        entity_id=lesson_id,
+        idempotency_key=idempotency_key,
+    )
+    return {"success": True}
+
+
 @router.post("/lessons/{lesson_id}/feynman-feedback", response_model=FeynmanFeedbackResponse)
 async def create_feynman_feedback(
     lesson_id: str,
@@ -94,12 +120,20 @@ async def create_feynman_feedback(
         from api_errors import api_error
 
         raise api_error(422, "Lesson language does not match request language", "lesson_language_mismatch")
-    feedback = await generate_feynman_feedback(
+    feedback, feedback_id = await generate_feynman_feedback(
         user_id=user_id,
         lesson_id=lesson_id,
         language=request.language,
         explanation=request.explanation,
         lesson_data=lesson_data,
+    )
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=request.language,
+        event_type="feynman_completed",
+        entity_type="feynman_response",
+        entity_id=feedback_id,
+        idempotency_key=f"feynman-completed:{feedback_id}",
     )
     return {"success": True, "feedback": feedback.model_dump(mode="json")}
 

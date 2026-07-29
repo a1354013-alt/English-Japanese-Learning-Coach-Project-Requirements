@@ -178,6 +178,8 @@
         <div class="section-card">
           <StudyBlueprint :language="preferredLanguage" />
         </div>
+
+        <LearningSessionPanel />
       </div>
 
       <div v-else-if="currentTab === 'mistakes'" class="section-card">
@@ -224,6 +226,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import StudyBlueprint from '@/components/StudyBlueprint.vue'
+import LearningSessionPanel from '@/components/LearningSessionPanel.vue'
 import ErrorState from '@/components/state/ErrorState.vue'
 import LoadingState from '@/components/state/LoadingState.vue'
 import { progressApi } from '@/services/api'

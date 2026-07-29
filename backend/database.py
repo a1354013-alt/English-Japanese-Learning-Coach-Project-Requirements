@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from config import settings
 from models import UserRPGStats, review_rating_is_correct
 from repositories.chat_repository import ChatRepository
+from repositories.learning_session_repository import LearningSessionRepository
 from time_utils import local_now
 
 
@@ -115,6 +116,7 @@ class Database:
         self._connection_lock = threading.Lock()
         self._thread_connections: dict[int, sqlite3.Connection] = {}
         self.chat_repository = ChatRepository(self)
+        self.learning_session_repository = LearningSessionRepository(self)
         self._register_instance()
         self.init_database()
 
@@ -177,6 +179,40 @@ class Database:
     def get_connection(self) -> sqlite3.Connection:
         """Compatibility wrapper for code paths using context-managed connections."""
         return self._connection
+
+    def start_learning_session(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        planned_minutes: Optional[int] = None,
+    ):
+        return self.learning_session_repository.start_session(
+            user_id=user_id,
+            language=language,
+            planned_minutes=planned_minutes,
+        )
+
+    def get_learning_session(self, *, session_id: str, user_id: str):
+        return self.learning_session_repository.get_session(session_id=session_id, user_id=user_id)
+
+    def find_active_learning_session(self, *, user_id: str, language: str):
+        return self.learning_session_repository.find_active_session(user_id=user_id, language=language)
+
+    def list_learning_sessions(
+        self,
+        *,
+        user_id: str,
+        language: Optional[str] = None,
+        limit: int = 20,
+        cursor: Optional[str] = None,
+    ):
+        return self.learning_session_repository.list_session_history(
+            user_id=user_id,
+            language=language,
+            limit=limit,
+            cursor=cursor,
+        )
 
     def close(self) -> None:
         """Close the thread-local SQLite connection if one exists."""
@@ -1279,6 +1315,69 @@ class Database:
                 ),
             )
 
+    def get_or_create_review_submission(
+        self,
+        *,
+        user_id: str,
+        lesson_id: str,
+        client_submission_id: Optional[str],
+        request_hash: str,
+        total_questions: int,
+        correct_count: int,
+        accuracy_rate: float,
+    ) -> Dict[str, Any]:
+        normalized_client_id = client_submission_id.strip() if client_submission_id else None
+        if normalized_client_id == "":
+            normalized_client_id = None
+        now = _local_now().isoformat()
+        submission_id = str(uuid4())
+        with self.get_connection() as conn:
+            if normalized_client_id is not None:
+                existing = conn.execute(
+                    """
+                    SELECT submission_id, request_hash, total_questions, correct_count, accuracy_rate, created_at
+                    FROM review_submissions
+                    WHERE user_id = ? AND client_submission_id = ?
+                    """,
+                    (user_id, normalized_client_id),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["request_hash"]) != request_hash:
+                        raise ValueError("review submission idempotency conflict")
+                    result = dict(existing)
+                    result["client_submission_id"] = normalized_client_id
+                    result["is_retry"] = True
+                    return result
+            conn.execute(
+                """
+                INSERT INTO review_submissions (
+                    submission_id, user_id, lesson_id, client_submission_id, request_hash,
+                    total_questions, correct_count, accuracy_rate, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    submission_id,
+                    user_id,
+                    lesson_id,
+                    normalized_client_id,
+                    request_hash,
+                    total_questions,
+                    correct_count,
+                    accuracy_rate,
+                    now,
+                ),
+            )
+        return {
+            "submission_id": submission_id,
+            "client_submission_id": normalized_client_id,
+            "request_hash": request_hash,
+            "total_questions": total_questions,
+            "correct_count": correct_count,
+            "accuracy_rate": accuracy_rate,
+            "created_at": now,
+            "is_retry": False,
+        }
+
     def get_exercise_result(
         self,
         *,
@@ -1620,6 +1719,7 @@ class Database:
         else:
             mastery_state = "learning"
 
+        review_event_id = str(uuid4())
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -1646,7 +1746,7 @@ class Database:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid4()),
+                    review_event_id,
                     item_id,
                     rating,
                     1 if derived_correct else 0,
@@ -1664,7 +1764,285 @@ class Database:
             language=str(updated.get("language") or ""),
             mastery_state=str(updated.get("mastery_state") or "new"),
         )
+        updated["review_event_id"] = review_event_id
+        updated["review_correct"] = derived_correct
         return updated
+
+    def get_or_create_legacy_srs_review_operation(
+        self,
+        *,
+        user_id: str,
+        word: str,
+        language: str,
+        quality: int,
+        client_operation_id: Optional[str],
+        request_hash: str,
+    ) -> Dict[str, Any]:
+        normalized_client_id = client_operation_id.strip() if client_operation_id else None
+        if normalized_client_id == "":
+            normalized_client_id = None
+        operation_id = str(uuid4())
+        now = _local_now().isoformat()
+        with self.get_connection() as conn:
+            if normalized_client_id is not None:
+                existing = conn.execute(
+                    """
+                    SELECT operation_id, request_hash, quality, created_at
+                    FROM legacy_srs_review_operations
+                    WHERE user_id = ? AND client_operation_id = ?
+                    """,
+                    (user_id, normalized_client_id),
+                ).fetchone()
+                if existing is not None:
+                    if str(existing["request_hash"]) != request_hash:
+                        raise ValueError("legacy SRS review idempotency conflict")
+                    result = dict(existing)
+                    result["client_operation_id"] = normalized_client_id
+                    result["is_retry"] = True
+                    return result
+            conn.execute(
+                """
+                INSERT INTO legacy_srs_review_operations (
+                    operation_id, user_id, word, language, client_operation_id,
+                    request_hash, quality, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    operation_id,
+                    user_id,
+                    word,
+                    language,
+                    normalized_client_id,
+                    request_hash,
+                    quality,
+                    now,
+                ),
+            )
+        return {
+            "operation_id": operation_id,
+            "client_operation_id": normalized_client_id,
+            "request_hash": request_hash,
+            "quality": quality,
+            "created_at": now,
+            "is_retry": False,
+        }
+
+    def get_learning_goal(self, *, user_id: str, language: str) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        with self.get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                FROM learning_goals
+                WHERE user_id = ? AND language = ?
+                """,
+                (user_id, normalized_language),
+            ).fetchone()
+            if row:
+                return dict(row)
+        defaults = self._default_learning_goal(normalized_language)
+        return self.upsert_learning_goal(user_id=user_id, language=normalized_language, **defaults)
+
+    def upsert_learning_goal(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        daily_minutes: int,
+        weekly_sessions: int,
+        weekly_minutes: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        now = _local_now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO learning_goals (
+                    user_id, language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, language) DO UPDATE SET
+                    daily_minutes = excluded.daily_minutes,
+                    weekly_sessions = excluded.weekly_sessions,
+                    weekly_minutes = excluded.weekly_minutes,
+                    updated_at = excluded.updated_at
+                """,
+                (user_id, normalized_language, daily_minutes, weekly_sessions, weekly_minutes, now, now),
+            )
+            row = conn.execute(
+                """
+                SELECT language, daily_minutes, weekly_sessions, weekly_minutes, created_at, updated_at
+                FROM learning_goals
+                WHERE user_id = ? AND language = ?
+                """,
+                (user_id, normalized_language),
+            ).fetchone()
+        return dict(row) if row else {}
+
+    def reset_learning_goals_for_demo_user(self, *, user_id: str) -> None:
+        with self.get_connection() as conn:
+            conn.execute("DELETE FROM learning_goals WHERE user_id = ?", (user_id,))
+        for language in ("EN", "JP"):
+            defaults = self._default_learning_goal(language)
+            self.upsert_learning_goal(user_id=user_id, language=language, **defaults)
+
+    @staticmethod
+    def _default_learning_goal(language: str) -> Dict[str, Any]:
+        return {
+            "daily_minutes": 20 if language == "EN" else 15,
+            "weekly_sessions": 4 if language == "EN" else 3,
+            "weekly_minutes": 120 if language == "EN" else 90,
+        }
+
+    def get_weekly_learning_insight(
+        self,
+        *,
+        user_id: str,
+        language: str,
+        week_start: datetime,
+        week_end: datetime,
+    ) -> Dict[str, Any]:
+        normalized_language = language.strip().upper()
+        goal = self.get_learning_goal(user_id=user_id, language=normalized_language)
+        app_tz = ZoneInfo(settings.timezone)
+
+        def _parse_app_time(value: Any) -> datetime:
+            parsed = datetime.fromisoformat(str(value))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=app_tz)
+            return parsed.astimezone(app_tz)
+
+        def _inside_week(value: Any) -> bool:
+            timestamp = _parse_app_time(value)
+            return week_start <= timestamp < week_end
+
+        with self.get_connection() as conn:
+            sessions = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT session_id, status, planned_minutes, started_at, ended_at, duration_seconds
+                    FROM learning_sessions
+                    WHERE user_id = ? AND language = ? AND ended_at IS NOT NULL
+                      AND status IN ('completed', 'abandoned')
+                    ORDER BY ended_at DESC, session_id DESC
+                    """,
+                    (user_id, normalized_language),
+                ).fetchall()
+                if _inside_week(row["ended_at"])
+            ]
+            events = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT e.event_type, e.metadata_json, e.occurred_at, e.session_id
+                    FROM learning_session_events AS e
+                    JOIN learning_sessions AS s ON s.session_id = e.session_id
+                    WHERE s.user_id = ? AND s.language = ?
+                    ORDER BY e.occurred_at ASC, e.sequence_number ASC
+                    """,
+                    (user_id, normalized_language),
+                ).fetchall()
+                if _inside_week(row["occurred_at"])
+            ]
+            finalized_session_ids = {str(session["session_id"]) for session in sessions}
+            event_counts: Dict[str, int] = {session_id: 0 for session_id in finalized_session_ids}
+            for row in conn.execute(
+                """
+                SELECT e.session_id
+                FROM learning_session_events AS e
+                JOIN learning_sessions AS s ON s.session_id = e.session_id
+                WHERE s.user_id = ? AND s.language = ?
+                  AND s.ended_at IS NOT NULL
+                  AND s.status IN ('completed', 'abandoned')
+                """,
+                (user_id, normalized_language),
+            ).fetchall():
+                session_id = str(row["session_id"])
+                if session_id in event_counts:
+                    event_counts[session_id] += 1
+
+        completed_sessions = [session for session in sessions if session["status"] == "completed"]
+        abandoned_sessions = [session for session in sessions if session["status"] == "abandoned"]
+        total_duration = sum(max(0, int(session.get("duration_seconds") or 0)) for session in completed_sessions)
+        event_type_counts = {
+            "lesson_started": 0,
+            "lesson_completed": 0,
+            "review_answered": 0,
+            "srs_reviewed": 0,
+            "chat_turn_completed": 0,
+            "feynman_completed": 0,
+            "micro_lesson_completed": 0,
+            "session_note": 0,
+        }
+        correct_review_answers = 0
+        review_answers_with_known_correctness = 0
+        active_days: set[str] = set()
+        day_scores: Dict[str, int] = {}
+        for event in events:
+            event_type = str(event["event_type"])
+            if event_type in event_type_counts:
+                event_type_counts[event_type] += 1
+            occurred = _parse_app_time(event["occurred_at"])
+            day_key = occurred.date().isoformat()
+            active_days.add(day_key)
+            day_scores[day_key] = day_scores.get(day_key, 0) + 1
+            if event_type == "review_answered":
+                metadata = _json_loads_dict(event.get("metadata_json"))
+                if isinstance(metadata.get("correct"), bool):
+                    review_answers_with_known_correctness += 1
+                if metadata.get("correct") is True:
+                    correct_review_answers += 1
+
+        review_count = event_type_counts["review_answered"]
+        avg_duration = int(total_duration / len(completed_sessions)) if completed_sessions else None
+        daily_goal_seconds = int(goal["daily_minutes"]) * 60 * 7
+        weekly_minutes = goal.get("weekly_minutes")
+        most_active_day = None
+        if day_scores:
+            most_active_day = sorted(day_scores.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+        return {
+            "week_start": week_start,
+            "week_end": week_end,
+            "language": normalized_language,
+            "completed_session_count": len(completed_sessions),
+            "abandoned_session_count": len(abandoned_sessions),
+            "total_completed_duration_seconds": total_duration,
+            "active_learning_days": len(active_days),
+            "average_completed_session_duration_seconds": avg_duration,
+            "daily_minute_goal_progress": min(1.0, total_duration / daily_goal_seconds) if daily_goal_seconds else 0.0,
+            "weekly_session_goal_progress": min(1.0, len(completed_sessions) / int(goal["weekly_sessions"])),
+            "weekly_minute_goal_progress": (
+                min(1.0, total_duration / (int(weekly_minutes) * 60)) if weekly_minutes else None
+            ),
+            "event_counts_by_type": event_type_counts,
+            "lesson_completion_count": event_type_counts["lesson_completed"],
+            "review_answer_count": review_count,
+            "correct_review_answer_count": correct_review_answers,
+            "review_correctness_rate": (
+                (correct_review_answers / review_answers_with_known_correctness * 100.0)
+                if review_answers_with_known_correctness
+                else None
+            ),
+            "srs_review_count": event_type_counts["srs_reviewed"],
+            "chat_turn_count": event_type_counts["chat_turn_completed"],
+            "feynman_completion_count": event_type_counts["feynman_completed"],
+            "micro_lesson_completion_count": event_type_counts["micro_lesson_completed"],
+            "most_active_day": most_active_day,
+            "recent_completed_sessions": [
+                {
+                    "session_id": session["session_id"],
+                    "status": session["status"],
+                    "started_at": session["started_at"],
+                    "ended_at": session["ended_at"],
+                    "duration_seconds": session["duration_seconds"],
+                    "planned_minutes": session["planned_minutes"],
+                    "total_event_count": event_counts.get(str(session["session_id"]), 0),
+                }
+                for session in completed_sessions[:5]
+            ],
+            "goal": goal,
+        }
 
     def _sync_imported_vocabulary_mastery(
         self,
@@ -1955,7 +2333,8 @@ class Database:
         lesson_id: str,
         explanation: str,
         feedback: Dict[str, Any],
-    ) -> None:
+    ) -> str:
+        feedback_id = str(uuid4())
         with self.get_connection() as conn:
             conn.execute(
                 """
@@ -1964,7 +2343,7 @@ class Database:
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid4()),
+                    feedback_id,
                     user_id,
                     lesson_id,
                     explanation,
@@ -1972,6 +2351,7 @@ class Database:
                     _local_now().isoformat(),
                 ),
             )
+        return feedback_id
 
     def save_imported_vocabulary(self, user_id: str, language: str, item: Dict[str, Any]) -> None:
         word_family = item.get("word_family")

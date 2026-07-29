@@ -1,4 +1,4 @@
-"""Smoke coverage for ENABLE_RAG=true with a real Chroma backend."""
+"""Smoke coverage for ENABLE_RAG=true with the local RAG backend."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 @pytest.mark.rag
 def test_rag_enabled_smoke(tmp_path):
-    pytest.importorskip("chromadb")
     env = os.environ.copy()
     data_dir = tmp_path / "rag-enabled-data"
     env.update(
@@ -28,43 +27,13 @@ def test_rag_enabled_smoke(tmp_path):
     )
 
     code = """
-from chromadb.config import Settings
-import chromadb
-
 from config import settings
-from rag_manager import _ChromaRAGManager
+from rag_manager import RAGManager
 from services.rag_service import build_material_metadata
 
 
-class DummyEmbeddingFunction:
-    def name(self) -> str:
-        return "dummy-smoke"
-
-    @staticmethod
-    def _embed_many(values):
-        embeddings = []
-        for value in values:
-            text = str(value)
-            base = float((len(text) % 7) + 1)
-            embeddings.append([base, base / 2.0, base / 3.0, base / 4.0])
-        return embeddings
-
-    def __call__(self, input):
-        return self._embed_many(input)
-
-    def embed_documents(self, input):
-        return self._embed_many(input)
-
-    def embed_query(self, input):
-        return self._embed_many(input)
-
-
-class SmokeRAGManager(_ChromaRAGManager):
-    COLLECTION_NAME = "rag_materials_smoke"
-
-
 assert settings.enable_rag is True
-manager = SmokeRAGManager(chromadb, Settings, DummyEmbeddingFunction)
+manager = RAGManager()
 assert manager.enabled is True
 
 text = (

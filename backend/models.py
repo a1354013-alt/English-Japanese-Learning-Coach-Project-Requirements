@@ -1,9 +1,12 @@
 """Data models for Language Coach application."""
+import json
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, TypeAlias
 from uuid import uuid4
 
+from learning_session_contract import LearningSessionContractViolation, validate_event_contract
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -20,6 +23,16 @@ EnglishLevel: TypeAlias = Literal["A1", "A2", "B1", "B2", "C1"]
 JapaneseLevel: TypeAlias = Literal["N5", "N4", "N3", "N2", "N1"]
 LearningLevel: TypeAlias = EnglishLevel | JapaneseLevel
 DifficultyMode: TypeAlias = Literal["easy", "normal", "hardcore"]
+MAX_LEARNING_SESSION_PLANNED_MINUTES = 480
+MAX_LEARNING_GOAL_DAILY_MINUTES = 480
+MAX_LEARNING_GOAL_WEEKLY_SESSIONS = 28
+MAX_LEARNING_GOAL_WEEKLY_MINUTES = 3360
+MAX_LEARNING_SESSION_IDEMPOTENCY_KEY_LENGTH = 128
+MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH = 120
+MAX_LEARNING_SESSION_NOTE_LENGTH = 500
+MAX_LEARNING_SESSION_METADATA_BYTES = 1000
+MAX_LEARNING_SESSION_PAGE_SIZE = 100
+_IDEMPOTENCY_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 def _validate_level_for_language(language: LanguageCode, level: str) -> str:
@@ -390,6 +403,10 @@ class ReviewAnswer(BaseModel):
     question_index: StrictInt
     user_answer: StrictStr
     correct_answer: StrictStr
+    client_submission_id: Optional[StrictStr] = Field(
+        default=None,
+        description="Optional client retry key shared by every answer in one review submission.",
+    )
 
 
 class IncorrectItem(BaseModel):
@@ -929,6 +946,21 @@ class SrsReviewRequest(BaseModel):
     word: str
     language: LanguageCode
     quality: int = Field(ge=0, le=5)
+    client_operation_id: Optional[StrictStr] = Field(
+        default=None,
+        description="Optional client retry key for one legacy SRS review operation.",
+    )
+
+
+class LessonStartRequest(BaseModel):
+    idempotency_key: Optional[StrictStr] = None
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return validate_learning_session_idempotency_key(value)
 
 
 class LessonQueryParams(BaseModel):
@@ -940,6 +972,241 @@ class LessonQueryParams(BaseModel):
     topic: Optional[str] = None
     limit: int = 20
     offset: int = 0
+
+
+class LearningSessionStatus(str, Enum):
+    active = "active"
+    completed = "completed"
+    abandoned = "abandoned"
+
+
+class LearningSessionEventType(str, Enum):
+    lesson_started = "lesson_started"
+    lesson_completed = "lesson_completed"
+    review_answered = "review_answered"
+    srs_reviewed = "srs_reviewed"
+    chat_turn_completed = "chat_turn_completed"
+    feynman_completed = "feynman_completed"
+    micro_lesson_completed = "micro_lesson_completed"
+    session_note = "session_note"
+
+
+class LearningSessionEntityType(str, Enum):
+    lesson = "lesson"
+    review = "review"
+    srs_item = "srs_item"
+    conversation = "conversation"
+    feynman_response = "feynman_response"
+    micro_lesson = "micro_lesson"
+
+
+def validate_learning_session_idempotency_key(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("idempotency_key must not be blank")
+    if len(normalized) > MAX_LEARNING_SESSION_IDEMPOTENCY_KEY_LENGTH:
+        raise ValueError(
+            f"idempotency_key must be at most {MAX_LEARNING_SESSION_IDEMPOTENCY_KEY_LENGTH} characters"
+        )
+    if not _IDEMPOTENCY_KEY_RE.fullmatch(normalized):
+        raise ValueError("idempotency_key contains unsupported characters")
+    return normalized
+
+
+class LearningSessionEventMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: Optional[StrictStr] = Field(default=None, max_length=MAX_LEARNING_SESSION_NOTE_LENGTH)
+    correct: Optional[bool] = None
+    rating: Optional[int] = Field(default=None, ge=0, le=5)
+    interval_days: Optional[int] = Field(default=None, ge=0, le=36500)
+    response_time_ms: Optional[int] = Field(default=None, ge=0, le=3_600_000)
+    result_category: Optional[StrictStr] = Field(default=None, max_length=64)
+    lesson_category: Optional[StrictStr] = Field(default=None, max_length=64)
+    completion_outcome: Optional[StrictStr] = Field(default=None, max_length=64)
+    duration_seconds: Optional[int] = Field(default=None, ge=0, le=604_800)
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("metadata.note must not be blank")
+        return trimmed
+
+    @field_validator("result_category", "lesson_category", "completion_outcome")
+    @classmethod
+    def validate_short_label(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("metadata string fields must not be blank")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_metadata(self) -> "LearningSessionEventMetadata":
+        payload = self.model_dump(mode="json", exclude_none=True)
+        if not payload:
+            raise ValueError("metadata must include at least one supported field")
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if len(encoded.encode("utf-8")) > MAX_LEARNING_SESSION_METADATA_BYTES:
+            raise ValueError(
+                f"metadata must be at most {MAX_LEARNING_SESSION_METADATA_BYTES} UTF-8 bytes when serialized"
+            )
+        return self
+
+
+class LearningSessionRecord(BaseModel):
+    session_id: str
+    language: LanguageCode
+    status: LearningSessionStatus
+    planned_minutes: Optional[int] = None
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LearningSessionEventRecord(BaseModel):
+    event_id: str
+    session_id: str
+    event_type: LearningSessionEventType
+    entity_type: Optional[LearningSessionEntityType] = None
+    entity_id: Optional[str] = None
+    sequence_number: int
+    metadata: Optional[LearningSessionEventMetadata] = None
+    occurred_at: datetime
+    created_at: datetime
+
+
+class LearningSessionEventTypeCounts(BaseModel):
+    lesson_started: int = 0
+    lesson_completed: int = 0
+    review_answered: int = 0
+    srs_reviewed: int = 0
+    chat_turn_completed: int = 0
+    feynman_completed: int = 0
+    micro_lesson_completed: int = 0
+    session_note: int = 0
+
+
+class LearningSessionSummary(BaseModel):
+    session_id: str
+    language: LanguageCode
+    status: LearningSessionStatus
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    planned_minutes: Optional[int] = None
+    total_event_count: int
+    counts_by_event_type: LearningSessionEventTypeCounts
+    lesson_completion_count: int
+    review_answer_count: int
+    srs_review_count: int
+    chat_turn_count: int
+    feynman_completion_count: int
+    micro_lesson_completion_count: int
+    first_event_at: Optional[datetime] = None
+    last_event_at: Optional[datetime] = None
+    planned_duration_goal_reached: Optional[bool] = None
+    correct_event_count: Optional[int] = None
+
+
+class LearningSessionHistoryPage(BaseModel):
+    sessions: List[LearningSessionRecord]
+    limit: int
+    has_more: bool
+    next_cursor: Optional[str] = None
+
+
+class LearningSessionEventHistoryPage(BaseModel):
+    events: List[LearningSessionEventRecord]
+    limit: int
+    has_more: bool
+    next_cursor: Optional[str] = None
+
+
+class CreateLearningSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language: LanguageCode
+    planned_minutes: Optional[StrictInt] = None
+
+    @field_validator("planned_minutes")
+    @classmethod
+    def validate_planned_minutes(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if value <= 0 or value > MAX_LEARNING_SESSION_PLANNED_MINUTES:
+            raise ValueError(
+                f"planned_minutes must be between 1 and {MAX_LEARNING_SESSION_PLANNED_MINUTES}"
+            )
+        return value
+
+
+class AppendLearningSessionEventRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: LearningSessionEventType
+    entity_type: Optional[LearningSessionEntityType] = None
+    entity_id: Optional[StrictStr] = None
+    idempotency_key: Optional[StrictStr] = None
+    metadata: Optional[LearningSessionEventMetadata] = None
+
+    @field_validator("entity_id")
+    @classmethod
+    def validate_entity_id(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("entity_id must not be blank")
+        if len(normalized) > MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH:
+            raise ValueError(
+                f"entity_id must be at most {MAX_LEARNING_SESSION_EVENT_ENTITY_ID_LENGTH} characters"
+            )
+        return normalized
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return validate_learning_session_idempotency_key(value)
+
+    @model_validator(mode="after")
+    def validate_entity_shape(self) -> "AppendLearningSessionEventRequest":
+        if (self.entity_type is None) != (self.entity_id is None):
+            raise ValueError("entity_type and entity_id must be provided together")
+        try:
+            validate_event_contract(
+                event_type=self.event_type.value,
+                entity_type=None if self.entity_type is None else self.entity_type.value,
+                entity_id=self.entity_id,
+                metadata=None if self.metadata is None else self.metadata.model_dump(mode="json", exclude_none=True),
+            )
+        except LearningSessionContractViolation as exc:
+            raise ValueError(f"learning_session_semantics: {exc}") from exc
+        return self
+
+
+class CompleteLearningSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: StrictStr
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def validate_idempotency_key(cls, value: str) -> str:
+        return validate_learning_session_idempotency_key(value)
+
+
+class AbandonLearningSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 # ============ API Response Models ============
@@ -956,6 +1223,120 @@ class SuccessResponse(BaseModel):
 
 class MessageResponse(SuccessResponse):
     message: str
+
+
+class LearningSessionDetailResponse(SuccessResponse):
+    session: LearningSessionRecord
+
+
+class LearningSessionActiveResponse(SuccessResponse):
+    session: Optional[LearningSessionRecord] = None
+
+
+class LearningSessionListResponse(SuccessResponse):
+    sessions: List[LearningSessionRecord]
+    limit: int
+    has_more: bool
+    next_cursor: Optional[str] = None
+
+
+class LearningSessionEventDetailResponse(SuccessResponse):
+    event: LearningSessionEventRecord
+
+
+class LearningSessionEventListResponse(SuccessResponse):
+    events: List[LearningSessionEventRecord]
+    limit: int
+    has_more: bool
+    next_cursor: Optional[str] = None
+
+
+class LearningSessionSummaryResponse(SuccessResponse):
+    summary: LearningSessionSummary
+
+
+class LearningGoalRecord(BaseModel):
+    language: LanguageCode
+    daily_minutes: int
+    weekly_sessions: int
+    weekly_minutes: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpdateLearningGoalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    daily_minutes: StrictInt
+    weekly_sessions: StrictInt
+    weekly_minutes: Optional[StrictInt] = None
+
+    @field_validator("daily_minutes")
+    @classmethod
+    def validate_daily_minutes(cls, value: int) -> int:
+        if value <= 0 or value > MAX_LEARNING_GOAL_DAILY_MINUTES:
+            raise ValueError(f"daily_minutes must be between 1 and {MAX_LEARNING_GOAL_DAILY_MINUTES}")
+        return value
+
+    @field_validator("weekly_sessions")
+    @classmethod
+    def validate_weekly_sessions(cls, value: int) -> int:
+        if value <= 0 or value > MAX_LEARNING_GOAL_WEEKLY_SESSIONS:
+            raise ValueError(f"weekly_sessions must be between 1 and {MAX_LEARNING_GOAL_WEEKLY_SESSIONS}")
+        return value
+
+    @field_validator("weekly_minutes")
+    @classmethod
+    def validate_weekly_minutes(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return None
+        if value <= 0 or value > MAX_LEARNING_GOAL_WEEKLY_MINUTES:
+            raise ValueError(f"weekly_minutes must be between 1 and {MAX_LEARNING_GOAL_WEEKLY_MINUTES}")
+        return value
+
+
+class LearningGoalResponse(SuccessResponse):
+    goal: LearningGoalRecord
+
+
+class LearningSessionRecentSummary(BaseModel):
+    session_id: str
+    status: LearningSessionStatus
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    planned_minutes: Optional[int] = None
+    total_event_count: int
+
+
+class WeeklyLearningInsight(BaseModel):
+    week_start: datetime
+    week_end: datetime
+    language: LanguageCode
+    completed_session_count: int
+    abandoned_session_count: int
+    total_completed_duration_seconds: int
+    active_learning_days: int
+    average_completed_session_duration_seconds: Optional[int] = None
+    daily_minute_goal_progress: float
+    weekly_session_goal_progress: float
+    weekly_minute_goal_progress: Optional[float] = None
+    event_counts_by_type: LearningSessionEventTypeCounts
+    lesson_completion_count: int
+    review_answer_count: int
+    correct_review_answer_count: int
+    review_correctness_rate: Optional[float] = None
+    srs_review_count: int
+    chat_turn_count: int
+    feynman_completion_count: int
+    micro_lesson_completion_count: int
+    most_active_day: Optional[str] = None
+    recent_completed_sessions: List[LearningSessionRecentSummary] = Field(default_factory=list)
+    goal: LearningGoalRecord
+
+
+class WeeklyLearningInsightResponse(SuccessResponse):
+    insight: WeeklyLearningInsight
 
 
 class LessonGamification(BaseModel):
@@ -1144,6 +1525,20 @@ class RagHealth(BaseModel):
     error: Optional[str] = None
 
 
+class LearningSessionRecorderHealth(BaseModel):
+    mode: Literal["strict", "tolerant"]
+    degraded: bool
+    total_successes: int
+    total_failures: int
+    consecutive_failures: int
+    last_success_at: Optional[datetime] = None
+    last_failure_at: Optional[datetime] = None
+    last_failure_error: Optional[str] = None
+    last_failure_event_type: Optional[str] = None
+    last_failure_entity_type: Optional[str] = None
+    last_failure_entity_id: Optional[str] = None
+
+
 class HealthCheckResponse(BaseModel):
     api: str
     database: DatabaseHealth
@@ -1155,6 +1550,7 @@ class ReadyCheckResponse(BaseModel):
     database: DatabaseHealth
     ollama: OllamaHealth
     rag: RagHealth
+    learning_session_recorder: LearningSessionRecorderHealth
     timestamp: datetime
 
 

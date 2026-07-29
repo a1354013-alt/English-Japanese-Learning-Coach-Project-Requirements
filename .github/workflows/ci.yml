@@ -403,6 +403,9 @@ jobs:
       - name: Install Playwright (Chromium only)
         run: npm run e2e:install -- --with-deps
 
+      - name: List full-stack e2e specs
+        run: npm run test:e2e:fullstack -- --project=chromium --list
+
       - name: Run full-stack e2e acceptance
         run: npm run test:e2e:fullstack -- --project=chromium
 

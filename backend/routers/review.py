@@ -1,5 +1,7 @@
 """Exercise review, SRS due items, and generation task history."""
 
+import hashlib
+import json
 from typing import Any, List, Optional
 
 from api_errors import COMMON_ERROR_RESPONSES, api_error
@@ -13,6 +15,7 @@ from models import (
     LearningItemGroupResponse,
     LearningItemReviewRequest,
     LearningItemReviewState,
+    LearningSessionEventMetadata,
     ReviewAnswer,
     ReviewSubmitResponse,
     SrsDueResponse,
@@ -22,6 +25,7 @@ from models import (
     UserRPGStats,
 )
 from services.learning_intelligence import apply_item_reviews_from_lesson
+from services.learning_session_recorder import build_learning_session_recorder
 from services.lesson_ops import (
     is_answer_correct,
     load_lesson_payload,
@@ -39,6 +43,13 @@ def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) 
     lesson_id = answers[0].lesson_id
     if any(a.lesson_id != lesson_id for a in answers):
         raise api_error(422, "Invalid review payload: mixed lesson_id", "review_mixed_lesson_id")
+    client_submission_ids = {a.client_submission_id for a in answers if a.client_submission_id is not None}
+    if len(client_submission_ids) > 1:
+        raise api_error(
+            422,
+            "Invalid review payload: mixed client_submission_id",
+            "review_mixed_client_submission_id",
+        )
 
     grammar_exercises = lesson_data.get("grammar", {}).get("exercises", []) or []
     reading_questions = lesson_data.get("reading", {}).get("questions", []) or []
@@ -84,6 +95,31 @@ def _validate_review_submission(lesson_data: dict, answers: List[ReviewAnswer]) 
         )
 
 
+def _review_request_hash(answers: List[ReviewAnswer]) -> str:
+    payload = [
+        {
+            "lesson_id": answer.lesson_id,
+            "exercise_type": answer.exercise_type,
+            "question_index": answer.question_index,
+            "user_answer": answer.user_answer,
+            "correct_answer": answer.correct_answer,
+        }
+        for answer in sorted(answers, key=lambda item: (item.exercise_type, item.question_index))
+    ]
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _srs_request_hash(*, word: str, language: str, quality: int) -> str:
+    encoded = json.dumps(
+        {"word": word, "language": language, "quality": quality},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 @router.post("/review", response_model=ReviewSubmitResponse)
 async def submit_review(
     answers: List[ReviewAnswer],
@@ -97,6 +133,30 @@ async def submit_review(
     lesson_data = load_lesson_payload(lesson_id, user_id=user_id)
     _validate_review_submission(lesson_data, answers)
     review_data = score_answers(lesson_data, answers)
+    client_submission_id = next((a.client_submission_id for a in answers if a.client_submission_id is not None), None)
+    try:
+        submission = db.get_or_create_review_submission(
+            user_id=user_id,
+            lesson_id=lesson_id,
+            client_submission_id=client_submission_id,
+            request_hash=_review_request_hash(answers),
+            total_questions=review_data["total_questions"],
+            correct_count=review_data["correct_count"],
+            accuracy_rate=review_data["accuracy_rate"],
+        )
+    except ValueError:
+        raise api_error(
+            409,
+            "Review submission idempotency conflict",
+            "review_submission_idempotency_conflict",
+        ) from None
+    if submission["is_retry"]:
+        return {
+            "success": True,
+            **review_data,
+            "gamification": {"xp_added": 0, "leveled_up": False},
+        }
+    review_submission_id = str(submission["submission_id"])
     previous_result = db.get_exercise_result(user_id=user_id, lesson_id=lesson_id, exercise_type="mixed")
     was_completed = previous_result is not None
 
@@ -191,6 +251,42 @@ async def submit_review(
             source_lesson_id=lesson_id,
         )
 
+    recorder = build_learning_session_recorder(db)
+    for answer in answers:
+        event_id = f"{review_submission_id}:{answer.exercise_type}:{answer.question_index}"
+        recorder.record_event(
+            user_id=user_id,
+            language=language,
+            event_type="review_answered",
+            entity_type="review",
+            entity_id=event_id,
+            idempotency_key=f"review-answered:{event_id}",
+            metadata=LearningSessionEventMetadata(
+                correct=is_answer_correct(
+                    answer.user_answer,
+                    (
+                        lesson_data.get("grammar", {}).get("exercises", [])[answer.question_index]
+                        if answer.exercise_type == "grammar"
+                        else lesson_data.get("reading", {}).get("questions", [])[answer.question_index]
+                    ),
+                ),
+                result_category=answer.exercise_type,
+            ),
+        )
+
+    if not was_completed:
+        recorder.record_event(
+            user_id=user_id,
+            language=language,
+            event_type="lesson_completed",
+            entity_type="lesson",
+            entity_id=lesson_id,
+            idempotency_key=f"lesson-completed:{lesson_id}",
+            metadata=LearningSessionEventMetadata(
+                completion_outcome="review_submitted",
+            ),
+        )
+
     return {
         "success": True,
         **review_data,
@@ -237,6 +333,24 @@ async def submit_srs_review(
     prev = db.get_srs_item(user_id, word, request.language)
     if not prev:
         raise api_error(404, "SRS item not found", "srs_item_not_found")
+    try:
+        operation = db.get_or_create_legacy_srs_review_operation(
+            user_id=user_id,
+            word=word,
+            language=request.language,
+            quality=request.quality,
+            client_operation_id=request.client_operation_id,
+            request_hash=_srs_request_hash(word=word, language=request.language, quality=request.quality),
+        )
+    except ValueError:
+        raise api_error(
+            409,
+            "SRS review idempotency conflict",
+            "srs_review_idempotency_conflict",
+        ) from None
+    if operation["is_retry"]:
+        db.record_learning_activity(user_id=user_id, activity_type="srs_review")
+        return {"success": True}
 
     srs_data = srs_engine.calculate(
         quality=request.quality,
@@ -245,8 +359,23 @@ async def submit_srs_review(
         repetition=int(prev["srs_level"]) if prev else 0,
     )
     vocab_info = prev["data"] if isinstance(prev.get("data"), dict) else {}
-    db.update_srs_item(user_id, word, request.language, srs_data, vocab_info)
+    if not operation["is_retry"]:
+        db.update_srs_item(user_id, word, request.language, srs_data, vocab_info)
     db.record_learning_activity(user_id=user_id, activity_type="srs_review")
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=request.language,
+        event_type="srs_reviewed",
+        entity_type="srs_item",
+        entity_id=f"legacy:{word}",
+        idempotency_key=f"srs-reviewed:{operation['operation_id']}",
+        metadata=LearningSessionEventMetadata(
+            correct=request.quality >= 3,
+            rating=request.quality,
+            interval_days=int(srs_data["interval"]),
+            result_category="legacy_vocabulary",
+        ),
+    )
     return {"success": True}
 
 
@@ -299,6 +428,21 @@ async def submit_learning_item_review(
         )
     except ValueError:
         raise api_error(404, "Learning item not found", "learning_item_not_found") from None
+    build_learning_session_recorder(db).record_event(
+        user_id=user_id,
+        language=str(updated.get("language") or ""),
+        event_type="srs_reviewed",
+        entity_type="srs_item",
+        entity_id=str(updated.get("item_id") or request.item_id),
+        idempotency_key=f"srs-reviewed:{updated.get('review_event_id')}",
+        metadata=LearningSessionEventMetadata(
+            correct=bool(updated.get("review_correct")),
+            rating=request.rating,
+            interval_days=int(updated.get("interval_days") or 0),
+            result_category=str(updated.get("mastery_state") or ""),
+            response_time_ms=request.response_time_ms,
+        ),
+    )
     return {
         "success": True,
         "item_id": updated.get("id"),

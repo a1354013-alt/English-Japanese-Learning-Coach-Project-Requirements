@@ -9,7 +9,8 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   webServer: [
     {
-      command: 'python -m uvicorn main:app --host 127.0.0.1 --port 8000',
+      command:
+        'python -c "import shutil; shutil.rmtree(\'.playwright-data\', ignore_errors=True)" && python -m uvicorn main:app --host 127.0.0.1 --port 8000',
       cwd: '../backend',
       env: {
         ...process.env,
