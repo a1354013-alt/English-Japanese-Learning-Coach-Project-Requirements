@@ -60,10 +60,10 @@ Learning Session hardening coverage is included in backend pytest and should exp
 - RAG-enabled smoke uses the local SQLite RAG store and must pass without Chroma.
 - SQLite RAG lifecycle coverage must prove successful reads/writes, rollback on failure, repeated query cycles, garbage collection, and `ResourceWarning` warning-as-error cleanliness without global warning suppression.
 
-Current `1.6.0-rc1` validation status:
+Current `1.6.0` validation status:
 
-- As of Monday, July 27, 2026, the release-candidate gate has been exercised on Python `3.11.0`, Node `22.18.0`, and npm `10.9.3`.
-- Frontend reinstall, audits, mocked E2E, full-stack smoke, full-stack persisted-chat E2E, Docker config validation, shell syntax validation, and `scripts/verify_delivery.py` are green on the mandated toolchain.
+- As of Wednesday, July 29, 2026, the release gate has been exercised on Python `3.11.x`, Node `22.18.0`, and npm `10.9.3`.
+- Frontend reinstall, audits, mocked E2E, full-stack smoke, full-stack persisted-chat E2E, Learning Session full-stack E2E, Docker config validation, shell syntax validation, and `scripts/verify_delivery.py` are green on the mandated toolchain.
 
 ## Frontend
 
@@ -116,7 +116,7 @@ python scripts/verify_delivery.py
 python scripts/make_release_zip.py
 ```
 
-For `1.6.0-rc1`, release verification must pass using release-facing markers in `README.md`, `RELEASE_CHECKLIST.md`, and `docs/DEMO_GUIDE.md`, plus root/frontend/package-lock version parity.
+For `1.6.0`, release verification must pass using release-facing markers in `README.md`, `RELEASE_CHECKLIST.md`, and `docs/DEMO_GUIDE.md`, plus root/frontend/package-lock version parity.
 
 Optional RAG verification is a separate lane and requires:
 

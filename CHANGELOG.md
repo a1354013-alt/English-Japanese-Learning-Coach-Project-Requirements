@@ -4,9 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-No unreleased changes.
-
-## [1.6.0-rc1] - 2026-07-28
+## [1.6.0] - 2026-07-29
 
 ### Added
 
@@ -16,17 +14,18 @@ No unreleased changes.
 - Added an explicit `POST /api/lessons/{lesson_id}/start` learner-start contract so generated or preloaded Lessons are not counted as started until the learner begins them.
 - Added focused Learning Session recorder integration regressions for no active Session, wrong-language Session isolation, tolerant lookup/append/idempotency/SQLite failures, strict semantic failures, repeated Review attempts, Review network retries, legacy and item-level SRS, Chat, Feynman, Micro Lesson, and 50 Review retry/resubmission rounds.
 - Added migration `0014_learning_goals.sql`, typed Learning Goal APIs, deterministic weekly insight APIs, and a compact Progress-page Learning Session/Weekly Review panel.
-- Added manually triggered full-stack Learning Session E2E coverage for real FastAPI/SQLite migrations, retry-safe Lesson/Review/SRS/Note events, persisted Chat event recording, goals, weekly insights, completion, abandonment, and language isolation.
+- Added manually triggered full-stack Learning Session E2E coverage for real FastAPI/SQLite migrations `0012` through `0014`, Learning Session start, explicit Lesson start, retry-safe Lesson/Review/SRS/Note events, persisted Chat event recording, Learning Goals, deterministic Weekly Insights, completion, abandonment, EN/JP isolation, and Japanese Session abandonment.
 
 ### Changed
 
-- Lesson, Review, SRS, Chat Tutor, Feynman, and Micro Lesson flows now record optional Learning Session telemetry when a same-language active Session exists, while remaining usable with no Session or a wrong-language Session.
+- Lesson, Review, SRS, Chat Tutor, Feynman, and Micro Lesson flows now record optional Learning Session Events when a same-language active Session exists, while remaining usable with no Session or a wrong-language Session.
 - RAG-enabled local storage now uses the app's SQLite-backed RAG manager instead of the vulnerable Chroma/Transformers dependency stack.
 - Hardened the Learning Session Phase 1 contract with a shared semantic validation table, canonical post-finalization event retries, state-idempotent abandonment, snapshot-consistent summaries, and demo-reset cleanup through the repository clear path.
 - Extended backend regression coverage to include migration `0012`, repository idempotency rules, 50-round concurrency races, semantic-contract enforcement, demo-reset cleanup, and OpenAPI/API contract checks for the new learning-session boundary.
 - Updated delivery verification so development versions such as `1.6.0-dev.1` use explicit README development markers while stable release checklist and demo-guide references remain pinned to `v1.5.0`.
 - Learning Session frontend flows now use accessible in-app confirmation dialogs, cursor-driven Session/event pagination, and i18n-backed learner-facing copy instead of hardcoded English plus `window.confirm()`.
 - Delivery verification now validates the current SQLite-backed RAG lock and pytest lane without requiring ChromaDB.
+- Session restoration after browser reload uses server-derived elapsed time and canonical finalized duration instead of trusting client-only timers.
 
 ### Fixed
 
@@ -38,6 +37,7 @@ No unreleased changes.
 - Fixed manual Session-note idempotency by replacing note-text-derived keys with bounded `session-note:<operation-id>` keys, preserving retry identity while allowing later intentional identical notes and preventing duplicate canonical timeline rows.
 - Fixed Weekly Insight date validation so invalid `week_start` values are handled by typed FastAPI `date` validation with structured `422` responses; valid supplied dates normalize to that week’s Monday.
 - Fixed Weekly Insight attribution so finalized Session lifecycle metrics use `ended_at` while Event activity metrics use `occurred_at` across week boundaries.
+- Fixed Weekly Insight review correctness denominators so only review-answer Events with correctness metadata contribute to correctness rates.
 - Fixed SQLite-backed RAG connection lifecycle so production reads and writes use a managed connection boundary that commits, rolls back, and closes deterministically.
 - Fixed abandoned Session frontend state so the active reactive Session is cleared while deterministic summary, history, and timeline data remain readable.
 - Fixed Learning Goal optional `weekly_minutes` handling so cleared number inputs serialize to JSON `null` instead of leaking empty strings.

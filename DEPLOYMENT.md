@@ -8,6 +8,7 @@ The release-verified toolchain is:
 
 - Python `3.11.x`
 - Node.js `22.18.0`
+- npm `10.9.3`
 
 Local frontend setup should match CI:
 

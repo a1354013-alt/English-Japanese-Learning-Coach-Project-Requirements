@@ -4,8 +4,8 @@ Portfolio-grade **AI English-Japanese Learning Coach** built with **FastAPI**, *
 
 The project is designed for live demos: it can generate EN/JP lessons, score reviews, update learner progress, track wrong answers, export PDFs, and optionally reset demo data back to a presentable state in local demo environments.
 
-<!-- release:current=v1.6.0-rc1 -->
-Current release: `v1.6.0-rc1`.
+<!-- release:current=v1.6.0 -->
+Current release: `v1.6.0`.
 
 This project currently runs as a single-user/local demo learning coach. It does not include production-grade authentication, authorization, user isolation, rate limiting, or audit logging by default.
 
@@ -54,9 +54,9 @@ flowchart LR
 
 Text architecture: the Vue frontend talks to the FastAPI backend through typed REST clients. FastAPI persists progress, lessons, SRS, wrong answers, imported vocabulary categories, activity streaks, analytics, Learning Sessions, Learning Goals, Weekly Insights, and optional RAG material chunks in SQLite. Core mode works without RAG dependencies. RAG mode requires `ENABLE_RAG=true` and separate verification; when enabled it stores chunked material metadata in the local SQLite-backed RAG store. TTS is integration-ready and currently returns an explicit preview/unavailable contract until a real provider is configured.
 
-## v1.6.0 Release Candidate
+## v1.6.0 Release
 
-Version `1.6.0-rc1` packages the learner-facing Learning Sessions release candidate while preserving the verified `v1.5.0` persisted-chat baseline:
+Version `1.6.0` packages the learner-facing Learning Sessions release while preserving the verified `v1.5.0` persisted-chat baseline:
 
 - Migration `0012_learning_sessions_and_events.sql` adds explicit Session lifecycle storage and append-only Events.
 - Migration `0013_review_and_srs_operation_ids.sql` adds canonical Review/SRS operation identities for retry-safe Session telemetry.
@@ -72,7 +72,7 @@ Version `1.6.0-rc1` packages the learner-facing Learning Sessions release candid
 - Learning Session telemetry keeps tolerant-mode primary-flow isolation while exposing recorder degraded state and counters through `GET /api/ready`.
 - Optional RAG storage is SQLite-backed and uses managed connection boundaries that commit, roll back, and close deterministically.
 
-The `v1.6.0-rc1` gate has been verified on Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3`, including frontend reinstall/audit, E2E, Docker validation, and delivery verification.
+The `v1.6.0` gate has been verified on Python `3.11.x`, Node.js `22.18.0`, and npm `10.9.3`, including frontend reinstall/audit, mocked E2E, full-stack E2E, Docker validation, and delivery verification.
 
 ## Textbook-Style Lessons
 
@@ -374,7 +374,7 @@ Demo data boundaries for the current branch:
 
 - `v1.4.3` fixture data covers the adaptive-learning baseline that demo reset rebuilds.
 - `v1.5.0` persisted-chat behavior is validated against the stable baseline but conversations themselves are not pre-seeded by demo reset.
-- `v1.6.0-rc1` Learning Session runtime rows, Session event history, and learner-created goals are not pre-seeded; demo reset clears them before rebuilding the older adaptive baseline.
+- `v1.6.0` Learning Session runtime rows, Session event history, and learner-created goals are not pre-seeded; demo reset clears them before rebuilding the older adaptive baseline.
 - Migrations `0012` through `0014` remain additive: `0012` stores Sessions and Events, `0013` adds retry-safe Review/SRS operation identities, and `0014` stores per-language Learning Goals.
 
 ### Full-Stack Smoke E2E
