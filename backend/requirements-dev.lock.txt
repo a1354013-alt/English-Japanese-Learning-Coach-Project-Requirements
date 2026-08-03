@@ -120,7 +120,7 @@ pytz==2026.2
     # via
     #   -r requirements.txt
     #   pandas
-redis==5.2.1
+redis==8.1.0
     # via -r requirements.txt
 reportlab==4.5.1
     # via -r requirements.txt
