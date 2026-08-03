@@ -1,9 +1,9 @@
 # lock-check: python=3.11
 # lock-check: inputs=requirements.txt
 # lock-check: sha256=3c6d3e761add9170216e472a79587e7eed7d366a62af4d31f066bb227ed1d935
-annotated-doc==0.0.4
+annotated-doc==0.0.5
     # via fastapi
-annotated-types==0.7.0
+annotated-types==0.8.0
     # via pydantic
 anyio==4.14.2
     # via
@@ -23,7 +23,7 @@ colorama==0.4.6
     # via click
 et-xmlfile==2.0.0
     # via openpyxl
-fastapi==0.139.0
+fastapi==0.141.1
     # via -r requirements.txt
 h11==0.16.0
     # via
@@ -37,7 +37,7 @@ idna==3.18
     # via
     #   anyio
     #   httpx
-numpy==2.4.6
+numpy==2.5.1
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.txt
@@ -50,7 +50,7 @@ pydantic==2.13.4
     #   -r requirements.txt
     #   fastapi
     #   pydantic-settings
-pydantic-core==2.46.4
+pydantic-core==2.47.0
     # via pydantic
 pydantic-settings==2.14.2
     # via -r requirements.txt
@@ -64,7 +64,7 @@ python-dotenv==1.2.2
     #   pydantic-settings
 python-multipart==0.0.32
     # via -r requirements.txt
-pytz==2026.2
+pytz==2026.3.post1
     # via
     #   -r requirements.txt
     #   pandas
@@ -95,7 +95,7 @@ tzdata==2026.3
     #   tzlocal
 tzlocal==5.4.4
     # via apscheduler
-uvicorn==0.50.0
+uvicorn==0.52.0
     # via -r requirements.txt
 websockets==16.0
     # via -r requirements.txt
